@@ -39,7 +39,7 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   await post(staff,'/api/access/login',credentials(worker));
   const page=await staff.newPage();await page.goto(origin);
   await expect(page.locator('.scheduler-shift')).toHaveCount(1);
-  assert.deepEqual(await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height)),[42,42]);
+  assert.deepEqual(await page.locator('.scheduler-tabs button').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height)),[42,42,42]);
   const title=page.locator('#staff-scheduler-page .workspace-title-row h1');
   for(const width of [1254,390,320]){
     await page.setViewportSize({width,height:884});
@@ -55,6 +55,19 @@ const ready=new Promise((resolve,reject)=>{let buffer='';server.on('exit',()=>re
   const state=await (await staff.request.get(origin+'/api/scheduler/state')).json();
   assert.deepEqual(state.entries.map(x=>x.member_id),[member.id]);
   assert.equal(state.entries[0].work_order.document_id,order.document_id);
+  await page.getByRole('button',{name:'Reports',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Payroll Report'})).toBeVisible();
+  await expect(page.locator('.scheduler-report-detail summary')).toContainText(member.name);
+  await expect(page.locator('.scheduler-reports')).not.toContainText(user.name);
+  const reports=page.locator('.scheduler-reports');
+  await reports.getByRole('button',{name:'Project Report',exact:true}).click();
+  await reports.getByLabel('Job',{exact:true}).selectOption({label:order.reference});
+  await expect(reports.getByRole('progressbar',{name:order.reference})).toBeVisible();
+  await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
+  await reports.getByLabel('Start date',{exact:true}).fill('2000-01-01');
+  await reports.getByLabel('End date',{exact:true}).fill('2000-01-02');
+  await reports.getByRole('button',{name:'Run report',exact:true}).click();
+  await expect(reports.getByText('No completed time entries match these filters.')).toBeVisible();
   assert.equal((await staff.request.get(origin+'/api/contacts/directory')).status(),403);
   assert.equal((await staff.request.get(origin+'/api/scheduler/shift-site-contacts?'+new URLSearchParams({id:order.id,revision:order.revision}))).status(),403);
   assert.equal((await staff.request.post(origin+'/api/scheduler/shifts/save',{data:{...base,title:'Unauthorised'}})).status(),403);

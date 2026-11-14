@@ -64,7 +64,8 @@ class AccessTests(unittest.TestCase):
         for route in ['/api/bootstrap','/api/contacts/directory','/api/commercial/pdf/revision','/api/projects']:
             self.access.authorize(self.handler(self.login['token']),route)
         self.access.authorize(self.handler(self.login['token'],'POST',person),'/api/calculate')
-        for route in ['/api/contacts/leads','/api/commercial/save','/api/project/save','/api/new-future-write']:
+        for route in ['/api/contacts/leads','/api/commercial/save','/api/project/save','/api/new-future-write',
+                      '/api/contacts/leads/follow-up','/api/projects/follow-up']:
             self.assert_denied(403,self.handler(self.login['token'],'POST',person),route)
         self.assert_denied(409,self.handler(self.login['token']),'/api/libraries/technical/new')
         self.assert_denied(403,self.handler(self.login['token'],member=person),'/api/libraries/technical/new')

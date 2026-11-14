@@ -201,6 +201,8 @@ class ContactsHTTP:
                     handler.send_payload(404, {'error':'Directory action not found.'})
                     return True
                 handler.send_payload(200, result)
+            elif handler.command == "POST" and action == 'leads/follow-up':
+                handler.send_payload(200, self.store.save_follow_up(handler.read_json(), actor))
             elif handler.command == "POST" and action in {"leads", "contacts", "accounts"}:
                 body = handler.read_json()
                 catalog = None

@@ -71,6 +71,10 @@
 .commercial-work-layout>.commercial-editor,.commercial-sidebar{min-width:0}
 .commercial-sidebar{display:grid;gap:12px}
 .commercial-sidebar .commercial-side-panel{margin:0;padding:14px}
+@media screen {
+  #main :is(.commercial-sidebar,.project-workspace-side,.project-workspace-links)
+    :is(.commercial-side-panel,.record-resource-panel,.contacts-links-group,.crm-identity-section,.crm-timeline){border-top-color:#fff}
+}
 .commercial-side-panel>summary{cursor:pointer;font-weight:700;overflow-wrap:anywhere}
 .commercial-side-panel[open]>summary{margin-bottom:12px}
 .commercial-linked-contacts{display:grid;gap:12px;min-width:0;margin-top:12px}
@@ -170,3 +174,7 @@
 #commercial-purchase-order-root .commercial-refresh-contacts { height:42px; min-height:42px; padding-block:0; }
 .commercial-purchase-information textarea { min-height:42px; height:42px; line-height:20px; resize:vertical; }
 .commercial-purchase-information .commercial-directory-field { margin-top:0; }
+
+.commercial-details>.commercial-follow-ups{grid-column:1/-1;min-width:0}
+.commercial-card .project-card-heading>.board-follow-up-due{position:static;flex:none;align-self:flex-start}
+.commercial-card .project-title-button{margin-inline-end:auto}

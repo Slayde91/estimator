@@ -1102,7 +1102,7 @@ class FirestoppingLibrary(ReferenceLibrary):
                 raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
             diagram = diagram_upload(body['diagram']) if action == 'save' and 'diagram' in body else UNCHANGED
             if action == 'refresh-pricing':
-                config = self.edits.store.configuration()
+                config = self.edits.store.shared_configuration()
                 config['catalog'] = configuration_catalog(config)
                 snapshot = {'basis': 'shared', 'label': 'Shared Pricing Library',
                             'source_sha256': source['source_sha256'], 'configuration': validate_configuration(config)}

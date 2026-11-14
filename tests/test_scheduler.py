@@ -78,6 +78,63 @@ class SchedulerTests(unittest.TestCase):
         self.assertNotIn('correct horse', serialized)
         self.assert_error(401, lambda: self.store.read('state'))
 
+    def test_report_only_counts_completed_owned_time_and_splits_midnight_breaks(self):
+        worker = self.member()
+        other = self.member('Other')
+        base = {'member_id':worker['id'], 'start':'2026-11-02T23:00','end':'2026-11-03T03:00'}
+        self.write('entries/save', {**base,'breaks':[
+            {'start':'2026-11-02T23:50','end':'2026-11-03T00:10','paid':True},
+            {'start':'2026-11-03T02:00','end':'2026-11-03T02:30','paid':False}]})
+        self.write('entries/save',{**base,'member_id':other['id']})
+        token = self.store.write('login',{'email':worker['email'],'password':'worker password 123'})['token']
+        period = {'start':'2026-11-02','end':'2026-11-03'}
+        self.write('clock/in',{})  # Administrator's open entry is omitted from the report.
+        data = self.store.read('reports',period,token)
+        self.assertEqual(data['members'],{worker['id']:worker['name']})
+        self.assertEqual([(r['day'],r['paid'],r['paid_break'],r['unpaid_break']) for r in data['rows']],
+                         [('2026-11-02',3600,600,0),('2026-11-03',9000,600,1800)])
+        self.assertTrue(all(r['clock_in']=='2026-11-02T23:00:00+11:00' and
+                            r['clock_out']=='2026-11-03T03:00:00+11:00' for r in data['rows']))
+        self.assertTrue(all(r['job']=='unassigned' and r['regular']+r['overtime']==r['paid'] for r in data['rows']))
+        self.assertEqual({r['member'] for r in self.store.read('reports',period,self.token)['rows']},
+                         {worker['id'],other['id']})
+        self.assert_error(401,lambda:self.store.read('reports',period))
+        self.assert_error(400,lambda:self.store.read('reports',{**period,'member':other['id']},token))
+        self.assert_error(400,lambda:self.store.read('reports',{**period,'end':'2028-02-20'},self.token))
+
+    def test_report_preserves_prior_week_context_and_exact_source_across_job_filters(self):
+        worker = self.member()
+        settings = self.state()['settings']
+        rule = next(r for r in settings['overtime_rules'] if r['type']=='weekly')
+        settings['overtime_rules'] = [{**rule,'threshold_hours':'2','multiplier':'1.5'}]
+        self.write('settings',settings)
+        def order(identity,revision):
+            source, project, document = identity.split(':')
+            return {'id':identity,'revision':revision,'reference':'WO-01','source_id':source,
+                    'project_id':project,'document_id':document,'project_no':'PN-01','client':'ACME','site_address':'Site'}
+        self.store.work_order_lookup = order
+        for day,job in [('02','first-source'),('03','second-source')]:
+            self.write('entries/save',{'member_id':worker['id'],'start':'2026-11-'+day+'T07:00',
+                'end':'2026-11-'+day+'T10:00','work_order':{'id':job+':same-project:same-document','revision':'1'}})
+        period={'start':'2026-11-03','end':'2026-11-03'}
+        day, = self.store.read('reports',period,self.token)['rows']
+        self.assertEqual((day['regular'],day['overtime'],day['paid']), (0,10800,10800))
+        earlier, later = self.store.read('reports',{**period,'start':'2026-11-02'},self.token)['rows']
+        self.assertNotEqual(earlier['job'],later['job'])
+        self.assertNotEqual(earlier['project'],later['project'])
+        self.assertEqual(earlier['job_label'],later['job_label'])
+        settings=self.state()['settings']; settings['pay_rules_confirmed']=False
+        self.write('settings',settings)
+        report=self.store.read('reports',period,self.token)
+        self.assertEqual(report['pay_status'],'confirmation_required')
+        self.assertEqual((report['rows'][0]['paid'],report['rows'][0]['overtime']), (10800,0))
+
+    def test_report_uses_actual_dst_elapsed_hours(self):
+        worker=self.member()
+        self.write('entries/save',{'member_id':worker['id'],'start':'2026-10-04T00:00','end':'2026-10-04T04:00'})
+        row,=self.store.read('reports',{'start':'2026-10-04','end':'2026-10-04'},self.token)['rows']
+        self.assertEqual((row['day'],row['elapsed'],row['paid']), ('2026-10-04',10800,10800))
+
     def test_password_login_expiry_and_logout(self):
         self.assert_error(401, lambda: self.store.write('login', {'email': 'admin@example.test', 'password': 'wrong password'}))
         token = self.store.write('login', {'email': 'ADMIN@example.test', 'password': 'correct horse battery'})['token']

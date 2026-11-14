@@ -1042,7 +1042,6 @@
           column.append(card);
           continue;
         }
-        window.ClassifireDocumentBoard.addFollowUpMarker(card, lead.follow_up_date);
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if(saving||converting||event.target.closest('button,summary,input,select')){event.preventDefault();return;}
@@ -1065,7 +1064,28 @@
           options.style.top = `${rect.bottom + options.offsetHeight + 12 <= innerHeight ? rect.bottom + 6 : Math.max(8, rect.top - options.offsetHeight - 6)}px`;
         });
         const openLead = button(lead.name, () => dialogEditor("leads", lead), "text-button project-title-button");
-        openLead.dataset.directoryRecord=lead.id; row.append(openLead, menu);
+        openLead.dataset.directoryRecord=lead.id; row.append(openLead);
+        window.ClassifireDocumentBoard.addFollowUpMarker(row, lead.follow_up_date, event =>
+          window.ClassifireFollowUpActions.openDialog({
+            trigger:event.currentTarget, recordName:lead.name,
+            readOnly:!window.ClassifireAccess.can("edit"),
+            load:async () => {
+              const directory = await request("directory?board=1");
+              const current = directory.leads.find(item => item.id === lead.id);
+              if (!current) throw new Error("Choose an existing directory record.");
+              return {actions:current.follow_up_actions, version:directory.version};
+            },
+            save:(actions, loaded, request_id) => request("leads/follow-up", {id:lead.id, version:loaded.version, actions, request_id}),
+            onSaved:async () => {
+              const ticket = generation, directory = await request("directory?board=1");
+              if (ticket === generation && page === "leads") { data = directory; render(); }
+            },
+            restoreFocus:() => {
+              const title = root().querySelector('[data-directory-record="' + CSS.escape(lead.id) + '"]');
+              return title?.parentElement.querySelector(".board-follow-up-due:not([hidden])") || title;
+            }
+          }));
+        row.append(menu);
         card.append(row);
         const details = el("dl", "kanban-card-details");
         for (const key of ["company", "site_address", "region", "owner_name", "title", "phone", "email", "next_action", "follow_up_date","last_interaction_at"]) {

@@ -440,8 +440,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
   .main-section-tabs{background:#0D0B0E;border-radius:8px}
   #view-estimate .main-section-tabs{border:0}
   .estimate-tabs-divider{height:1px;background:#ed001b}
-  #main-output-tabs{height:42px;padding-block:0;overflow-y:hidden;scrollbar-width:none}
-  #main-output-tabs>.main-section-tab{height:42px;padding-block:0}
+  :is(#main-section-tabs,#main-output-tabs){height:42px;padding-block:0;overflow-y:hidden;scrollbar-width:none}
+  :is(#main-section-tabs,#main-output-tabs)>.main-section-tab{height:42px;padding-block:0}
   .main-output-tabs{background:#090B0E}
   .main-section-tab[aria-selected=false]:not(:hover){background:transparent;color:#e5e7eb}
   #view-estimate .main-section-tab:focus-visible{outline-color:#fff}

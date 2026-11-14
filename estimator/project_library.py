@@ -1121,6 +1121,47 @@ class ProjectLibrary:
                     "details": {**details, **summary_fields(follow_up["actions"]), "follow_up_actions":follow_up["actions"]},
                     "file": self._authorize_save(path, info, payload, metadata)}
 
+    def save_follow_up(self, request, actor):
+        """Amend this board card's actions while retaining every other portable field."""
+        from .project_details import request_id
+        if not isinstance(request, dict) or set(request) != {"id", "revision", "actions", "request_id"}:
+            raise ValidationError("Use the fields provided on this form.")
+        key = request_id(request["request_id"])
+        digest = hashlib.sha256(json.dumps([request, (actor or {}).get("id")], sort_keys=True).encode()).hexdigest()
+        with self._lock:
+            _, path = self._project_path(request["id"])
+            payload, info = _read_file(path)
+            revision = hashlib.sha256(payload).hexdigest()
+            receipts = getattr(self, "_details_receipts", {})
+            receipt = receipts.get(key)
+            if receipt and receipt != (digest, str(path), revision) or not receipt and revision != request["revision"]:
+                raise ProjectDetailsConflict("The project changed. Reopen its details before saving.")
+            summary = project_summary(payload, edition=self.edition)
+            previous = summary["project_follow_up"]
+            follow_up = save_project_follow_up(previous, {"actions":request["actions"]}, allow_corrections=True,
+                                               actor=(actor or {}).get("name", ""))
+            if not receipt and previous != follow_up:
+                snapshot = json.loads(payload.decode("utf-8-sig"))
+                snapshot["project_follow_up"] = follow_up
+                updated = json.dumps(snapshot, ensure_ascii=False, allow_nan=False, indent=2).encode("utf-8")
+                if len(updated) > MAX_PROJECT_FILE:
+                    raise ValidationError("The updated project exceeds the 16 MB file limit.")
+                summary = project_summary(updated, edition=self.edition)
+                selection = SaveSelection(str(path), {"size":info.st_size, "mtime_ns":info.st_mtime_ns, "sha256":revision})
+                path, info = _atomic_write(selection, updated)
+                payload = updated
+                revision = hashlib.sha256(updated).hexdigest()
+            receipts[key] = (digest, str(path), revision)
+            while len(receipts) > 256:
+                receipts.pop(next(iter(receipts)))
+            self._details_receipts = receipts
+            folder = self._scan["folder"]
+            metadata = _metadata(path, info, summary, folder, payload)
+            self._scan["files"][metadata["id"]] = metadata
+            self._cache.pop((str(folder), str(path)), None)
+            return {"id":metadata["id"], "revision":revision, "project_follow_up":follow_up,
+                    "file":self._authorize_save(path, info, payload, metadata)}
+
     def update_status(self, request):
         """Change only the portable status, with a required last-read revision."""
         if not isinstance(request, dict) or set(request) not in ({"id", "revision", "project_status"}, {"save_token", "revision", "project_status"}):

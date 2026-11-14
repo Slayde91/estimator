@@ -259,9 +259,8 @@ class CRMParticipants:
         if project['revision'] != revision:
             raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
         events = [{'label':'Project file modified', 'at':project['modified_at']}]
-        for event in project.get('follow_up_history', []):
-            events.append({'label':'Follow-up completed' if event['status'] == 'Completed' else 'Follow-up canceled',
-                           'at':event['at'], 'subject':' · '.join(filter(None, [event['next_action'], event['follow_up_date']]))})
+        from .follow_up import history_event
+        events.extend(history_event(event) for event in project.get('follow_up_history', []))
         with self.db() as db:
             db.execute('BEGIN')
             events.extend(record_activity.events(db, project['source'], self._activity_owner(project)))

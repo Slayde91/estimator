@@ -39,8 +39,8 @@ async function mainTab(key) {
   await expect(page.locator('#main-output-tabs [aria-selected="true"]')).toHaveCount(1);
 }
 async function headerTitle(title) {
-  const label = page.locator('#header-project-name'); await expect(label).toHaveText(title); await expect(label).toHaveAttribute('title', title);
-  if (title) await expect(label).toBeVisible(); else await expect(label).toBeHidden();
+  const label = page.locator('#header-project-name'); await expect(label).toHaveText(title || 'Projects'); await expect(label).toHaveAttribute('title', title || 'Projects');
+  await expect(label).toBeVisible();
   assert.equal(await label.locator('*').count(), 0, 'Quote names must remain plain text');
 }
 function retainedScopes(value) { return { pricing: value.pricing, calculators: value.calculators, globals: value.penetration.composer.globals, schedule: value.penetration.draft }; }
@@ -97,7 +97,9 @@ async function checkEstimateHeadingAndTabs() {
         await expect(strip).toHaveCSS('border-bottom-width','0px');
         await expect(tabs.first()).toHaveCSS('border-bottom-color','rgb(255, 255, 255)');
         await expect(tabs.first()).toHaveCSS('box-shadow',/rgb\(255, 255, 255\).*inset/);
-        if(id==='main-output-tabs') assert.equal((await strip.boundingBox()).height,42);
+        assert.equal((await strip.boundingBox()).height,42,JSON.stringify({width,theme,id}));
+        assert.ok((await tabs.evaluateAll(items=>items.map(item=>item.getBoundingClientRect().height))).every(value=>value===42));
+        if(width===390 && id==='main-section-tabs')assert.ok(await strip.evaluate(el=>el.scrollWidth>el.clientWidth));
         assert.ok(paint.corners.every(radius => parseFloat(radius) > 0));
         assert.equal(paint.inactiveFill, 'rgba(0, 0, 0, 0)');
         assert.ok(paint.inactiveText.match(/\d+/g).slice(0,3).every(channel => Number(channel) >= 180), 'Light inactive text on the dark strip');

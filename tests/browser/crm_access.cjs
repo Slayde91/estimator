@@ -37,6 +37,9 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  assert.equal(saved.status,200,JSON.stringify(saved.body));
  const directory=await(await admin.request.get(base+'/api/contacts/directory')).json();
  assert.ok(directory.accounts.some(item=>item.company==='Named Access QA'),'A real named write succeeds through the current-member guard');
+ const reminder=await admin.request.post(base+'/api/contacts/leads',{headers:{'X-CRM-Member':identity.user.id},data:{
+   version:directory.version,fields:{name:'View-only reminder',company:'Reminder QA',next_action:'Check site',follow_up_date:'2001-01-01'}}});
+ assert.equal(reminder.status(),200,await reminder.text());
  await page.screenshot({path:path.join(out,'staff-settings.png'),fullPage:true});
  const viewers=await browser.newContext({viewport:{width:390,height:844}}),view=await viewers.newPage();view.setDefaultTimeout(45000);
  view.on('pageerror',e=>errors.push(e.message));const requests=[];
@@ -48,6 +51,15 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await view.getByRole('button',{name:'Sign in',exact:true}).click();
  await view.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready,{timeout:45000});
  await expect(view.getByText('View-only access. An editor is required to save changes.',{exact:true})).toBeVisible();
+ await view.locator('nav [data-view=contacts]').click();
+ const due=view.getByRole('button',{name:'Follow-up due',exact:true});
+ await due.click();
+ const review=view.getByRole('dialog',{name:'Follow-up actions'});
+ await expect(review.getByRole('textbox',{name:'Next action'})).toHaveValue('Check site');
+ await expect(review.getByRole('textbox',{name:'Next action'})).not.toBeEditable();
+ await expect(review.getByRole('combobox',{name:'Follow-up status'})).toBeDisabled();
+ await expect(review.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+ await review.getByRole('button',{name:'Close',exact:true}).click();await expect(due).toBeFocused();
  const denied=await view.evaluate(async()=>{const r=await fetch('/api/contacts/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return {status:r.status,body:await r.json()};});
  assert.equal(denied.status,403);assert.match(denied.body.error,/view-only/);
  await post(admin,'/api/access/roles',{member_id:worker.id,role:'none',version:1});await view.reload();

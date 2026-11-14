@@ -775,6 +775,49 @@
     const quote=related.find(item=>item.id===doc.fields.order.quote_id && item.kind==='quote');
     return quote?.fields.details.project_no || (doc.fields.order.work_order_reference ? doc.fields.details.project_no : '');
   }
+  function openFollowUp(card, trigger) {
+    if (state.busy || state.cardIntent || state.editor) return;
+    const workspace=state.workspace, kind=state.kind, source=sourceFor(card);
+    const context=window.CeasefireProject?.runtimeContext?.(), actor=window.ClassifireAccess?.user?.id;
+    const current=()=>kind===state.kind && !state.editor && workspace===state.workspace && workspace===currentWorkspace()
+      && context===window.CeasefireProject?.runtimeContext?.() && actor===window.ClassifireAccess?.user?.id;
+    const assertCurrent=()=>{if(!current())throw new Error("This commercial document changed. Reopen it before saving.");};
+    let committed;
+    return window.ClassifireFollowUpActions.openDialog({
+      trigger, recordName:documentTitle(card), readOnly:Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit')),
+      async load() {
+        assertCurrent();
+        const query=new URLSearchParams(source ? {file:source.file_id,revision:source.revision,document:card.id} : {workspace,document:card.id});
+        const data=await request('follow-up?'+query);
+        assertCurrent(); return data;
+      },
+      async save(actions, loaded) {
+        assertCurrent();
+        if(state.busy || state.cardIntent)throw new Error("Finish the current document operation first.");
+        state.busy=true;
+        try {
+          if(!source)await window.CeasefireProjectPane?.beforeProjectSave?.();
+          assertCurrent();
+          const fingerprint=JSON.stringify(actions);
+          if(!committed || committed.fingerprint!==fingerprint) {
+            const saved=await documentRequest('follow-up',{workspace_id:workspace,id:card.id,
+              version:committed?.version || loaded.version, follow_up_actions:actions},source);
+            committed={fingerprint, version:saved.version};
+            if(!source)changed();
+          }
+          if(!source) {
+            if(!await load(state.revision,false,true))throw new Error("This commercial document changed. Reopen it before saving.");
+            assertCurrent(); await saveActiveProject();
+          }
+        } finally {state.busy=false;}
+      },
+      async onSaved() {if(current() && await load())renderCards();},
+      restoreFocus() {
+        const owningCard=[...root().querySelectorAll('.commercial-card')].find(item=>item.dataset.cardKey===cardKey(card));
+        return owningCard?.querySelector('.board-follow-up-due:not([hidden])') || owningCard?.querySelector('.project-title-button');
+      }
+    });
+  }
   function renderCards() {
     const board = root()?.querySelector(".commercial-board");
     if (!board) return;
@@ -793,6 +836,7 @@
       const fields = doc.fields, details = fields.details, order = fields.order;
       const po = doc.kind === "purchase_order", wo = doc.kind === "work_order";
       const number = documentReference(doc);
+      const latest = doc.latest_follow_up || doc.follow_up?.actions?.at(-1);
       const cost = wo ? order.estimated_cost || (fields.estimated_cost_cleared ? '' : doc.grand_total || state.model.quote_totals?.[order.quote_id]?.[order.quote_reference]) || "" : doc.grand_total;
       const grand = cost === undefined ? summary(fields).money(summary(fields).total)
         : cost && Number.isFinite(Number(cost)) ? new Intl.NumberFormat("en-AU", {style:"currency",currency:"AUD"}).format(Number(cost)) : cost;
@@ -801,6 +845,7 @@
         ["Contact", po ? order.supplier_contact : details.contact],
         ["Address", details.site_address],
         [po ? "PO No." : wo ? "WO No." : "Quote No.", number], ["Total", grand],
+        ...(latest ? [["Next action",latest.next_action],["Follow-up date",latest.follow_up_date]] : []),
         ["Updated", new Intl.DateTimeFormat("en-AU", {year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}).format(new Date(doc.updated_at))]
       ];
     };
@@ -831,6 +876,7 @@
       for (const document of matches) {
         const card = node("article", "commercial-card project-kanban-card");
         card.dataset.documentId = document.id;
+        card.dataset.cardKey = cardKey(document);
         card.draggable = true;
         card.addEventListener("dragstart", event => {
           if (state.busy || event.target.closest("button,select,summary,input")) { event.preventDefault(); return; }
@@ -864,7 +910,11 @@
         const title = button(documentTitle(document), () => { if (!state.busy) void openCard(document); });
         title.className = "project-title-button";
         const heading = node("div", "project-card-heading");
-        heading.append(title, menu);
+        heading.append(title);
+        const earliest = document.pending_follow_up_date || document.follow_up?.actions?.reduce((date,row)=>
+          !row.status && row.follow_up_date && (!date || row.follow_up_date<date) ? row.follow_up_date : date,'');
+        if (earliest) window.ClassifireDocumentBoard.addFollowUpMarker(heading,earliest,event=>openFollowUp(document,event.currentTarget));
+        heading.append(menu);
         const information = node("dl", "commercial-card-info");
         for (const [label, value] of cardInfo(document)) {
           const heading = node("dt", "", label);
@@ -877,6 +927,7 @@
       if (!matches.length) column.append(node("p", "project-column-empty", "No documents"));
       board.append(column);
     }
+    window.ClassifireDocumentBoard.refreshFollowUps();
     if (!board.children.length) board.append(node("p", "empty-state", "Choose a column from Columns to show documents."));
   }
   async function openCard(card, createWorkOrder = false, signingTarget = null) {
@@ -1268,6 +1319,17 @@
       details.append(detailPair([["client", "Client"], ["contact", "Client contact"]]));
       details.append(detailPair([["phone", "Client phone"], ["email", "Client email"]]));
     }
+    const reminders=node("div","commercial-follow-ups");
+    function mountFollowUps() {
+      const editor=window.ClassifireFollowUpActions.mount(reminders,{actions:owner.document.follow_up?.actions || [],
+        readOnly:Boolean(window.ClassifireAccess && !window.ClassifireAccess.can('edit')), onChange() {
+          owner.document.follow_up={...owner.document.follow_up,actions:editor.value()};
+          markDirty();
+        }});
+    }
+    mountFollowUps();
+    owner.mountFollowUps=mountFollowUps;
+    details.append(reminders);
     form.append(details);
     if (state.kind === "quote") {
       form.append(field("Introduction", textarea(fields.introduction, value => fields.introduction = value)));
@@ -2819,8 +2881,10 @@
   }
   function setDisabled(disabled) {
     if(disabled)state.editor?.panels?.closeSearches();
-    root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => control.disabled = disabled);
+    root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => {if(!control.closest(".commercial-follow-ups"))control.disabled = disabled;});
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
+    const followUpHost=root()?.querySelector(".commercial-follow-ups");
+    if(followUpHost)followUpHost.inert=disabled;
     if (!disabled) state.editor?.panels?.updateActivity?.();
     if (!disabled && state.kind === "work_order" && state.editor?.quoteLinkLocked) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
@@ -2862,7 +2926,7 @@
     const fields = document.kind === 'quote' ? {...document.fields, scope_tables: [], sources: []} : document.fields;
     const saved = await saveDocumentFields(document, fields, editor.source, {
       workspace, signatureAction, explicitlySaved, projectDetails, captured,
-      billingReview:editor.billingReview
+      billingReview:editor.billingReview, followUpActions:document.follow_up?.actions
     });
     assertDocumentOperation(operation);
     const {linked_quote_transition, ...stored} = saved;
@@ -2881,7 +2945,7 @@
     assertDocumentOperation(operation);
     return saved;
   }
-  function saveDocumentFields(document, fields, source, {workspace, signatureAction, explicitlySaved, projectDetails, captured, billingReview}) {
+  function saveDocumentFields(document, fields, source, {workspace, signatureAction, explicitlySaved, projectDetails, captured, billingReview, followUpActions}) {
     if (signatureAction?.clear) {
       fields = resetSectionFields(fields, document.kind, signatureAction.key);
     } else if (signatureAction) {
@@ -2896,6 +2960,7 @@
       kind: document.kind,
       status: document.status,
       fields,
+      ...(followUpActions ? {follow_up_actions:followUpActions} : {}),
       ...(signatureAction ? {signature_actions:[signatureAction]} : {}),
       ...(billingReview ? {billing_review:billingReview} : {}),
       ...(!source ? {project_details:projectDetails || projectDetailsSnapshot()} : {}),
@@ -2924,6 +2989,7 @@
     Object.assign(state.editor.document, saved, {
       fields
     });
+    state.editor.mountFollowUps?.();
     state.editor.pendingBillingSignature=null;
     state.editor.pendingIssue=null;
     state.editor.pendingProjectDetails=null;

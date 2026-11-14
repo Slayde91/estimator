@@ -58,17 +58,17 @@ class SavedCommercial:
         self.sessions[file_id] = session
         return session
 
-    def activity(self, file_id, revision, identity):
+    def activity(self, file_id, revision, identity, *, follow_up=False):
         source = {'file_id':file_id, 'revision':revision}
         if file_id.startswith('local-'):
-            return self.projects.commercial.unfiled.activity(source, identity, ignored=self.projects._commercial_sources.ignored_owners())
+            return self.projects.commercial.unfiled.activity(source, identity, ignored=self.projects._commercial_sources.ignored_owners(), follow_up=follow_up)
         with self.projects.commercial_file(file_id, revision) as (path, snapshot, _, _):
             commercial = snapshot.get('commercial_documents')
             certificates = snapshot.get('certifications')
             owner = certificates.get('project_id') if isinstance(certificates, dict) else None
             if not commercial or commercial['project_id'] != owner or owner in self.projects._commercial_sources.ignored_owners():
                 raise ValidationError('This commercial document is unavailable in the current project.')
-            return self.projects.commercial.saved_activity(commercial, identity, source_id(str(path)))
+            return self.projects.commercial.saved_activity(commercial, identity, source_id(str(path)), follow_up=follow_up)
 
     def perform(self, action, body, execute):
         source = body.get('source')
@@ -82,14 +82,14 @@ class SavedCommercial:
             raise ValidationError('Saved document estimates and downloads come from their own project.')
         if isinstance(file_id, str) and file_id.startswith('local-'):
             self.projects.recover_commercial_publications()
-            if action == 'activity':
+            if action in {'activity','follow-up'}:
                 return self.projects.commercial.unfiled.perform(action, source, body, execute, ignored=self.projects._commercial_sources.ignored_owners())
             return self.projects.commercial.unfiled.perform(action, source, body, execute)
         # The library holds its lock through the conditional file write. Other
         # open project tabs keep their original save fingerprints and cannot
         # accidentally overwrite a newer commercial document revision.
         with self.projects.commercial_file(file_id, revision, find_issued=action == 'issue') as (path, snapshot, actual_revision, commit):
-            if action == 'activity' and (snapshot.get('commercial_documents') or {}).get('project_id') in self.projects._commercial_sources.ignored_owners():
+            if action in {'activity','follow-up'} and (snapshot.get('commercial_documents') or {}).get('project_id') in self.projects._commercial_sources.ignored_owners():
                 raise ValidationError('This commercial document is unavailable in the current project.')
             session = self._session(file_id, actual_revision, snapshot, path)
             workspace = session['workspace']
@@ -145,7 +145,7 @@ class SavedCommercial:
                     return response
                 if actual_revision != revision:
                     raise CommercialConflict('The saved project changed. Reopen its board and select the document again.')
-            modified = action in {'save', 'status', 'delete', 'issue', 'notes'}
+            modified = action in {'save', 'status', 'delete', 'issue', 'notes','follow-up'}
             try:
                 result = execute(action, {**body, **captured, 'workspace_id': workspace}, owner_key=file_id + ':' + revision)
                 if action == 'issue':

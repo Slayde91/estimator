@@ -1,6 +1,7 @@
 """Company-wide leads, people and accounts in the local application database."""
 
 from contextlib import closing, contextmanager
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -10,7 +11,7 @@ from uuid import uuid4
 
 from .catalog import ValidationError
 from .follow_up import (
-    FOLLOW_UP_LIMITS, action_decisions, legacy_actions, reconcile_actions, summary_fields, validate_follow_up_date,
+    FOLLOW_UP_LIMITS, action_changes, legacy_actions, reconcile_actions, summary_fields, validate_follow_up_date,
 )
 from . import crm_identity
 from . import crm_activity
@@ -150,6 +151,8 @@ class ContactsStore:
                 BEGIN IMMEDIATE;
                 CREATE TABLE IF NOT EXISTS revision (id INTEGER PRIMARY KEY CHECK (id=1), version INTEGER NOT NULL);
                 INSERT OR IGNORE INTO revision VALUES (1,0);
+                CREATE TABLE IF NOT EXISTS lead_followup_saves (
+                    request_id TEXT PRIMARY KEY, digest TEXT NOT NULL, version INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS accounts (
                     id TEXT PRIMARY KEY, company TEXT NOT NULL, lookup_key TEXT NOT NULL UNIQUE,
                     billing_address TEXT NOT NULL, abn_acn TEXT NOT NULL DEFAULT '');
@@ -630,14 +633,14 @@ class ContactsStore:
         return result
 
     @staticmethod
-    def _save_lead_followups(db, ident, fields, actor):
+    def _save_lead_followups(db, ident, fields, actor, *, allow_corrections=False):
         values = ({'actions':fields['follow_up_actions']} if 'follow_up_actions' in fields else
                   {key:fields[key] for key in FOLLOW_UP_LIMITS if key in fields})
         if not values:
             return
         row = db.execute('SELECT actions,next_action,follow_up_date FROM lead_followups WHERE lead_id=?', (ident,)).fetchone()
         previous = _stored_followups(dict(row), ident) if row else []
-        actions = reconcile_actions(previous, values, ident)
+        actions = reconcile_actions(previous, values, ident, allow_corrections=allow_corrections)
         if actions == previous:
             return
         if actions:
@@ -648,10 +651,38 @@ class ContactsStore:
                 (ident, summary['next_action'], summary['follow_up_date'], json.dumps(actions, ensure_ascii=False, separators=(',', ':'))))
         else:
             db.execute('DELETE FROM lead_followups WHERE lead_id=?', (ident,))
-        for action in action_decisions(previous, actions):
-            crm_activity.event(db, 'leads', ident, 'Follow-up ' + action['status'].lower(),
-                               {'action_id':action['id'], 'text':action['next_action'], 'status':action['status']},
-                               actor, due=action['follow_up_date'] or None)
+        for old, action in action_changes(previous, actions):
+            corrected = old and old['status']
+            label = 'Follow-up corrected' if corrected else 'Follow-up ' + action['status'].lower()
+            detail = {'action_id':action['id'], 'text':action['next_action'], 'status':action['status']}
+            if corrected:
+                detail.update(previous=old, current=action)
+            crm_activity.event(db, 'leads', ident, label, detail, actor, due=action['follow_up_date'] or None)
+        return True
+
+    def save_follow_up(self, body, actor):
+        from .project_details import request_id
+        if not isinstance(body, dict) or set(body) != {'id','actions','version','request_id'} or not isinstance(body['id'], str):
+            raise ValidationError('Use the fields provided on this form.')
+        key = request_id(body['request_id'])
+        digest = hashlib.sha256(json.dumps([body, (actor or {}).get('id')], sort_keys=True).encode()).hexdigest()
+        with self.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            version = self._version(db)
+            receipt = db.execute('SELECT digest,version FROM lead_followup_saves WHERE request_id=?', (key,)).fetchone()
+            if receipt and receipt['digest'] == digest:
+                return {'id':body['id'], 'version':receipt['version']}
+            if receipt or type(body['version']) is not int or version != body['version']:
+                raise ContactsConflict('Contacts have changed. Reopen the form to review the latest values.')
+            if not db.execute('SELECT 1 FROM leads WHERE id=?', (body['id'],)).fetchone():
+                raise ValidationError('Choose an existing directory record.')
+            crm_activity.begin_tracking(db)
+            if self._save_lead_followups(db, body['id'], {'follow_up_actions':body['actions']}, actor, allow_corrections=True):
+                crm_activity.finish_tracking(db, actor)
+                version += 1
+                db.execute('UPDATE revision SET version=? WHERE id=1', (version,))
+            db.execute('INSERT INTO lead_followup_saves VALUES(?,?,?)', (key,digest,version))
+            return {'id':body['id'], 'version':version}
 
     def convert(self, body, create_project, *, actor=None):
         if not isinstance(body, dict) or set(body) != {'id', 'version'} or not isinstance(body['id'], str):

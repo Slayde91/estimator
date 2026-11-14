@@ -1,0 +1,139 @@
+{
+  "Clock in": ["출근 시각","Oras ng pagpasok","Giờ vào"],
+  "Clock out": ["퇴근 시각","Oras ng paglabas","Giờ ra"],
+  "Reports": [
+    "보고서",
+    "Mga ulat",
+    "Báo cáo"
+  ],
+  "Clocked time": [
+    "기록된 근무 시간",
+    "Oras na naka-clock in",
+    "Thời gian chấm công"
+  ],
+  "Paid time": [
+    "유급 시간",
+    "Oras na may bayad",
+    "Thời gian được trả lương"
+  ],
+  "Regular": [
+    "통상 근무",
+    "Karaniwang oras",
+    "Giờ thường"
+  ],
+  "Overtime / penalty": [
+    "초과 / 가산 근무",
+    "Overtime / oras na may dagdag na bayad",
+    "Tăng ca / giờ hưởng phụ cấp"
+  ],
+  "Paid breaks": [
+    "유급 휴식",
+    "Mga pahingang may bayad",
+    "Nghỉ có lương"
+  ],
+  "Unpaid breaks": [
+    "무급 휴식",
+    "Mga pahingang walang bayad",
+    "Nghỉ không lương"
+  ],
+  "Payroll Report": [
+    "급여 보고서",
+    "Ulat sa pasahod",
+    "Báo cáo bảng lương"
+  ],
+  "Project Report": [
+    "프로젝트 보고서",
+    "Ulat sa proyekto",
+    "Báo cáo dự án"
+  ],
+  "Reporting period": [
+    "보고 기간",
+    "Panahon ng ulat",
+    "Kỳ báo cáo"
+  ],
+  "Start date": [
+    "시작일",
+    "Petsa ng simula",
+    "Ngày bắt đầu"
+  ],
+  "End date": [
+    "종료일",
+    "Petsa ng pagtatapos",
+    "Ngày kết thúc"
+  ],
+  "Week": [
+    "주",
+    "Linggo",
+    "Tuần"
+  ],
+  "Month": [
+    "월",
+    "Buwan",
+    "Tháng"
+  ],
+  "Custom": [
+    "사용자 지정",
+    "Pasadya",
+    "Tùy chỉnh"
+  ],
+  "Team member": [
+    "팀원",
+    "Miyembro ng pangkat",
+    "Thành viên nhóm"
+  ],
+  "Job": [
+    "작업",
+    "Trabaho",
+    "Công việc"
+  ],
+  "All": [
+    "전체",
+    "Lahat",
+    "Tất cả"
+  ],
+  "Run report": [
+    "보고서 생성",
+    "Bumuo ng ulat",
+    "Tạo báo cáo"
+  ],
+  "No completed time entries match these filters.": [
+    "이 필터와 일치하는 완료된 시간 기록이 없습니다.",
+    "Walang nakumpletong tala ng oras na tumutugma sa mga filter na ito.",
+    "Không có mục chấm công đã hoàn tất nào khớp với các bộ lọc này."
+  ],
+  "Confirm pay rules before calculating pay.": [
+    "급여를 계산하기 전에 급여 규칙을 확인하세요.",
+    "Kumpirmahin ang mga patakaran sa pasahod bago kalkulahin ang sahod.",
+    "Xác nhận quy tắc trả lương trước khi tính lương."
+  ],
+  "Jobs": [
+    "작업",
+    "Mga trabaho",
+    "Các công việc"
+  ],
+  "Team members": [
+    "팀원",
+    "Mga miyembro ng pangkat",
+    "Các thành viên nhóm"
+  ],
+  "Download CSV": [
+    "CSV 다운로드",
+    "I-download ang CSV",
+    "Tải xuống CSV"
+  ],
+  "Print / Save PDF": [
+    "인쇄 / PDF 저장",
+    "I-print / I-save ang PDF",
+    "In / Lưu PDF"
+  ],
+  "Daily total": [
+    "일일 합계",
+    "Kabuuan bawat araw",
+    "Tổng mỗi ngày"
+  ],
+  "Select a reporting period of 1 to 366 days.": [
+    "1일에서 366일 사이의 보고 기간을 선택하세요.",
+    "Pumili ng panahon ng ulat na 1 hanggang 366 na araw.",
+    "Chọn kỳ báo cáo từ 1 đến 366 ngày."
+  ]
+}

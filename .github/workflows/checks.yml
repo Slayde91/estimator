@@ -160,6 +160,7 @@ jobs:
       - run: node tests/browser/commercial_status_project_scope.cjs
       - run: node tests/browser/commercial_required_fields.cjs
       - run: node tests/browser/commercial_board_fields.cjs
+      - run: node tests/browser/commercial_follow_ups.cjs
       - run: node tests/browser/commercial_toolbar_layout.cjs
       - run: node tests/browser/audio_settings.cjs
       - run: node tests/browser/purchase_order_signatures_delivery.cjs

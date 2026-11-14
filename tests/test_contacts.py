@@ -72,6 +72,16 @@ class DirectoryTests(unittest.TestCase):
         self.assertEqual(event['detail']['text'],'Confirm visit')
         self.assertTrue(event['actor_id'])
         self.request('accounts', {'version':2, 'fields':{'company':'Extra','follow_up_actions':[action]}},400)
+        revised = dict(action,next_action='Check updated plans',follow_up_date='2029-03-28')
+        correction = {'id':saved['id'], 'version':2, 'actions':[revised], 'request_id':str(uuid4())}
+        self.assertEqual(self.request('leads/follow-up',correction), self.request('leads/follow-up',correction))
+        self.request('leads/follow-up',{**correction,'request_id':str(uuid4())},409)
+        self.request('leads/follow-up',{**correction,'actions':[action]},409)
+        activity = self.request('activity?kind=leads&id='+saved['id'])['events']
+        amended, = [entry for entry in activity if entry['event_type']=='Follow-up corrected']
+        self.assertEqual((amended['detail']['previous'],amended['detail']['current']),(completed,revised))
+        self.assertEqual(amended['actor_id'],event['actor_id'])
+        self.assertEqual(self.request('directory')['leads'][0]['follow_up_actions'],[revised])
 
     def test_lead_abn_overwrite_requires_matching_company_and_value(self):
         company = self.request('accounts', {'version':0,'fields':{'company':'Builder','abn_acn':'Old'}})

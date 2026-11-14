@@ -14,6 +14,7 @@
     const wrapper = document.createElement("label"), title = document.createElement("span");
     wrapper.className = "field";
     window.CeasefireI18n.text(title, label);
+    window.CeasefireI18n.attr(control, "aria-label", label);
     wrapper.append(title, control);
     return wrapper;
   }
@@ -47,10 +48,10 @@
       status.value = item.status;
       function update() {
         const blank = !note.value.trim() && !date.value;
-        const locked = Boolean(options.readOnly || status.value);
+        const locked = Boolean(options.readOnly || status.value && !options.allowCorrections);
         note.readOnly = date.readOnly = locked;
         status.disabled = locked || blank;
-        note.required = persisted && blank && !locked;
+        note.required = (persisted || Boolean(status.value)) && blank && !locked;
         note.setCustomValidity(note.required && note.value ? window.CeasefireI18n.translate("This field is required.") : "");
         row.dataset.status = status.value;
       }
@@ -85,5 +86,67 @@
     };
   }
 
-  window.ClassifireFollowUpActions = {rows, mount};
+  let open;
+  async function openDialog({trigger, recordName, load, save, onSaved, readOnly = false, restoreFocus}) {
+    if (open?.open) return;
+    const dialog = document.createElement("dialog"), form = document.createElement("form");
+    open = dialog;
+    dialog.className = "contacts-dialog follow-up-dialog";
+    const title = document.createElement("h2"), name = document.createElement("p");
+    title.id = "follow-up-dialog-title"; window.CeasefireI18n.text(title, "Follow-up actions");
+    name.id = "follow-up-dialog-owner"; name.textContent = recordName;
+    dialog.setAttribute("aria-labelledby", title.id);
+    dialog.setAttribute("aria-describedby", name.id);
+    const fields = document.createElement("fieldset"), actions = document.createElement("div");
+    const notice = document.createElement("p"), cancel = document.createElement("button"), submit = document.createElement("button");
+    actions.className = "actions contacts-dialog-actions";
+    notice.className = "notice error"; notice.setAttribute("role", "alert"); notice.hidden = true;
+    cancel.className = "button secondary"; cancel.type = "button";
+    window.CeasefireI18n.text(cancel, readOnly ? "Close" : "Cancel");
+    submit.className = "button primary"; submit.type = "submit"; submit.disabled = true;
+    window.CeasefireI18n.text(submit, "Save");
+    actions.append(cancel); if (!readOnly) actions.append(submit);
+    form.append(title, name, fields, notice, actions); dialog.append(form); document.body.append(dialog);
+    let busy = false, loaded, editor, lastPayload, requestId, committed = false;
+    const member = window.ClassifireAccess?.user?.id;
+    function problem(error) {
+      window.CeasefireI18n.text(notice, error.message); notice.hidden = false;
+    }
+    cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
+    dialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      if (open === dialog) open = null;
+      (restoreFocus?.() || trigger)?.focus();
+    }, {once:true});
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      if (!editor || readOnly || busy || committed || !form.reportValidity()) return;
+      if (member !== window.ClassifireAccess?.user?.id) {
+        problem(new Error("Staff sign-in is required.")); return;
+      }
+      const values = editor.value(), payload = JSON.stringify(values);
+      if (payload !== lastPayload) { requestId = crypto.randomUUID(); lastPayload = payload; }
+      busy = true; fields.disabled = cancel.disabled = submit.disabled = true; notice.hidden = true;
+      try {
+        const result = await save(values, loaded, requestId);
+        committed = true;
+        await onSaved?.(result, loaded);
+        dialog.close();
+      } catch (error) { problem(error); }
+      finally { busy = false; cancel.disabled = false; fields.disabled = submit.disabled = committed; }
+    });
+    dialog.showModal(); cancel.focus();
+    fields.setAttribute("aria-busy", "true");
+    try {
+      loaded = await load();
+      if (!dialog.open) return;
+      editor = mount(fields, {actions:loaded.actions, allowCorrections:true, readOnly});
+      submit.disabled = readOnly;
+      if (!readOnly && document.activeElement === cancel) fields.querySelector("textarea")?.focus();
+    } catch (error) { if (dialog.open) problem(error); }
+    finally { fields.removeAttribute("aria-busy"); }
+  }
+
+  window.ClassifireFollowUpActions = {rows, mount, openDialog};
 })();

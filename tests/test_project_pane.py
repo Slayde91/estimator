@@ -223,6 +223,38 @@ class ProjectPaneTests(unittest.TestCase):
         peer = next(row for row in other if row["path"] == str(self.other))
         self.assertFalse(any(row["label"].startswith("Follow-up") for row in activity.activity(peer["id"], peer["revision"])["events"]))
 
+    def test_board_dialog_amends_a_decision_and_retains_a_portable_trail(self):
+        from estimator.follow_up import project_follow_up, save_project_follow_up
+        actor = {"id":str(uuid4()), "name":"Site reviewer"}
+        initial = {"id":str(uuid4()), "next_action":"Call", "follow_up_date":"2030-01-01", "status":"Completed"}
+        old = self.save(self.request(follow_up_actions=[initial]))
+        untouched = self.other.read_bytes()
+        reopened = {**initial, "status":"", "next_action":"Call again"}
+        request = {"id":old["id"], "revision":old["revision"], "request_id":str(uuid4()), "actions":[reopened]}
+        changed = self.library.save_follow_up(request, actor)
+        saved_bytes = self.path.read_bytes()
+        self.assertEqual(self.library.save_follow_up(request, actor)["revision"],changed["revision"])
+        self.assertEqual(self.path.read_bytes(),saved_bytes)
+        with self.assertRaises(ProjectDetailsConflict):
+            self.library.save_follow_up({**request,"request_id":str(uuid4())}, actor)
+        self.assertEqual(changed["file"]["next_action"],"Call again")
+        amended = changed["project_follow_up"]["history"][1]
+        self.assertEqual((amended["previous"], amended["status"], amended["actor"]), (initial, "", actor["name"]))
+        self.assertEqual(load_project_bytes(self.store,saved_bytes)["project_follow_up"],changed["project_follow_up"])
+        with self.assertRaises(ValidationError):
+            save_project_follow_up(changed["project_follow_up"],{"next_action":"","follow_up_date":""})
+        closing_copy = {**changed["project_follow_up"], "actions":[{**reopened,"status":"Canceled"}]}
+        copied = save_project_follow_up({},closing_copy,new_file=True)
+        self.assertEqual([row["status"] for row in copied["history"]],["Completed","","Canceled"])
+        reclosed = self.save(self.request(follow_up_actions=[{**reopened,"status":"Canceled"}]))["project_follow_up"]
+        self.assertEqual([row["status"] for row in reclosed["history"]], ["Completed","","Canceled"])
+        self.assertEqual(save_project_follow_up({},reclosed,new_file=True),reclosed)
+        malformed = deepcopy(reclosed)
+        malformed["history"][1]["previous"]["next_action"] = "Different decision"
+        with self.assertRaises(ValidationError):
+            project_follow_up(malformed)
+        self.assertEqual(self.other.read_bytes(),untouched)
+
     def test_project_billing_overrides_round_trip_all_estimates_without_changing_company(self):
         self.accounts.save("accounts", {"version": 0, "fields": {"company": "Known Company", "billing_address": "Company HQ", "abn_acn": "Company ABN"}})
         directory = self.accounts.list()

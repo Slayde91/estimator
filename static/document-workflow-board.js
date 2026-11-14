@@ -42,15 +42,18 @@
     }
   }
   let followUpTimer;
-  function addFollowUpMarker(card, date) {
+  function addFollowUpMarker(card, date, onClick) {
     if (!date) return;
-    const marker = document.createElement('span');
+    const marker = document.createElement('button');
     marker.className = 'board-follow-up-due'; marker.textContent = '!'; marker.hidden = true;
     marker.dataset.followUpDate = date;
-    marker.setAttribute('role', 'img'); marker.setAttribute('aria-label', 'Follow-up due'); marker.title = 'Follow-up due';
+    marker.type = 'button'; marker.setAttribute('aria-haspopup', 'dialog');
+    marker.setAttribute('aria-label', 'Follow-up due'); marker.title = 'Follow-up due';
+    marker.addEventListener('click', onClick);
     window.CeasefireI18n?.attr(marker, 'aria-label', 'Follow-up due');
     window.CeasefireI18n?.attr(marker, 'title', 'Follow-up due');
     card.append(marker);
+    return marker;
   }
   function refreshFollowUps() {
     clearTimeout(followUpTimer);

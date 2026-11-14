@@ -60,7 +60,7 @@ WRITE_FIELDS = {
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
-READ_FIELDS = {'work-orders': {'offset'}, 'shift-site-contacts': {'id','revision'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'locations': {'entry_id'}}
+READ_FIELDS = {'work-orders': {'offset'}, 'shift-site-contacts': {'id','revision'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'reports': {'start','end'}, 'locations': {'entry_id'}}
 
 
 class SchedulerError(ValueError):
@@ -405,6 +405,10 @@ class SchedulerStore:
                 db.execute('BEGIN IMMEDIATE')
                 self._settle_breaks(db)
                 return self._state(db, user, query)
+            if action == 'reports':
+                from .scheduler_reports import report
+                db.execute('BEGIN')
+                return report(db, user, self._read_settings(db), query)
             if action == 'locations':
                 entry = self._record(db, _text(query.get('entry_id', ''), 'Entry', required=True), 'entry')
                 if entry['member_id'] != user['id'] and user['role'] != 'admin':

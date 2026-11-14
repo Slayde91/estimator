@@ -296,7 +296,7 @@
     state.authGeneration++; state.loading++; state.mapRequest++;
     closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false; state.settingsRuleDialog = null;
     state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
-    state.page = "schedule"; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
+    state.page = "schedule"; state.report = null; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
   }
   function accountAction() {
@@ -406,14 +406,16 @@
   function render() {
     if (!state.data?.user) return auth(false);
     const clockFocused = document.activeElement === state.root.querySelector(".scheduler-clock");
+    const previousReport = state.page === "reports" && state.root.querySelector(".scheduler-reports");
     const heading = shell();
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
-    const pages = [["schedule","Schedule"],["entries","Time entries"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
+    const pages = [["schedule","Schedule"],["entries","Time entries"],["reports","Reports"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
       const tab = button(label,async () => {
         if (state.page === id || !await leave()) return;
         state.page = id; render();
       }, "calculator-page"); tab.setAttribute("aria-pressed", String(state.page === id)); tab.setAttribute("aria-current",state.page === id ? "page" : "false");
+      if (id === "reports") window.CeasefireI18n?.text(tab,label);
       if (id === "settings") {
         tab.classList.add("icon-only","scheduler-settings-tab");
         tab.title = label; tab.setAttribute("aria-label",label);
@@ -445,6 +447,13 @@
     if (clockFocused && !state.root.closest("[hidden]")) state.root.querySelector(".scheduler-clock").focus({preventScroll:true});
     if (state.page === "schedule") renderSchedule();
     if (state.page === "entries") renderEntries();
+    if (state.page === "reports") {
+      if (previousReport && previousReport.dataset.zone === zone && previousReport.dataset.language === document.documentElement.lang) state.root.append(previousReport);
+      else {
+        state.report ||= {kind:"payroll",period:"week",start:state.week,end:addDays(state.week,6),member:"",job:"",project:""};
+        window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone});
+      }
+    }
     if (state.page === "team" && admin()) renderTeam();
     if (state.page === "settings" && admin()) renderSettings();
   }
@@ -771,7 +780,7 @@
       return {member,start,end,project,notes,breakRows};
     },"Save time entry",async controls => request("/entries/save",{input_timezone:inputZone,...(entry ? {id:entry.id,version:entry.version} : {}),member_id:controls.member.value,
       start:editedTime(controls.start,entry?.start),end:editedTime(controls.end,entry?.end),...selectedOrder(controls.project),notes:controls.notes.value,
-      breaks:controls.breakRows.map(item => ({start:editedTime(item.from,item.original.start),end:editedTime(item.to,item.original.end),paid:item.paid.control.checked}))}));
+      breaks:controls.breakRows.map(item => ({start:editedTime(item.from,item.original.start),end:editedTime(item.to,item.original.end),paid:item.paid.control.checked}))}),"button scheduler-primary-action");
   }
   function dayChoices(selected, label) {
     const fieldset = el("fieldset","scheduler-days"); fieldset.append(el("legend","",label));
@@ -1213,6 +1222,9 @@
     if (!view.hidden) void loadSettings();
   }
   initializeOrganizationSettings();
+  window.addEventListener("ceasefire:languagechange",() => {
+    if (state.page === "reports" && state.data?.user && state.root) render();
+  });
   async function restoreClock() {
     state.root ||= document.getElementById("scheduler-root"); if(!state.root)return;
     document.getElementById("open-time-clock")?.addEventListener("click",openTimeClock);

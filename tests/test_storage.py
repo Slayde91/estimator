@@ -144,7 +144,8 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(updated["source_hashes"], current["catalog"]["sources"])
 
     def test_legacy_snapshot_uses_original_library_after_a_replacement(self):
-        original = self.store.save_quote({"title": "Older saved quote", "inputs": {"B15": 10}})
+        # Legacy snapshots used the historical workbook, before catalogue retirement.
+        original = self.store.save_quote({"title": "Older saved quote", "inputs": {"B15": 10}, "configuration": {}})
         del original["configuration"]["catalog"]
         with self.store.connect() as db:
             db.execute("UPDATE quotes SET data=? WHERE id=?", (json.dumps(original), original["id"]))

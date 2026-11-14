@@ -15,7 +15,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from .calculator import fields, labour_breakdown
 from .estimate_composition import calculate
-from .catalog import ROOT, baseline, configuration_catalog, effective_catalog, validate_configuration, ValidationError
+from .catalog import ROOT, configuration_catalog, effective_catalog, validate_configuration, ValidationError
+from .active_pricing import active_configuration
 from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
@@ -495,7 +496,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                       {'Content-Disposition': f'inline; filename="{filename}"'})
                 elif route == '/api/penetration':
                     from .penetration_calculator import definition
-                    self.send_payload(200, definition(store.configuration()))
+                    self.send_payload(200, definition(store.shared_configuration()))
                 elif route == '/api/calculators':
                     from .workbook_calculators import calculator_list
                     self.send_payload(200, calculator_list())
@@ -508,7 +509,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     from .penetration_calculator import pricing_usage_metadata
                     config = store.shared_configuration()
                     catalog = effective_catalog(config)
-                    self.send_payload(200, {"fields": fields(catalog), "baseline": baseline(), "configuration": config,
+                    self.send_payload(200, {"fields": fields(catalog), "baseline": active_configuration({})["catalog"], "configuration": config,
                                             "catalog": configuration_catalog(config), "workflows": WORKFLOWS,
                                             "pricing_usage": pricing_usage_metadata(),
                                             "edition": edition, "features": capabilities})
@@ -526,7 +527,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
                 elif route in {'/passive-fire-register.js', '/passive-fire-register.css',
-                               '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                               '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler-reports.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/project-popup.css', '/project-pane.js', '/project-details.js', '/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/money.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/audio-settings.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Regular.ttf", "/fonts/Montserrat-Bold.ttf", "/fonts/Montserrat-Italic.ttf", "/fonts/Montserrat-BoldItalic.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/icons/trash.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -565,7 +566,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     destination = self.capture_download(body['download']) if 'download' in body else None
                     materials = route.endswith('full-product-summary.pdf')
                     report = build_project_report(body.get('calculators', {}), body.get('penetration'),
-                        validate_configuration(body.get('configuration', store.configuration())), project_details(body.get('project_details')),
+                        validate_configuration(body['configuration'] if 'configuration' in body else store.shared_configuration()), project_details(body.get('project_details')),
                         materials=materials, library=libraries, company=self.pdf_company_details('full_product_summary' if materials else 'full_schedule'),
                         saved_calculators={key: store.calculator_state(key)['inputs'] for key in CALCULATOR_IDS})
                     self.send_download(report, 'application/pdf', 'CEASEFIRE-Full-Product-Summary.pdf' if materials else 'CEASEFIRE-Full-Schedule.pdf', destination,
@@ -712,7 +713,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         return
                     from .penetration_item_exports import prepare_item_snapshot, render_item_pdf, build_item_xlsx
                     body = reference_download_body(body, 'item')
-                    snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.configuration(), require_diagram=route.endswith('.pdf'))
+                    snapshot = prepare_item_snapshot(body, library=libraries, default_configuration=store.shared_configuration(), require_diagram=route.endswith('.pdf'))
                     destination = self.capture_reference_workbook(body['download']) if 'download' in body else None
                     if route.endswith('.pdf'):
                         self.send_download(render_item_pdf(snapshot, company=self.pdf_company_details('firestopping_library_item')), 'application/pdf', 'CEASEFIRE-Firestopping-Item.pdf', destination, pdf_kind='firestopping_library_item')
@@ -743,7 +744,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         allowed |= {'project_details', 'download'}
                     if set(body) - allowed or (action != 'definition' and 'draft' not in body):
                         raise ValidationError('Include the Firestopping Estimator draft and pricing configuration only.')
-                    config = validate_configuration(body['configuration'] if 'configuration' in body else store.configuration())
+                    config = validate_configuration(body['configuration'] if 'configuration' in body else store.shared_configuration())
                     if action == 'definition':
                         # The calculator uses the reviewed, fixed Services vocabulary.
                         # Opening an estimate must not load the entire Technical Library.
@@ -809,6 +810,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(200, project_response(projects.read_details(body)))
                 elif route == '/api/projects/details/save' and self.command == 'POST':
                     self.send_payload(200, project_response(projects.save_details(body, accounts=contacts_http.store)))
+                elif route == '/api/projects/follow-up' and self.command == 'POST':
+                    self.send_payload(200, project_response(projects.save_follow_up(body, self.crm_actor)))
                 elif route == '/api/projects/status' and self.command == 'POST':
                     self.send_payload(200, projects.update_status(body))
                 elif route == '/api/projects/delete' and self.command == 'POST':
@@ -897,7 +900,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) - {"configuration", "download"}:
                         raise ValidationError("Unknown pricing export fields.")
                     destination = self.capture_reference_workbook(body['download']) if 'download' in body else None
-                    workbook = export_pricing_workbook(body['configuration'] if 'configuration' in body else store.shared_configuration())
+                    workbook = export_pricing_workbook(active_configuration(body['configuration']) if 'configuration' in body else store.shared_configuration())
                     self.send_download(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 'ceasefire-pricing.xlsx', destination)
                 elif route == "/api/pricing/import" and self.command == "POST":
                     from .pricing_workbook import import_pricing_workbook
@@ -914,7 +917,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError("The Excel file upload is invalid.") from exc
                     if not payload or len(payload) > MAX_PRICING_FILE:
                         raise ValidationError("Choose a nonempty Excel file of at most 5 MB.")
-                    proposed = import_pricing_workbook(payload, filename, body['configuration'] if 'configuration' in body else store.shared_configuration())
+                    proposed = import_pricing_workbook(payload, filename, body['configuration'] if 'configuration' in body else store.shared_configuration(), active_library=True)
                     config = proposed["configuration"]
                     self.send_payload(200, {**proposed, "catalog": configuration_catalog(config),
                                             "fields": fields(effective_catalog(config))})
@@ -934,7 +937,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                         raise ValidationError("Workflow must be text of at most 200 characters.")
                     if 'penetration' in body and body['penetration'] is None:
                         raise ValidationError('Include the Firestopping schedule draft only in the estimate.')
-                    configuration = body["configuration"] if "configuration" in body else store.configuration()
+                    configuration = body["configuration"] if "configuration" in body else store.shared_configuration()
                     result = calculate(body.get("inputs", {}), configuration, body.get('penetration'), body.get('work_items'))
                     self.send_payload(200, {**result, "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":

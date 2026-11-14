@@ -1,0 +1,17 @@
+{
+  "Assign": [
+    "배정",
+    "Italaga",
+    "Giao"
+  ],
+  "No eligible team members.": [
+    "배정 가능한 팀원이 없습니다.",
+    "Walang kwalipikadong miyembro ng pangkat.",
+    "Không có thành viên nào đủ điều kiện."
+  ],
+  "Assigned to {0}.": [
+    "{0}에게 배정되었습니다.",
+    "Itinalaga kay {0}.",
+    "Đã giao cho {0}."
+  ]
+}

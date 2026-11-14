@@ -48,6 +48,60 @@ class FormsTests(unittest.TestCase):
         self.staff = [self.admin,self.editor,self.other,self.viewer]
         self.store = Forms(self.path,lambda: self.staff,lambda: {'name':'Example Co','phone':'123'})
 
+    def test_requested_entry_is_idempotent_private_and_fillable_by_assignee(self):
+        t = self.store.save_template(self.admin,template(roles=['editor']))
+        self.assertTrue(t['can_assign'])
+        people = self.store.assignees(self.admin,t['id'],t['version'])['staff']
+        self.assertEqual(people,[{'id':'sam','name':'Sam'},{'id':'alex','name':'Alex'}])
+        data = {'id':identifier(),'template_id':t['id'],'template_version':t['version'],'member_id':'alex'}
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            receipts = list(pool.map(lambda _: self.store.assign_entry(self.editor,data), range(2)))
+        self.assertEqual(receipts[0],receipts[1])
+        rows = self.store.entries(self.other)['entries']
+        self.assertEqual(len(rows),1)
+        self.assertEqual((rows[0]['status'],rows[0]['created_by'],rows[0]['assigned_to']),('requested','sam','alex'))
+        self.assertTrue(rows[0]['can_edit'])
+        self.assertEqual(self.store.entries(self.editor)['entries'],[])
+        self.assertFalse(self.store.entry(self.admin,data['id'])['can_edit'])
+        with self.assertRaises(FormError) as denied:
+            self.store.assign_entry(self.editor,{**data,'member_id':'joe'})
+        self.assertEqual(denied.exception.status,403)
+        with self.assertRaises(FormError) as conflict:
+            self.store.assign_entry(self.editor,{**data,'member_id':'sam'})
+        self.assertEqual(conflict.exception.status,409)
+        saved = self.store.save_entry(self.other,entry(t,{'site':'South'},id=data['id'],version=1))
+        self.assertEqual((saved['status'],saved['assigned_to_name']),('draft','Alex'))
+        done = self.store.save_entry(self.other,entry(t,{'site':'South'},id=data['id'],version=2,status='submitted'))
+        self.assertEqual((done['status'],done['values']['site']),('submitted','South'))
+        self.assertEqual(self.store.assign_entry(self.editor,data),receipts[0])
+        self.assertEqual(self.store.entry(self.other,data['id'])['status'],'submitted')
+
+    def test_assigned_workflow_restricts_first_stage_and_honours_permission_changes(self):
+        stages = [{'id':'prep','name':'Prepare','roles':['editor'],'member_ids':['sam','alex']},
+                  {'id':'review','name':'Review','roles':['admin']}]
+        definition = template(mode='workflow',settings={'stages':stages})
+        t = self.store.save_template(self.admin,definition)
+        data = {'id':identifier(),'template_id':t['id'],'template_version':1,'member_id':'alex'}
+        self.assertEqual([m['id'] for m in self.store.assignees(self.admin,t['id'],1)['staff']],['sam','alex'])
+        with self.assertRaises(FormError):
+            self.store.assign_entry(self.viewer,data)
+        with self.assertRaises(FormError):
+            self.store.assign_entry(self.admin,{**data,'member_id':'boss'})
+        self.store.assign_entry(self.admin,data)
+        self.assertEqual(self.store.entries(self.editor)['entries'],[])
+        record = self.store.save_entry(self.other,entry(t,{'site':'South'},id=data['id'],version=1))
+        self.assertEqual(self.store.entries(self.editor)['entries'],[])
+        record = self.store.approve(self.other,{'id':data['id'],'version':record['version']})
+        self.assertEqual(record['stage_id'],'review')
+        self.assertTrue(self.store.entry(self.admin,data['id'])['can_approve'])
+        self.store.save_template(self.admin,{**definition,'version':1,'roles':['admin'],'settings':{
+            'stages':[{'id':'review','name':'Review','roles':['admin']}]}})
+        with self.assertRaises(FormError):
+            self.store.entry(self.other,data['id'])
+        with self.assertRaises(FormError) as conflict:
+            self.store.assign_entry(self.admin,data)
+        self.assertEqual(conflict.exception.status,409)
+
     def test_entry_pdf_theme_survives_legacy_writes_retries_and_reopen(self):
         workflow = template(mode='workflow',settings={'stages':[{'id':'one','name':'Review','roles':['editor']}]})
         version = self.store.save_template(self.editor,workflow)
@@ -369,7 +423,11 @@ class FormsHTTPTests(unittest.TestCase):
                 self.assertEqual(saved['created_by'],admin)
                 self.assertEqual(request('/api/forms/entries',cookie=unassigned)[1]['entries'][0]['id'],saved['id'])
                 self.assertEqual(request('/api/forms/template/history?id='+t['id'],cookie=unassigned)[0],404)
+                pdf_path = '/api/forms/entry/pdf?id=' + saved['id']
+                self.assertEqual(request(pdf_path + '&version=99',cookie=cookie)[0],409)
+                self.assertEqual(request(pdf_path + '&theme=unknown',cookie=cookie)[0],400)
                 access.assign({'member_id':worker['id'],'role':'none','version':1},bootstrap['token'])
+                self.assertEqual(request(pdf_path,cookie=unassigned)[0],403)
                 self.assertEqual(request('/api/forms/entry?id='+saved['id'],cookie=unassigned)[0],403)
             finally:
                 server.shutdown()

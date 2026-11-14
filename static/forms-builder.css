@@ -52,7 +52,12 @@
   background: transparent;
   border: 0;
 }
+.form-builder-palette-item svg {
+  width:1.15rem; height:1.15rem; flex:none; fill:none; stroke:currentColor;
+  stroke-width:1.6; stroke-linejoin:round; stroke-linecap:round;
+}
 .form-builder-palette-item {
+  display:flex; align-items:center; gap:.55rem;
   cursor: grab;
   padding: .48rem .6rem;
   text-align: left;

@@ -42,6 +42,55 @@
   const registerCellTypes = new Set(['text','textarea','number','date','datetime','time','choice','multichoice','yes_no','list_property','formula']);
   const roleNames = {viewer: 'Viewer', editor: 'Editor', admin: 'Administrator'};
   const tabNames = {fields: 'Fields', defaults: 'Default values', settings: 'Settings', raw: 'Field JSON'};
+  const fieldIconPaths = {
+    text: 'M3 5h14M10 5v14M7 19h6',
+    textarea: 'M3 5h18M3 10h14M3 15h18M3 20h11',
+    number: 'M9 3 6 21m12-18-3 18M4 9h17M3 15h17',
+    instruction: 'M5 3h14v18H5zM8 7h8M8 11h8M8 15h5',
+    section: 'M3 5v14M12 5v14M3 12h9M16 19h5m-3-5 3-2v7',
+    page_break: 'M4 9V3h16v6M4 15v6h16v-6M2 12h4m3 0h5m3 0h5',
+    date: 'M3 5h18v16H3zM3 10h18M7 3v4m10-4v4m-8 8h2',
+    datetime: 'M3 5h17v6M3 5v15h7M7 3v4m9-4v4M3 10h14M22 17a5 5 0 1 1-10 0 5 5 0 1 1 10 0m-5-3v3l2 1',
+    date_range: 'M3 5h18v16H3zM3 10h18M7 3v4m10-4v4M6 15h12m-3-2 3 2-3 2',
+    datetime_range: 'M2 5h17v6M2 5v15h7M6 3v4m9-4v4M2 10h13M4 15h4m-2-2 2 2-2 2M22 17a5 5 0 1 1-10 0 5 5 0 1 1 10 0m-5-3v3l2 1',
+    expiry_date: 'M3 5h18v16H3zM3 10h18M7 3v4m10-4v4m-5 5v4m0 2v.1',
+    choice: 'M3 6h18v12H3zM6 12h5m3-1 2 2 2-2',
+    multichoice: 'M3 6l2 2 3-4m3 3h10M3 16l2 2 3-4m3 3h10',
+    yes_no: 'M2 9l3 3 6-7m3 9 6 6m0-6-6 6',
+    person: 'M16 7a4 4 0 1 1-8 0 4 4 0 1 1 8 0M4 21v-2a8 6 0 0 1 16 0v2',
+    profile_name: 'M2 4h20v16H2zM10 9a2 2 0 1 1-4 0 2 2 0 1 1 4 0M4 16a4 3 0 0 1 8 0m2-7h5m-5 5h5',
+    profile_company: 'M4 21V3h12v18m0-12h4v12M2 21h20M8 7h1m3 0h1m-5 4h1m3 0h1m-5 4h1m3 0h1',
+    profile_phone: 'M6 3h3l2 5-3 2a14 14 0 0 0 6 6l2-3 5 2v3q0 4-5 2A22 22 0 0 1 4 8Q2 3 6 3',
+    lookup: 'M4 3h11l3 3v3M4 3v17h7M7 7h6M7 11h3m10 4a4 4 0 1 1-8 0 4 4 0 1 1 8 0m-1 3 4 4',
+    relationship: 'M9 8l3-3a4 4 0 0 1 6 6l-3 3m0 2-3 3a4 4 0 0 1-6-6l3-3m0 5 6-6',
+    table: 'M3 4h18v16H3zM3 10h18m-18 5h18M10 4v16',
+    prefilled_table: 'M3 4h18v16H3zM3 10h18M10 4v16m2-4 2 2 4-5',
+    group: 'M3 4h14v11H3zM7 19h14V8M6 9h8',
+    sign_on_table: 'M3 4h18v16H3zM3 10h18M9 4v16m4-4 2 1 3-4',
+    weather_table: 'M3 5h18v15H3zM3 10h18M9 5v15m3-4a2 2 0 0 1 2-2 2 2 0 0 1 4-.5 1.5 1.5 0 0 1 0 3h-6z',
+    attachment: 'M8 13l7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7l10-10m-7 13 8-8',
+    photo: 'M2 6h5l2-3h6l2 3h5v14H2zM16 13a4 4 0 1 1-8 0 4 4 0 1 1 8 0',
+    sketch: 'M3 20l1-5L16 3l4 4L8 19zM13 6l4 4M11 21h10',
+    location: 'M19 9c0 6-7 12-7 12S5 15 5 9a7 7 0 1 1 14 0m-5 0a2 2 0 1 1-4 0 2 2 0 1 1 4 0',
+    signature: 'M3 16c7-15 12-15 6-4s0 7 3 2 2 5 7-1M3 21h18',
+    manual_signature: 'M3 18l2-6 9-9 4 4-9 9-6 2zm9 2c2-5 2-1 4-2s3-2 5-1',
+    signatures: 'M3 9c5-9 8-9 5-2s3 3 5-1m1 3h7M3 18c5-9 8-9 5-2s3 3 5-1m1 3h7',
+    approval: 'M3 17c4-10 9-12 6-5s-2 9 3 2m1-6 3 3 6-7M3 21h18',
+    action: 'M4 4h16v17H4zM8 3h8v4H8zm0 11 3 3 6-7',
+    counter: 'M2 6h20v12H2zm7 0v12m6-12v12M5 10v4m7-4v4m6-4v4',
+    id_text: 'M2 5h20v14H2zM6 9v6m4-6v6h2a3 3 0 0 0 0-6zM17 10h2m-2 4h2',
+    weather: 'M10 8a4 4 0 1 1 5 5M13 2v1m6 1-1 1m4 4h-2M4 20a4 4 0 1 1 1-8 5 5 0 0 1 9 1 3.5 3.5 0 1 1 2 7z',
+  };
+  function fieldIcon(type) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(ns,'svg');
+    icon.setAttribute('viewBox','0 0 24 24');
+    icon.setAttribute('aria-hidden','true');
+    const shape = document.createElementNS(ns,'path');
+    shape.setAttribute('d',fieldIconPaths[type]);
+    icon.append(shape);
+    return icon;
+  }
   const dragType = 'application/x-classifire-form-field';
   const fieldId = () => crypto.randomUUID();
   const clone = value => structuredClone(value);
@@ -364,10 +413,13 @@
           for (const [type, label] of entries) {
             if (type === 'approval' && model.mode !== 'workflow') continue;
             if (!copy(label).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) continue;
-            const item = button(label, event => {
+            const item = node('button','form-builder-palette-item');
+            item.type = 'button';
+            item.append(fieldIcon(type), ui('span','',label));
+            item.addEventListener('click', event => {
               if (event.detail > 1) return;
               insert({type}, event.shiftKey ? 0 : model.fields.length);
-            }, 'form-builder-palette-item');
+            });
             item.draggable = true; item.dataset.fieldType = type;
             item.addEventListener('dragstart', e => startDrag(e, {type}));
             section.append(item);

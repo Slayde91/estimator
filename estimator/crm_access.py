@@ -37,7 +37,7 @@ AUDIT_SEGMENTS = frozenset(('record-resources','upload','remove-file','file','ap
     'certifications','defaults','workspaces','discard','revisions','legacy','swms','rate-defaults','purchase-order-defaults',
     'takeoffs','calculators','penetration','libraries','definition','validate-item','calculate','state','new','cover','pdf-covers',
     'documentation','download-files','template','reset','workflows','calculation',
-    'forms','templates','entries','entry','approve','reopen','history','staff'))
+    'forms','templates','entries','entry','assign','assignees','approve','reopen','history','staff'))
 
 def audit_route(route):
     # Path parameters may be bearer download tokens or private user text.
@@ -140,11 +140,20 @@ class CRMAccess:
             role = assignment['role'] if assignment else 'none'
         return {'id':member['id'], 'name':member['name'], 'email':member['email'], 'role':role}
 
-    def staff(self):
+    def staff(self, include_roles=False):
         """Minimal active assignment roster, deliberately excluding pay/password data."""
         with self.scheduler.connect() as db:
-            return [dict(row) for row in db.execute(
-                'SELECT id,name FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
+            if not include_roles:
+                return [dict(row) for row in db.execute(
+                    'SELECT id,name FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
+            members = [dict(row) for row in db.execute(
+                'SELECT id,name,role FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
+        with self.connect() as db:
+            roles = dict(db.execute('SELECT member_id,role FROM crm_access_roles'))
+        for member in members:
+            if member['role'] != 'admin':
+                member['role'] = roles.get(member['id'], 'none')
+        return members
 
     def session(self, token):
         config=self.settings()

@@ -2,6 +2,8 @@
   'use strict';
 
   const icons = {
+    back:      ['secondary', 'button-symbol', '←'],
+    close:     ['secondary', 'button-symbol', '×'],
     up:        ['secondary', 'button-symbol', '↑'],
     down:      ['secondary', 'button-symbol', '↓'],
     duplicate: ['secondary', 'button-symbol', '⧉'],

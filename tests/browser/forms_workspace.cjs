@@ -44,12 +44,16 @@ const ready=new Promise((resolve,reject)=>{
     for (const name of ['Templates','Form records']) {
       const control = b(name);
       await expect(control).toHaveAttribute('aria-pressed',String(name===tab));
-      await expect(control).toHaveCSS('background-color','rgb(200, 16, 46)');
+      const navBackground=await page.locator('#document-pages [aria-pressed=true]').evaluate(el=>getComputedStyle(el).backgroundImage);
+      assert.match(navBackground,/linear-gradient/);
+      await expect(control).toHaveCSS('background-image',navBackground);
       await expect.poll(()=>control.evaluate(el=>{const shadow=getComputedStyle(el).boxShadow;return shadow.includes('rgb(255, 255, 255)') && shadow.includes('inset');})).toBe(name===tab);
     }
   }
   await b('Create template').click();await page.getByRole('button',{name:/^Timeline/}).click();
   await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection');
+  const icons=await forms.locator('.form-builder-palette-item').evaluateAll(items=>items.map(item=>item.querySelector('svg[aria-hidden=true] path')?.getAttribute('d')));
+  assert.ok(icons.length>30 && icons.every(Boolean) && new Set(icons).size===icons.length);
   await forms.locator('[data-field-type=text]').dragTo(forms.locator('.form-builder-canvas'));
   await forms.getByLabel('Field label',{exact:true}).fill('Inspection site');
   await forms.locator('[data-field-type=date]').click();
@@ -57,6 +61,7 @@ const ready=new Promise((resolve,reject)=>{
   for(let i=0;i<3;i++) await b('Add column').click();
   await b('Preview').click();const preview=page.getByRole('dialog',{name:'Template preview'});
   await expect(preview.getByLabel('Inspection site',{exact:true})).toBeVisible();
+  await expect(preview.getByRole('button',{name:'Close',exact:true})).toHaveText('×');
   for(const width of [1350,688,360]) {
     await page.setViewportSize({width,height:880});
     const box=await preview.evaluate(d=>({left:d.getBoundingClientRect().left,width:d.getBoundingClientRect().width,
@@ -165,34 +170,62 @@ const ready=new Promise((resolve,reject)=>{
   await expect(forms.getByLabel('PDF colour theme')).toHaveValue('forest');
   await forms.getByLabel('Ready for review').selectOption('Ready');
   await b('Approve stage').click();await expect(forms).toContainText('Inspection review');
-  await forms.getByLabel('Reviewer notes').fill('Reviewed for fixture');await b('Approve stage').click();
+  await forms.getByLabel('Reviewer notes').fill('Reviewed for fixture 检测');await b('Approve stage').click();
   await expect(forms).toContainText('submitted');
-  // Intercept the native print dialog and render the same prepared document via Chromium.
-  await page.evaluate(()=>{window.print=()=>{};});await b('Print / Save PDF').click();
-  await page.emulateMedia({media:'print'});
-  await expect(page.locator('.forms-print')).toContainText('QA header');
-  await expect(page.locator('.forms-print')).toContainText('Reviewed for fixture');
-  await expect(page.locator('.forms-print')).toHaveAttribute('data-pdf-theme','forest');
-  await expect(page.locator('.forms-print h2')).toHaveCSS('color','rgb(22, 101, 52)');
-  await expect(page.locator('.forms-print [data-field-id=overall]')).toContainText('18');
-  await page.pdf({path:path.join(output,'form.pdf'),preferCSSPageSize:true});
-  assert.ok(fs.statSync(path.join(output,'form.pdf')).size>1000);
-  const pages=JSON.parse(execFileSync(process.env.CEASEFIRE_PYTHON || 'python',['-c',
-    'import json,sys; from pypdf import PdfReader; print(json.dumps([[float(p.mediabox.width),float(p.mediabox.height),p.extract_text()] for p in PdfReader(sys.argv[1]).pages]))',
-    path.join(output,'form.pdf')],{encoding:'utf8',windowsHide:true}));
-  assert.ok(pages.every(([w,h])=>Math.abs(w-842)<2 && Math.abs(h-595)<2),'Expected every PDF page in A4 landscape');
-  assert.match(pages.map(p=>p[2]).join(' '),/Form\s+version\s+\d+/);
-  await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));await page.emulateMedia({media:'screen'});
+  async function downloadedPdf(name) {
+    const started=page.waitForEvent('download');
+    await b('Download PDF').click();
+    const download=await started;
+    assert.match(download.suggestedFilename(),/^QA approval workflow-.+\.pdf$/);
+    const file=path.join(output,name);
+    await download.saveAs(file);
+    const pages=JSON.parse(execFileSync(process.env.CEASEFIRE_PYTHON || 'python',['-c',
+      'import json,sys; from pypdf import PdfReader; print(json.dumps([[float(p.mediabox.width),float(p.mediabox.height),p.extract_text(),p.get_contents().get_data().decode("latin1")] for p in PdfReader(sys.argv[1]).pages]))',
+      file],{encoding:'utf8',windowsHide:true}));
+    assert.ok(pages.every(([w,h])=>Math.abs(w-842)<2 && Math.abs(h-595)<2),'Expected every PDF page in A4 landscape');
+    assert.ok(pages.some(p=>p[3].includes('.086275 .396078 .203922 rg')),'Expected Forest PDF colours');
+    return pages.map(p=>p[2]).join(' ');
+  }
+  const text=await downloadedPdf('form.pdf');
+  for (const value of ['QA header','Reviewed for fixture','检测','18','Approved by','Form version']) assert.ok(text.includes(value),value);
   await b('Reopen previous stage').click();await page.getByRole('dialog').getByRole('button',{name:'Reopen stage',exact:true}).click();
-  await expect(forms.getByLabel('Reviewer notes')).toHaveValue('Reviewed for fixture');
+  await expect(forms.getByLabel('Reviewer notes')).toHaveValue('Reviewed for fixture 检测');
   await expect(forms).toContainText('Reopened stage');
-  await b('Print / Save PDF').click();
-  await page.emulateMedia({media:'print'});
-  await expect(page.locator('.forms-print')).toContainText('Reopened stage');
-  await expect(page.locator('.forms-print')).toHaveAttribute('data-pdf-theme','forest');
-  await page.evaluate(()=>window.dispatchEvent(new Event('afterprint')));await page.emulateMedia({media:'screen'});
+  assert.match(await downloadedPdf('reopened.pdf'),/Reopened stage/);
   await b('Back to forms').click();await b('Templates').click();await b('QA approval workflow').last().click();
   await expect(forms.getByRole('columnheader',{name:'Cost summary · Grand total (row 1)'})).toBeVisible();
   await expect(forms.getByRole('cell',{name:'18',exact:true})).toBeVisible();
+  const assigneeLogin = {name:'Forms assignee',email:'forms-assignee@example.test',password:'Fixture-assignee-password'};
+  const assignee = await post(admin,'/api/scheduler/members/save',{...assigneeLogin,role:'worker',active:true,base_rate:'0'},me.id);
+  await post(admin,'/api/access/roles',{member_id:assignee.id,role:'editor',version:0},me.id);
+  const templateName = 'Requested site inspection';
+  await post(admin,'/api/forms/template/save',{id:require('node:crypto').randomUUID(),version:0,name:templateName,
+    status:'published',roles:['admin','editor'],mode:'timeline',settings:{},
+    fields:[{id:'site',type:'text',label:'Site',required:true}]},me.id);
+  await open(page);
+  const templateRow = forms.getByRole('row').filter({hasText:templateName});
+  await templateRow.getByRole('button',{name:'Assign',exact:true}).click();
+  const assignDialog = page.getByRole('dialog',{name:'Assign',exact:true});
+  await expect(assignDialog.getByRole('button',{name:'Assign',exact:true})).toBeDisabled();
+  await expect(assignDialog.getByRole('option',{name:reader.name})).toHaveCount(0);
+  await assignDialog.getByLabel('Team member').selectOption(assignee.id);
+  await assignDialog.getByRole('button',{name:'Assign',exact:true}).click();
+  await expect(forms.getByRole('status')).toHaveText('Assigned to '+assignee.name+'.');
+  const recipient = await browser.newContext();
+  try {
+    await post(recipient,'/api/access/login',{email:assigneeLogin.email,password:assigneeLogin.password});
+    const recipientPage = await recipient.newPage();
+    await open(recipientPage);
+    const records = recipientPage.locator('#forms-root');
+    await records.getByRole('button',{name:'Form records',exact:true}).click();
+    const assignedRow = records.getByRole('row').filter({hasText:templateName});
+    await expect(assignedRow.getByRole('cell',{name:'Requested',exact:true})).toBeVisible();
+    await assignedRow.getByRole('button',{name:templateName,exact:true}).click();
+    await records.getByLabel('Site',{exact:false}).fill('West wing');
+    await records.getByRole('button',{name:'Save draft',exact:true}).click();
+    await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('draft');
+    await records.getByRole('button',{name:'Submit form',exact:true}).click();
+    await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('submitted');
+  } finally { await recipient.close(); }
   assert.deepEqual(issues,[]);console.log('Forms browser checks passed. '+output);
 })().catch(error=>{console.error(error,stderr);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -77,11 +77,15 @@ class Forms:
                 CREATE INDEX IF NOT EXISTS form_entry_template ON form_entries(template_id,updated_at);
             """)
             db.execute('BEGIN IMMEDIATE')
-            if 'reminders' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}
+            if 'requested_by' not in columns:
+                db.execute('ALTER TABLE form_entries ADD COLUMN requested_by TEXT')
+                db.execute('ALTER TABLE form_entries ADD COLUMN requested_by_name TEXT')
+            if 'reminders' not in columns:
                 db.execute("ALTER TABLE form_entries ADD COLUMN reminders TEXT NOT NULL DEFAULT '[]'")
-            if 'reversals' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
+            if 'reversals' not in columns:
                 db.execute("ALTER TABLE form_entries ADD COLUMN reversals TEXT NOT NULL DEFAULT '[]'")
-            if 'pdf_theme' not in {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}:
+            if 'pdf_theme' not in columns:
                 db.execute("ALTER TABLE form_entries ADD COLUMN pdf_theme TEXT NOT NULL DEFAULT 'ceasefire'")
 
     @contextmanager
@@ -107,14 +111,11 @@ class Forms:
     def _view(row, user):
         data = json.loads(row['definition'])
         manage = user['role'] == 'admin' or user['role'] == 'editor' and row['owner'] == user['id']
-        allowed = user['role'] in data['roles']
         published = data['status'] == 'published'
-        stages = data['settings'].get('stages', []) if data['mode'] == 'workflow' else []
-        fill = published and allowed and user['role'] in ('admin', 'editor') and (
-            not stages or Forms._eligible(stages[0],user))
+        fill = published and Forms._can_start(data, user)
         return {**data, 'id': row['id'], 'version': row['version'], 'updated_at': row['updated_at'],
                 'updated_by_name':row['updated_by_name'],
-                'can_manage': manage, 'can_fill': fill}
+                'can_manage': manage, 'can_fill': fill, 'can_assign': published and (manage or fill)}
 
     @staticmethod
     def _query():
@@ -192,6 +193,51 @@ class Forms:
                 (not stage.get('member_ids') or user['id'] in stage['member_ids']))
 
     @staticmethod
+    def _can_start(template, member):
+        stages = template['settings'].get('stages', []) if template['mode'] == 'workflow' else []
+        return (member['role'] in ('editor','admin') and member['role'] in template['roles']
+                and (not stages or Forms._eligible(stages[0],member)))
+
+    def _assignable_template(self, db, user, identity, revision):
+        template = self._template(db, user, identity)
+        if not template['can_assign']:
+            raise FormError('You cannot assign this template.', 403)
+        if template['version'] != _version(revision):
+            raise FormError('This template changed. Reopen it before assigning.', 409)
+        return template
+
+    def assignees(self, user, identity, revision):
+        self._user(user, True)
+        with self.connect() as db:
+            template = self._assignable_template(db, user, identity, revision)
+            return {'staff': [{'id':m['id'],'name':m['name']} for m in self.staff() if self._can_start(template, m)]}
+
+    def assign_entry(self, user, body):
+        self._user(user, True)
+        if set(body) != {'id','template_id','template_version','member_id'} or not isinstance(body['member_id'],str):
+            raise ValidationError('Choose a published template and a team member.')
+        key = _identity(body['id'])
+        with self.connect(True) as db:
+            template = self._assignable_template(db, user, body['template_id'], body['template_version'])
+            member = next((m for m in self.staff() if m['id'] == body['member_id'] and self._can_start(template,m)),None)
+            if member is None:
+                raise FormError('This team member cannot fill out this template.', 403)
+            row = self._entry_row(db, key)
+            if row:
+                if (row['requested_by'],row['owner'],row['template_id'],row['template_version']) != (
+                        user['id'],member['id'],template['id'],template['version']):
+                    raise FormError('This request already exists for a different assignment.', 409)
+            else:
+                stage_id = template['settings']['stages'][0]['id'] if template['mode']=='workflow' else None
+                now = _now()
+                db.execute('INSERT INTO form_entries (id,template_id,template_version,version,owner,owner_name,status,'
+                           'stage_id,approvals,answers,summary_values,created_at,updated_at,request_key,requested_by,'
+                           'requested_by_name) VALUES (?,?,?,1,?,?,?,?,?,?,?,?,?,?,?,?)',
+                           (key,template['id'],template['version'],member['id'],member['name'],'requested',stage_id,
+                            '[]','{}','{}',now,now,_request_key('assign', user, body),user['id'],user['name']))
+            return {'id':key,'assigned_to':member['id'],'assigned_to_name':member['name']}
+
+    @staticmethod
     def _stage(template, row):
         return next((stage for stage in template['settings'].get('stages', [])
                      if stage['id'] == row['stage_id']), None)
@@ -212,21 +258,24 @@ class Forms:
         stage_access = bool(current and self._eligible(current,user))
         approvals = json.loads(row['approvals'])
         previously_signed = any(item['member_id'] == user['id'] for item in approvals)
-        readable = own or stage_access or previously_signed or row['status']=='submitted'
+        assigned_start = bool(row['requested_by'] and not approvals and row['status'] in ('requested','draft'))
+        readable = own or not assigned_start and (stage_access or previously_signed or row['status']=='submitted')
         if not ((allowed and latest['status'] in ('published','archived') and readable) or role == 'admin'):
             raise _missing()
-        active = allowed and latest['status'] == 'published' and row['status'] == 'draft' and role in ('editor','admin')
-        edit = bool(active and (stage_access if current else own))
+        active = allowed and latest['status'] == 'published' and row['status'] in ('draft','requested') and role in ('editor','admin')
+        edit = bool(active and (own or not assigned_start) and (stage_access if current else own))
         reopen = bool(approvals and latest['status']=='published' and (role=='admin' or allowed and role=='editor'
                       and approvals[-1]['member_id']==user['id']))
         result = {'id': row['id'], 'version': row['version'], 'template_id': row['template_id'],
                   'name':template['name'], 'summary_values':json.loads(row['summary_values']), 'pdf_theme':row['pdf_theme'],
                   'reminders':json.loads(row['reminders']),
-                  'template_version': row['template_version'], 'created_by': row['owner'],
-                  'created_by_name': row['owner_name'], 'created_at': row['created_at'],
+                  'template_version': row['template_version'], 'created_by': row['requested_by'] or row['owner'],
+                  'created_by_name': row['requested_by_name'] or row['owner_name'], 'created_at': row['created_at'],
                   'updated_at': row['updated_at'], 'status': row['status'], 'stage_id': row['stage_id'],
                   'approvals': approvals, 'reversals':json.loads(row['reversals']),
                   'can_edit': edit, 'can_approve': bool(edit and current), 'can_reopen':reopen}
+        if row['requested_by']:
+            result.update(assigned_to=row['owner'], assigned_to_name=row['owner_name'])
         if answers:
             result.update(values=json.loads(row['answers']), template=template)
         return result
@@ -236,7 +285,7 @@ class Forms:
         with self.connect() as db:
             if template_id is not None:
                 self._template(db, user, _identity(template_id))
-            rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,status,stage_id,'
+            rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,requested_by,requested_by_name,status,stage_id,'
                               'approvals,reversals,created_at,updated_at,summary_values,reminders,pdf_theme FROM form_entries '
                               + ('WHERE template_id=? ' if template_id is not None else '')
                               + 'ORDER BY updated_at DESC,id', (template_id,) if template_id is not None else ())
@@ -399,6 +448,8 @@ class Forms:
                            (expected+1,approval['stage_id'],_json(entry['approvals']),_json(entry['reversals']+[reversal]),
                             now,request_key,key))
                 return self._entry(db,user,self._entry_row(db,key),answers=True)
+            if entry['status'] == 'requested':
+                raise FormError('Save the requested form before approving it.', 409)
             if not entry['can_approve']:
                 raise FormError('Your Settings role cannot approve this workflow step.', 403)
             template = entry['template']

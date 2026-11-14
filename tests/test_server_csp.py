@@ -89,7 +89,7 @@ class AnnotationStylesCommandLineTests(unittest.TestCase):
         server = Mock(server_port=8765)
         with patch("sys.argv", ["estimator"]), patch("estimator.server.create_server", return_value=server) as create, patch("estimator.server.LOGGER.warning") as warning, patch("builtins.print"):
             main()
-        create.assert_called_once_with(8765, None, library_directory=None, allow_annotation_styles=False)
+        create.assert_called_once_with(8765, None, library_directory=None, allow_annotation_styles=False, warm_libraries=True)
         warning.assert_not_called()
         server.serve_forever.assert_called_once_with()
         server.server_close.assert_called_once_with()
@@ -98,7 +98,7 @@ class AnnotationStylesCommandLineTests(unittest.TestCase):
         server = Mock(server_port=8766)
         with patch("sys.argv", ["estimator", "--port", "8766", "--allow-annotation-styles"]), patch("estimator.server.create_server", return_value=server) as create, patch("estimator.server.LOGGER.warning") as warning, patch("builtins.print"):
             main()
-        create.assert_called_once_with(8766, None, library_directory=None, allow_annotation_styles=True)
+        create.assert_called_once_with(8766, None, library_directory=None, allow_annotation_styles=True, warm_libraries=True)
         warning.assert_called_once()
         self.assertIn("inline stylesheet elements are allowed", warning.call_args.args[0])
         self.assertIn("Inline scripts and style attributes remain blocked", warning.call_args.args[0])

@@ -1941,7 +1941,7 @@
     if (state.pricingScope !== scope || state.draft !== draft || JSON.stringify(state.draft) !== snapshot || JSON.stringify([...pricingPendingFields(draft)]) !== pending) {
       message(uiCopy("Pricing changed during reset confirmation. Review the current pricing draft and try Reset Library again."), true); return;
     }
-    state.draft = { inventory: {}, rates: {} }; refreshPricingCatalog(); renderPricing();
+    state.draft = { catalog: clone(state.baseline), inventory: {}, rates: {} }; refreshPricingCatalog(); renderPricing();
     message(uiCopy("Original library defaults are ready as a draft. Click {0} to keep them, or Discard changes to restore the {1}.", [window.CeasefireI18n.term(saveAction), window.CeasefireI18n.term(scope === "project" ? "last applied project pricing" : "last saved library")]));
   }
 
@@ -2791,7 +2791,35 @@
         title.addEventListener("click", () => window.CeasefireProjectPane?.open(file));
         const heading = node("div", "project-row-heading");
         heading.append(title);
-        window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date);
+        window.ClassifireDocumentBoard.addFollowUpMarker(heading, file.follow_up_date, event =>
+          window.ClassifireFollowUpActions.openDialog({
+            trigger:event.currentTarget, recordName:file.title || file.name, readOnly:!canEdit(),
+            load:async () => {
+              const saved = await request("/api/projects/details", {method:"POST",body:JSON.stringify({id:file.id})});
+              return {actions:saved.project_follow_up.actions, revision:saved.revision};
+            },
+            save:(actions, loaded, request_id) => {
+              if (state.projectFile?.path === file.path && (state.projectBusy ||
+                  JSON.stringify(projectFollowUp.actions) !== JSON.stringify(savedProjectFollowUp.actions))) {
+                throw new Error("Save your Project Details edits before changing its follow-up actions.");
+              }
+              return request("/api/projects/follow-up", {method:"POST",body:JSON.stringify({id:file.id, revision:loaded.revision, actions, request_id})});
+            },
+            onSaved:async (result, loaded) => {
+              if (state.projectFile?.path === result.file.path && state.projectFile.revision === loaded.revision) {
+                const clean = JSON.stringify(projectFollowUp.actions) === JSON.stringify(savedProjectFollowUp.actions);
+                state.projectFile = result.file;
+                savedProjectFollowUp = followUpFields(result.project_follow_up);
+                projectFollowUp = clean ? savedProjectFollowUp : {...savedProjectFollowUp, actions:projectFollowUp.actions};
+                updateProjectStatus();
+              }
+              await loadProjects();
+            },
+            restoreFocus:() => {
+              const card = $("project-list").querySelector('[data-project-id="' + CSS.escape(file.id) + '"]');
+              return card?.querySelector(".board-follow-up-due:not([hidden])") || card?.querySelector(".project-title-button");
+            }
+          }));
         const details = node("div", "project-row-details");
         const information = node("dl", "kanban-card-details");
         for (const [label, value] of [

@@ -313,8 +313,8 @@ class ServerTests(unittest.TestCase):
             columns = {cell.value: cell.column for cell in sheet[1]}
             records = list(sheet.iter_rows(min_row=2, values_only=True))
             self.assertNotIn("Row type", columns)
-            self.assertEqual(len(records), 417)
-            self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 417)
+            self.assertEqual(len(records), 393)
+            self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 393)
             use_columns = ("Group", "Selection name", "Price source", "Sell rate",
                            "Yield type", "Use yields", "Rate ID", "Use order")
 
@@ -328,7 +328,7 @@ class ServerTests(unittest.TestCase):
                 self.assertEqual(len({len(entries) for entries in result.values()}), 1)
                 return result
 
-            self.assertEqual(sum(len(read_uses(record)["Rate ID"]) for record in records), 166)
+            self.assertEqual(sum(len(read_uses(record)["Rate ID"]) for record in records), 154)
             # Remove one choice from the eight editable lists; units are derived.
             removed_choice = None
             for number, record in enumerate(records, 2):

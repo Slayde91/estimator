@@ -88,7 +88,7 @@ def project_response(payload):
     return payload
 
 
-def reconcile_actions(previous, values, owner="project"):
+def reconcile_actions(previous, values, owner="project", *, allow_corrections=False):
     """Apply a full modern edit or a legacy edit to the one projected open row."""
     if not isinstance(values, dict) or set(values) - {"actions", *FOLLOW_UP_LIMITS}:
         raise ValidationError("Follow-up contains unsupported fields.")
@@ -98,7 +98,7 @@ def reconcile_actions(previous, values, owner="project"):
         for row in previous:
             if row["id"] not in by_id:
                 raise ValidationError("Keep existing follow-up actions. Complete or cancel an action to close it.")
-            if row["status"] and row != by_id[row["id"]]:
+            if row["status"] and row != by_id[row["id"]] and not allow_corrections:
                 raise ValidationError("Completed and canceled follow-up actions cannot be changed.")
         return rows
     if not values:
@@ -118,9 +118,23 @@ def reconcile_actions(previous, values, owner="project"):
     return validate_actions([*previous, fresh])
 
 
-def action_decisions(previous, latest):
-    closed = {row["id"] for row in previous if row["status"]}
-    return [row for row in latest if row["status"] and row["id"] not in closed]
+def action_changes(previous, latest):
+    """Yield new decisions and explicit amendments to a previous decision."""
+    prior = {row["id"]: row for row in previous}
+    for row in latest:
+        old = prior.get(row["id"])
+        if old != row and (row["status"] or old and old["status"]):
+            yield old, row
+
+
+def history_event(event):
+    previous = event.get("previous")
+    def description(row):
+        return " · ".join(filter(None, [row["next_action"], row["follow_up_date"], row["status"] or "Pending"]))
+    subject = (description(previous) + " → " + description(event) if previous else
+               " · ".join(filter(None, [event["next_action"], event["follow_up_date"]])))
+    label = "Follow-up corrected" if previous else "Follow-up " + event["status"].lower()
+    return {"label":label, "at":event["at"], "subject":subject, **({"actor":event["actor"]} if event.get("actor") else {})}
 
 
 def project_follow_up(values):
@@ -137,44 +151,70 @@ def project_follow_up(values):
     actions = validate_actions(values["actions"])
     result = {"actions": actions}
     history = values.get("history", [])
-    if not isinstance(history, list) or len(history) > len(actions):
+    if not isinstance(history, list):
         raise ValidationError("Invalid project follow-up history.")
-    rows = {row["id"]: row for row in actions if row["status"]}
-    seen, events = set(), []
+    rows = {row["id"]: row for row in actions}
+    last, events = {}, []
     for event in history:
-        if not isinstance(event, dict) or set(event) != ACTION_KEYS | {"at"}:
+        if (not isinstance(event, dict) or not (ACTION_KEYS | {"at"}) <= event.keys()
+                or event.keys() - ACTION_KEYS - {"at", "previous", "actor"}):
             raise ValidationError("Invalid project follow-up history.")
         identity, stamp = event["id"], event["at"]
-        if not isinstance(identity, str) or identity in seen or rows.get(identity) != {key:event[key] for key in ACTION_KEYS}:
+        row = {key:event[key] for key in ACTION_KEYS}
+        if validate_actions([row]) != [row] or identity not in rows:
             raise ValidationError("Project follow-up history does not match its closed action.")
+        previous = event.get("previous")
+        if "previous" in event:
+            if (validate_actions([previous]) != [previous] or previous["id"] != identity
+                    or not previous["status"] or previous == row or last.get(identity, previous) != previous):
+                raise ValidationError("Invalid project follow-up history.")
+        elif not row["status"] or last.get(identity, {}).get("status"):
+            raise ValidationError("Invalid project follow-up history.")
+        actor = event.get("actor", "")
+        if not isinstance(actor, str) or len(actor) > 240 or any(ord(char) < 32 for char in actor):
+            raise ValidationError("Invalid project follow-up history.")
         try:
             if not isinstance(stamp, str) or len(stamp) > 40 or datetime.fromisoformat(stamp).tzinfo is None:
                 raise ValueError
         except ValueError:
             raise ValidationError("Invalid project follow-up decision time.") from None
-        seen.add(identity)
+        last[identity] = row
         events.append(dict(event))
+    for identity, latest in last.items():
+        # A reopened action is editable again. A whole-file draft can carry
+        # its new decision before the save boundary adds the next receipt.
+        if latest["status"] and rows[identity] != latest:
+            raise ValidationError("Project follow-up history does not match its closed action.")
     if events:
         result["history"] = events
     return result
 
 
-def save_project_follow_up(previous, incoming, *, new_file=False):
+def save_project_follow_up(previous, incoming, *, new_file=False, allow_corrections=False, actor=""):
     """Commit decisions with the project bytes; preserve the selected file's prior receipts."""
     before = project_follow_up(previous)
     if not isinstance(incoming, dict):
         raise ValidationError("Project follow-up contains unsupported fields.")
     if "actions" in incoming or "history" in incoming:
         submitted = project_follow_up(incoming)
-        actions = reconcile_actions(before["actions"], {"actions":submitted["actions"]})
+        actions = reconcile_actions(before["actions"], {"actions":submitted["actions"]}, allow_corrections=allow_corrections)
     else:
         submitted = {}
         actions = reconcile_actions(before["actions"], incoming)
     # Only a new portable copy can acquire an existing trail from the supplied file.
     history = list((submitted if new_file else before).get("history", []))
-    recorded = {event["id"] for event in history}
-    changes = [row for row in action_decisions(before["actions"], actions) if row["id"] not in recorded]
-    if changes:
-        now = datetime.now(timezone.utc).isoformat()
-        history.extend({**row, "at":now} for row in changes)
+    remaining = {row["id"] for row in actions}
+    if any(event["id"] not in remaining for event in history):
+        raise ValidationError("Keep existing follow-up actions. Complete or cancel an action to close it.")
+    imported = {event["id"]:event for event in history} if new_file else {}
+    now = datetime.now(timezone.utc).isoformat()
+    for old, row in action_changes(before["actions"], actions):
+        if imported.get(row["id"], {}).get("status") == row["status"]:
+            continue
+        event = {**row, "at":now}
+        if actor:
+            event["actor"] = actor
+        if old and old["status"]:
+            event["previous"] = old
+        history.append(event)
     return {"actions":actions, **({"history":history} if history else {})}

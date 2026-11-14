@@ -30,7 +30,7 @@ async function checkFollowUpBoard(browser, base, output) {
     await page.clock.install({time:new Date('2027-03-15T03:58:00Z')});
     await page.locator('button[data-view="contacts"]').click();
     const root=page.locator('#contacts-root'),card=name=>root.locator('.contacts-board article').filter({hasText:'Reminder '+name});
-    const due=name=>card(name).getByRole('img',{name:'Follow-up due',exact:true});
+    const due=name=>card(name).getByRole('button',{name:'Follow-up due',exact:true});
     await expect(card('Tomorrow')).toBeVisible();
     await page.clock.pauseAt(new Date('2027-03-15T03:59:58Z'));
     for(const name of ['Past','Today','Disqualified']){
@@ -38,8 +38,9 @@ async function checkFollowUpBoard(browser, base, output) {
       await expect(due(name)).toHaveText('!');
       await expect(due(name)).toHaveCSS('font-weight','800');
       await expect(due(name)).toHaveCSS('color','rgb(217, 54, 71)');
-      const marker=await due(name).boundingBox(), tile=await card(name).boundingBox();
-      assert.ok(Math.abs(tile.x+tile.width-marker.x-marker.width)<=16 && marker.y-tile.y<=16);
+      const marker=await due(name).boundingBox(), menu=await card(name).locator('.contacts-lead-menu summary').boundingBox();
+      assert.ok(menu.x>=marker.x+marker.width && menu.x-marker.x-marker.width<=6);
+      assert.ok(Math.abs(marker.y+marker.height/2-menu.y-menu.height/2)<=1);
     }
     for(const name of ['Unscheduled','Tomorrow','Later','Converted'])await expect(due(name)).toHaveCount(0);
     const menu=card('Tomorrow').getByText('▾',{exact:true});
@@ -52,7 +53,7 @@ async function checkFollowUpBoard(browser, base, output) {
     await root.getByRole('searchbox').fill('Reminder');
     await page.screenshot({path:path.join(output,'lead-follow-up.png')});
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('fr',false));
-    await expect(card('Tomorrow').getByRole('img',{name:'Suivi à effectuer',exact:true})).toBeVisible();
+    await expect(card('Tomorrow').getByRole('button',{name:'Suivi à effectuer',exact:true})).toBeVisible();
     await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
     for(const width of [1915,913,390]){
       await page.setViewportSize({width,height:884});
@@ -66,6 +67,31 @@ async function checkFollowUpBoard(browser, base, output) {
       assert.equal(sizes[0][0],sizes[0][1]);
     }
     assert.deepEqual(await get(directory),original);
+    const dialog=page.getByRole('dialog',{name:'Follow-up actions'});
+    await due('Past').focus();await due('Past').press('Enter');
+    const first=dialog.locator('.follow-up-action-row').first();
+    await expect(first.getByLabel('Next action')).toBeFocused();
+    await first.getByLabel('Next action').fill('A discarded change');
+    await page.keyboard.press('Escape');await expect(due('Past')).toBeFocused();
+    await due('Past').click();await expect(first.getByLabel('Next action')).toHaveValue('');
+    await first.getByLabel('Next action').fill('Completed call');
+    await first.getByLabel('Follow-up status').selectOption('Completed');
+    await dialog.getByRole('button',{name:'Add follow-up'}).click();
+    const later=dialog.locator('.follow-up-action-row').nth(1);
+    await later.getByLabel('Next action').fill('Second due task');await later.getByLabel('Follow-up date').fill('2027-03-14');
+    await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toHaveCount(0);
+    await expect(due('Past')).toBeFocused();await due('Past').press('Space');
+    await expect(first.getByLabel('Next action')).toHaveValue('Completed call');
+    await expect(first.getByLabel('Next action')).toBeEditable();
+    await expect(later.getByLabel('Next action')).toHaveValue('Second due task');
+    await first.getByLabel('Next action').fill('Corrected call');
+    await first.getByLabel('Follow-up status').selectOption('');
+    await first.getByLabel('Follow-up date').fill('2027-03-12');
+    await page.screenshot({path:path.join(output,'lead-follow-up-dialog-mobile.png')});
+    await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toHaveCount(0);
+    const lead=(await get(directory)).leads.find(row=>row.name==='Reminder Past');
+    assert.deepEqual(lead.follow_up_actions.map(row=>row.next_action),['Corrected call','Second due task']);
+    assert.equal(lead.follow_up_date,'2027-03-12');
   } finally {await page.close();}
 }
 module.exports={checkFollowUpBoard};

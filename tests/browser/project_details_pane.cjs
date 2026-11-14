@@ -59,13 +59,21 @@ const ready = new Promise((resolve,reject)=>{
   const first=listing.files.find(file=>path.resolve(file.path)===path.resolve(info.project));
   const second=listing.files.find(file=>file.id!==first.id);
   const title=file=>page.locator(`.project-kanban-card[data-project-id="${file.id}"] .project-title-button`);
-  const reminder=file=>title(file).locator('xpath=ancestor::article').getByRole('img',{name:'Follow-up due',exact:true});
+  const reminder=file=>title(file).locator('xpath=ancestor::article').getByRole('button',{name:'Follow-up due',exact:true});
   await expect(reminder(first)).toBeVisible();await expect(reminder(first)).toHaveText('!');
   await expect(reminder(first)).toHaveCSS('color','rgb(217, 54, 71)');
   const firstCard=title(first).locator('xpath=ancestor::article');
   await expect(firstCard.locator('dl')).toContainText('Confirm site access');
   await expect(firstCard.locator('dl')).toContainText('01/01/2001');
   assert.ok(await reminder(first).evaluate(marker=>marker.nextElementSibling.matches('.project-card-menu')));
+  await reminder(second).click();
+  const followDialog=page.getByRole('dialog',{name:'Follow-up actions'});
+  const followAction=followDialog.getByLabel('Next action',{exact:true});
+  await expect(followAction).toHaveValue('Confirm\nsite access');
+  await followAction.fill('Selected file correction');await followDialog.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(followDialog).toHaveCount(0);await expect(reminder(second)).toBeFocused();
+  await expect(title(second).locator('xpath=ancestor::article')).toContainText('Selected file correction');
+  assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).project_follow_up.actions[0].next_action,'Confirm\nsite access');
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
   const openDetails=async file=>{
     if(await page.locator('#project-details-pane').isVisible())await back();
@@ -157,7 +165,7 @@ const ready = new Promise((resolve,reject)=>{
   }
   await page.locator('#project-pane-address').fill('20 Other Project Road');
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
-  await expect(action).toHaveValue('Confirm\nsite access');await expect(dueDate).toHaveValue('2001-01-01');
+  await expect(action).toHaveValue('Selected file correction');await expect(dueDate).toHaveValue('2001-01-01');
   await action.fill('Await delivery');await dueDate.fill('2099-12-31');
   const refreshPanel=page.waitForResponse(response=>response.url().includes('/api/commercial/register?refresh=1'));
   await page.getByRole('button',{name:'Refresh Records',exact:true}).click();await refreshPanel;

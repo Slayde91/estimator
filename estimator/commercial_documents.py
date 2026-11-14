@@ -13,6 +13,7 @@ import sqlite3
 import uuid
 
 from . import record_activity
+from . import follow_up as reminders
 from .catalog import ValidationError
 from .commercial_files import MAX_FILES, WorkOrderFiles, validate_files
 from .document_numbers import DocumentNumbers, valid_reference, validated_counters
@@ -527,7 +528,7 @@ def validate_commercial_documents(value):
     documents = []
     identities = set()
     for document in value['documents']:
-        if not isinstance(document, dict) or set(document) - {'reference'} != {'id', 'kind', 'version', 'status', 'fields', 'created_at', 'updated_at', 'last_number'}:
+        if not isinstance(document, dict) or set(document) - {'reference','follow_up'} != {'id', 'kind', 'version', 'status', 'fields', 'created_at', 'updated_at', 'last_number'}:
             raise ValidationError('A commercial document has unsupported fields.')
         identity = _identity(document['id'])
         if identity in identities:
@@ -539,6 +540,8 @@ def validate_commercial_documents(value):
         row = deepcopy(document)
         row['status'] = status
         row['fields'] = validate_fields(document['fields'], kind=row['kind'])
+        if 'follow_up' in document:
+            row['follow_up'] = reminders.project_follow_up(document['follow_up'])
         if row['fields'].get('work_tracking', {}).get('project_id', value['project_id']) != value['project_id']:
             raise ValidationError('Work tracking belongs to a different project.')
         for key in ('created_at', 'updated_at', 'last_number'):
@@ -615,7 +618,10 @@ def commercial_cards(snapshot, *, include_quote_files=False):
             else:
                 amounts = [{'quantity': _number(line['quantity'], 'Quantity'), 'unit_price': _number(line['unit_price'], 'Unit price', -MAX_DOCUMENT_AMOUNT)} for line in lines]
                 grand_total = totals({'lines': amounts})['grand_total']
-            cards.append({'id': _identity(document['id']), 'project_id': snapshot['project_id'], 'kind': kind,
+            follow_up = reminders.project_follow_up(document.get('follow_up', {}))['actions']
+            latest = follow_up[-1] if follow_up else None
+            cards.append({**({'latest_follow_up':latest, 'pending_follow_up_date':reminders.summary_fields(follow_up)['follow_up_date']} if latest else {}),
+                          'id': _identity(document['id']), 'project_id': snapshot['project_id'], 'kind': kind,
                           'version': document['version'], 'status': status, 'grand_total': grand_total,
                           'created_at': _text(document['created_at'], 'Creation date', 100),
                           'updated_at': _text(document['updated_at'], 'Last updated', 100),
@@ -954,6 +960,43 @@ class CommercialDocuments:
             return bound[0]
         return 'workspace:' + workspace
 
+    @staticmethod
+    def _follow_up(document, body, *, corrections=False, actor=None):
+        previous = document.get('follow_up', {})
+        if 'follow_up_actions' not in body:
+            return previous
+        return reminders.save_project_follow_up(previous, {'actions':body['follow_up_actions']}, allow_corrections=corrections,
+                                      actor=(actor or {}).get('name',''))
+
+    def update_follow_up(self, workspace, identity, version, actions, actor=None):
+        with self._connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            project = self._workspace(db, workspace)
+            if not self.unfiled.permits_document(db, workspace, identity):
+                raise ValidationError('This commercial document is unavailable in the current project.')
+            previous = self._record(db, workspace, identity)
+            self._version(previous, version)
+            follow_up = self._follow_up(previous, {'follow_up_actions':actions}, corrections=True, actor=actor)
+            if follow_up == previous.get('follow_up', {'actions':[]}):
+                return previous
+            document = {**previous, 'follow_up':follow_up, 'version':previous['version']+1,
+                        'updated_at':datetime.now(timezone.utc).isoformat()}
+            self._validate_draft_save(db, workspace, project, document)
+            db.execute('UPDATE commercial_drafts SET data=? WHERE workspace=? AND id=?', (_json(document),workspace,identity))
+            self._audit(db, workspace, identity, 'follow-up', previous, document)
+            return document
+
+    @staticmethod
+    def follow_up_details(document):
+        return {'version':document['version'], 'actions':reminders.project_follow_up(document.get('follow_up',{}))['actions']}
+
+    def follow_up(self, workspace, identity):
+        with self._connect() as db:
+            self._workspace(db, workspace)
+            if not self.unfiled.permits_document(db, workspace, identity):
+                raise ValidationError('This commercial document is unavailable in the current project.')
+            return self.follow_up_details(self._record(db, workspace, identity))
+
     def activity(self, workspace, identity, *, entry=None, actor=None, staff=None, version=None):
         with self._connect() as db:
             db.execute('BEGIN IMMEDIATE' if entry is not None else 'BEGIN')
@@ -967,11 +1010,13 @@ class CommercialDocuments:
                                               entry, actor, staff, CommercialConflict)
             return self._document_activity(db, project, doc, self._activity_source(db,workspace))
 
-    def saved_activity(self, snapshot, identity, source=None):
+    def saved_activity(self, snapshot, identity, source=None, *, follow_up=False):
         identity = _identity(identity)
         document = next((row for row in (snapshot or {}).get('documents', []) if row['id'] == identity), None)
         if document is None:
             raise ValidationError('This commercial document is unavailable in the current project.')
+        if follow_up:
+            return self.follow_up_details(document)
         with self._connect() as db:
             return self._document_activity(db, snapshot['project_id'], document, source)
 
@@ -983,12 +1028,13 @@ class CommercialDocuments:
         # workspaces. Never expose an audit payload to the browser.
         expected = _json(document)
         events = record_activity.events(db, source, project+':'+document['id']) if source else []
+        events.extend(reminders.history_event(item) for item in document.get('follow_up', {}).get('history', []))
         rows = db.execute("""
             SELECT a.action,a.created_at,a.before_data,a.after_data,s.created_at AS signed_at
             FROM commercial_audit a JOIN commercial_workspaces w ON w.workspace=a.workspace
             LEFT JOIN commercial_audit s ON s.sequence=a.sequence+1 AND s.action='signatures'
                 AND s.workspace=a.workspace AND s.document_id=a.document_id
-            WHERE a.document_id=? AND w.project_id=? AND a.action IN ('save','status','issue')
+            WHERE a.document_id=? AND w.project_id=? AND a.action IN ('save','status','issue','follow-up')
             ORDER BY a.sequence DESC""", (document['id'], project))
         for row in rows:
             if row['after_data'] != expected:
@@ -1240,8 +1286,8 @@ class CommercialDocuments:
             if size > MAX_SNAPSHOT_BYTES:
                 raise ValidationError('Commercial document drafts exceed the 8 MiB project limit.')
 
-    def save(self, workspace, payload, *, unfiled_context=None, linked_quote_transition=None):
-        if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions'}:
+    def save(self, workspace, payload, *, unfiled_context=None, linked_quote_transition=None, actor=None):
+        if not isinstance(payload, dict) or set(payload) - {'id', 'version', 'kind', 'status', 'fields', 'signature_actions','follow_up_actions'}:
             raise ValidationError('Commercial document save contains unsupported fields.')
         kind = payload.get('kind')
         status = _canonical_status(kind, payload.get('status'))
@@ -1321,8 +1367,9 @@ class CommercialDocuments:
                 self._validate_tracking(db, project, fields, previous)
             status = apply_signing(kind, fields, status, signed, previous, legacy_details=legacy_details,
                                    create_retry=payload.get('version') == 0)
+            follow_up = self._follow_up(previous or {}, payload, actor=actor)
             if payload.get('version') == 0 and previous:
-                if previous['fields'] == fields and previous['status'] == status:
+                if previous['fields'] == fields and previous['status'] == status and follow_up.get('actions',[]) == previous.get('follow_up',{}).get('actions',[]):
                     if unfiled_context is not None:
                         self.unfiled.enroll(db, workspace, previous['id'], unfiled_context)
                     return previous
@@ -1336,6 +1383,8 @@ class CommercialDocuments:
                         'version': previous['version'] + 1 if previous else 1, 'status': status, 'fields': fields,
                         'created_at': previous['created_at'] if previous else now, 'updated_at': now,
                         'last_number': previous['last_number'] if previous else ''}
+            if follow_up.get('actions'):
+                document['follow_up'] = follow_up
             # Older issued Quotes have immutable issue numbers but no separate draft reference.
             prior_reference = (previous or {}).get('reference', '')
             if kind != 'quote' or not document['last_number'] or prior_reference:

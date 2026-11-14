@@ -1,3 +1,4 @@
+const {checkRecordTrim}=require('./record_sidebar_trim.cjs');
 'use strict';
 // Real persisted Notes/Files and the existing Lead full-page edit contract.
 const {chromium,expect}=require('@playwright/test'),assert=require('node:assert/strict');
@@ -19,6 +20,7 @@ const checks=[],errors=[];
  const owners=[['accounts',account.id,account.company],['contacts',contact.id,contact.name],['leads',lead.id,lead.name]];
  for(const [kind,id,label]of owners){
   let pane=await open(kind,label);const before=await api('/api/contacts/directory');
+  await checkRecordTrim(page,pane,kind,output);
   const rail=pane.locator('.contacts-record-right'), refresh=pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Refresh Records',exact:true});
   await expect(rail.locator('details > summary')).toHaveText(['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
   const titleField=pane.getByLabel(kind==='accounts'?'Billing address':'Title',{exact:true});
@@ -66,6 +68,7 @@ const checks=[],errors=[];
  await pane.getByRole('button',{name:'New note',exact:true}).click();let note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Unsaved note');await page.evaluate(()=>{window.pendingDirectoryLeave=window.ClassifireContacts.leave();});await expect(discard).toContainText('Discard changes to this lead?');await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(note).toBeVisible();await expect(note.getByLabel('Note title',{exact:true})).toHaveValue('Unsaved note');await page.evaluate(()=>{window.pendingDirectoryLeave=window.ClassifireContacts.leave();});await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(note).toHaveCount(0);await expect(pane).toHaveCount(0);
  checks.push('Lead Back cancellation retains unsaved form and note values; confirmed discard closes its own note modal without saving');
  pane=await open('leads',lead.name);
+ await checkRecordTrim(page,pane,'leads',output);
  const rows=pane.locator('.follow-up-action-row'),add=pane.getByRole('button',{name:'Add follow-up',exact:true});
  const first=rows.nth(0),second=rows.nth(1),third=rows.nth(2);
  await first.getByLabel('Next action',{exact:true}).fill('');await first.locator('input[type=date]').fill('');

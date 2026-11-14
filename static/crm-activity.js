@@ -111,7 +111,10 @@
       meta.className='helper';meta.textContent=named.join(' · ');li.append(head,meta);
       const detail=item.detail;
       if(detail.subject)li.append(el('p',detail.subject));
-      if(detail.text)li.append(el('p',detail.text));
+      if(item.event_type==='Follow-up corrected' && detail.previous && detail.current) {
+        const summary=action=>[action.next_action,action.follow_up_date,term(action.status || 'Pending')].filter(Boolean).join(' · ');
+        li.append(el('p',summary(detail.previous)+' → '+summary(detail.current)));
+      } else if(detail.text)li.append(el('p',detail.text));
       if(item.event_type==='Updated' && detail.fields?.length) {
         const names={name:'Name',email:'Email',phone:'Phone',title:'Title',company:'Company',account_id:'Company',contact_id:'Contact',
           abn_acn:'ABN/ACN',billing_address:'Billing address',site_address:'Site address',person_snapshot:'Contact details',

@@ -1,3 +1,4 @@
+const {checkRecordTrim}=require('./record_sidebar_trim.cjs');
 // Project sidebars bind to the selected saved file, never a similarly named active Project.
 const {chromium,expect:baseExpect}=require('@playwright/test');
 const {spawn}=require('node:child_process'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -77,6 +78,8 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
     notes:[{id:require('node:crypto').randomUUID(),title:'Legacy note',body:legacyText}]}});
   assert.equal(legacy.status(),200,await legacy.text());
   await open(a);
+  await checkRecordTrim(page,page.locator('#project-workspace-layout'),'projects',output);
+
   await notes.getByRole('button',{name:'Legacy note',exact:true}).click();
   const legacyEditor=page.getByRole('dialog',{name:'Edit note',exact:true});
   await expect(legacyEditor.getByLabel('Compose text',{exact:true})).toHaveText(legacyText);

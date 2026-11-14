@@ -35,10 +35,7 @@
 @media(max-width:1000px) { .contacts-directory-layout.contacts-account-open { grid-template-columns:minmax(0,1fr); } }
 .contacts-board { display:flex; overflow-x:auto; gap:12px; padding-bottom:14px; }
 .contacts-board .project-kanban-card { position:relative; }
-.board-follow-up-due { position:absolute; top:12px; right:13px; color:#d93647; font-size:20px; font-weight:800; line-height:1; }
-.contacts-board .project-kanban-card:has(.board-follow-up-due:not([hidden]))>.project-card-heading { padding-right:18px; }
 #project-list .project-list-row { position:relative; }
-#project-list .project-row-heading > .board-follow-up-due { position:static; align-self:flex-start; margin-block-start:2px; }
 .contacts-board .project-kanban-card[draggable="true"] { cursor:grab; }
 .contacts-board .project-title-button,.contacts-table .text-button { text-align:left; }
 .contacts-board .project-kanban-card p { margin:6px 0; overflow-wrap:anywhere; }
@@ -153,3 +150,13 @@
 .record-activity-history .contacts-group,.contacts-record-workspace .crm-timeline .contacts-group{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1050px){.contacts-record-layout{grid-template-columns:minmax(0,1fr)}.contacts-record-main{grid-row:1}.contacts-record-left{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.contacts-record-associations{display:contents}}
 @media(max-width:560px){.contacts-record-workspace .contacts-record-details>.contacts-group{grid-template-columns:minmax(0,1fr)}.contacts-record-details{padding:16px}}
+.board-follow-up-due{flex:0 0 28px;width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:#d93647;font-family:inherit;font-size:20px;font-weight:800;line-height:1;cursor:pointer}
+.board-follow-up-due:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.contacts-board .project-card-heading:has(.board-follow-up-due:not([hidden])),#project-list .project-row-heading:has(.board-follow-up-due:not([hidden])){align-items:center;gap:4px}
+.contacts-board .project-card-heading>.project-title-button{flex:1;min-width:0}
+#project-list .project-row-heading>.board-follow-up-due:not([hidden])+.project-card-menu{margin-inline-start:0}
+.follow-up-dialog{width:min(760px,94vw);padding:clamp(14px,3vw,24px)}
+.follow-up-dialog form{display:grid;gap:16px}
+.follow-up-dialog h2,.follow-up-dialog p{margin:0;overflow-wrap:anywhere}
+.follow-up-dialog fieldset{border:0;padding:0;margin:0;min-inline-size:0}
+.follow-up-dialog fieldset>.follow-up-add{margin-block-start:12px}

@@ -69,11 +69,12 @@ class CommercialHTTP:
                 handler.send_payload(200, result)
                 return True
             if handler.command == 'GET':
-                if action == 'activity':
+                if action in {'activity','follow-up'}:
                     if set(query) == {'workspace', 'document'}:
-                        result = self.service.activity(query['workspace'][0], query['document'][0])
+                        read = self.service.follow_up if action == 'follow-up' else self.service.activity
+                        result = read(query['workspace'][0], query['document'][0])
                     elif self.saved and set(query) == {'file', 'revision', 'document'}:
-                        result = self.saved.activity(query['file'][0], query['revision'][0], query['document'][0])
+                        result = self.saved.activity(query['file'][0], query['revision'][0], query['document'][0], follow_up=action=='follow-up')
                     else:
                         raise ValidationError('Choose the current project document workspace.')
                     handler.send_payload(200, result)
@@ -144,16 +145,10 @@ class CommercialHTTP:
                 elif action == 'attachment' and set(body) == {'workspace_id', 'name', 'content'} and not expected_workspace:
                     project = self.service.certifications.project_id(workspace)
                     result = self.service.files.add(project, body['name'], body['content'])
-                elif action in {'activity','saved-activity'} and not expected_workspace:
-                    execute = partial(self.execute, actor=getattr(handler,'crm_actor',None))
-                    if action == 'saved-activity' and self.saved:
-                        result = self.saved.perform('activity', body, execute)
-                    else:
-                        result = execute(action, body)
                 elif action.startswith('saved-') and self.saved and not expected_workspace:
-                    result = self.saved.perform(action[6:], body, self.execute)
+                    result = self.saved.perform(action[6:], body, partial(self.execute,actor=getattr(handler,'crm_actor',None)))
                 else:
-                    result = self.execute(action, body)
+                    result = self.execute(action, body, actor=getattr(handler,'crm_actor',None))
                     if action == 'issue':
                         handler.send_download(result['pdf'], 'application/pdf', result['filename'], destination, frozen_pdf=True)
                         return True
@@ -178,10 +173,11 @@ class CommercialHTTP:
         fields_by_action = {
             'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
             'purchase-order-defaults': {'work_order_id', 'work_order_version'},
-            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review', 'signature_actions'},
+            'save': {'id', 'version', 'kind', 'status', 'fields', 'retain_unfiled', 'project_details', 'billing_review', 'signature_actions','follow_up_actions'},
             'delete': {'id', 'version'}, 'status': {'id', 'version', 'status'},
             'notes': {'id', 'version', 'notes'},
             'activity': {'id','version','activity'},
+            'follow-up': {'id','version','follow_up_actions'},
             'issue': {'id', 'kind', 'version', 'request_id'},
         }
         if action not in fields_by_action or set(body) - common - fields_by_action[action]:
@@ -190,6 +186,8 @@ class CommercialHTTP:
         identity = body.get('id')
         if identity is not None and not isinstance(identity, str):
             raise ValidationError('Choose a valid commercial document.')
+        if action == 'follow-up':
+            return self.service.update_follow_up(workspace, identity, body.get('version'), body.get('follow_up_actions'),actor=actor)
         if action == 'activity':
             if not isinstance(body.get('activity'), dict):
                 raise ValidationError('Use the activity form.')
@@ -291,7 +289,7 @@ class CommercialHTTP:
                     line['unit_price'] = prices[identity]
                 fields['scope_tables'] = derived['scope_tables']
                 fields['sources'] = derived['sources']
-            allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status', 'signature_actions') if key in body}
+            allowed = {key: body[key] for key in ('id', 'version', 'kind', 'status', 'signature_actions','follow_up_actions') if key in body}
             if 'retain_unfiled' in body and body['retain_unfiled'] is not True:
                 raise ValidationError('Invalid local document save.')
             captured = None
@@ -304,7 +302,7 @@ class CommercialHTTP:
                         captured['billing_project'] = context
             linked_quote_transition = {}
             result = self.service.save(workspace, {**allowed, 'fields': fields}, unfiled_context=captured,
-                                       linked_quote_transition=linked_quote_transition)
+                                       linked_quote_transition=linked_quote_transition, actor=actor)
             if linked_quote_transition:
                 result = {**result, 'linked_quote_transition': linked_quote_transition}
         elif action == 'delete':

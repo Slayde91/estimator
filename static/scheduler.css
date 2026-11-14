@@ -1,4 +1,26 @@
 /* Scheduler follows the application's active colour theme. */
+.scheduler-reports {display:grid;gap:14px;min-width:0;margin-top:16px}
+.scheduler-report-modes,.scheduler-report-tools {display:flex;flex-wrap:wrap;gap:8px}
+.scheduler-report-modes button[aria-pressed="true"] {background:var(--ink);color:var(--paper)}
+.scheduler-report-filters {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));align-items:end;gap:12px;padding:16px}
+.scheduler-report-filters .field {min-width:0}
+.scheduler-report-output {display:grid;gap:12px;min-width:0}
+.scheduler-report-totals,.scheduler-report-charts {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(160px,100%),1fr));gap:12px;margin:0}
+.scheduler-report-totals .card,.scheduler-report-chart,.scheduler-report-detail {min-width:0;padding:14px}
+.scheduler-report-totals dd {margin:5px 0 0;font-size:1.3rem;font-weight:700}
+.scheduler-report-bar {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;margin:10px 0;overflow-wrap:anywhere}
+.scheduler-report-bar progress {grid-column:1/-1;width:100%;height:12px;accent-color:var(--red)}
+.scheduler-report-detail summary {cursor:pointer;font-weight:700}
+.scheduler-report-detail table {min-width:680px}
+.scheduler-report-day {background:var(--canvas)}
+@media print {
+  body:has(#view-scheduler:not([hidden]) .scheduler-reports) :is(.app-header,footer,.scheduler-report-modes,.scheduler-report-filters,.scheduler-report-tools) {display:none!important}
+  body #view-scheduler:not([hidden]):has(.scheduler-reports) {display:block!important}
+  #scheduler-root:has(.scheduler-reports)>:not(.scheduler-reports) {display:none!important}
+  .scheduler-report-detail .table-scroll {overflow:visible}
+  .scheduler-report-detail table {min-width:0;font-size:9px}
+  .scheduler-report-detail,.scheduler-report-chart,.scheduler-report-detail tr {break-inside:avoid}
+}
 #scheduler-root { min-width:0; }
 #scheduler-root .button.scheduler-add-action { background:#1767b2; border-color:#1767b2; color:#fff; }
 #scheduler-root .button.scheduler-add-action:hover:not(:disabled) { background:#12558f; border-color:#12558f; }

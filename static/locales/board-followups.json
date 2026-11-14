@@ -1,0 +1,5 @@
+{
+  "Follow-up actions": ["跟进事项","फ़ॉलो-अप कार्रवाइयाँ","Acciones de seguimiento","إجراءات المتابعة","รายการติดตาม"],
+  "Follow-up corrected": ["跟进事项已更正","फ़ॉलो-अप सुधारा गया","Seguimiento corregido","تم تصحيح المتابعة","แก้ไขรายการติดตามแล้ว"],
+  "Save your Project Details edits before changing its follow-up actions.": ["请先保存项目详情中的更改，再修改跟进事项。","फ़ॉलो-अप बदलने से पहले परियोजना विवरण में अपने बदलाव सहेजें।","Guarda los cambios en los datos del proyecto antes de modificar sus acciones de seguimiento.","احفظ تعديلات تفاصيل المشروع قبل تغيير إجراءات المتابعة.","บันทึกรายละเอียดโครงการที่แก้ไขก่อนเปลี่ยนรายการติดตาม"]
+}

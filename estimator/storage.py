@@ -8,6 +8,7 @@ import sqlite3
 import uuid
 
 from .estimate_composition import calculate, calculate_for_load, normalize_penetration
+from .active_pricing import active_configuration
 from .catalog import catalog_signature, configuration_catalog, effective_catalog, has_yield, validate_catalog, validate_configuration, ValidationError
 from .quote_details import QUOTE_DETAIL_LIMITS, compile_work_summary, compose_quote_title, validate_quote_details
 
@@ -36,6 +37,14 @@ class Store:
                 );
                 PRAGMA user_version=3;
             """)
+            # Migrate only shared live pricing, never historical quotes or project files.
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
+            if row:
+                previous = json.loads(row[0])
+                current = active_configuration(previous)
+                if current != previous:
+                    db.execute("UPDATE settings SET data=? WHERE id=1", (json.dumps(current, allow_nan=False),))
 
     @contextmanager
     def connect(self):
@@ -58,7 +67,7 @@ class Store:
         Explicit Save pricing persists the reviewed values in the usual way.
         """
         from .pricing_manufacturers import with_manufacturer_defaults
-        return with_manufacturer_defaults(self.configuration())
+        return with_manufacturer_defaults(active_configuration(self.configuration()))
 
     def company_settings(self):
         from .company_settings import DEFAULTS
@@ -123,7 +132,7 @@ class Store:
         return state
 
     def save_configuration(self, value):
-        value = validate_configuration(value)
+        value = active_configuration(value)
         with self.connect() as db:
             db.execute("INSERT INTO settings VALUES(1,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data", (json.dumps(value, allow_nan=False),))
         return value

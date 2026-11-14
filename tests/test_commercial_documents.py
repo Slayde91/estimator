@@ -104,6 +104,46 @@ class CommercialTests(unittest.TestCase):
             if doc['id'] in logged:
                 self.assertIn(doc['kind'],[row.get('subject') for row in original['events']])
 
+    def test_follow_up_actions_on_all_kinds_survive_old_clients_and_record_corrected_decisions(self):
+        from estimator.commercial_documents import commercial_cards, validate_commercial_documents
+        for kind in ('quote','work_order','purchase_order'):
+            with self.subTest(kind=kind):
+                first = {'id':str(uuid.uuid4()),'next_action':'Review now','follow_up_date':'2020-01-01','status':''}
+                last = {'id':str(uuid.uuid4()),'next_action':'Later action','follow_up_date':'2099-01-01','status':''}
+                payload = {**self.payload(kind),'follow_up_actions':[first,last]}
+                doc = self.store.save(self.workspace,payload)
+                self.assertEqual(self.store.save(self.workspace,payload),doc)
+                self.assertEqual(self.store.follow_up(self.workspace,doc['id']),{'actions':[first,last],'version':1})
+                partial = {k:doc[k] for k in ('id','version','kind','status','fields')}
+                doc = self.store.save(self.workspace,partial)
+                self.assertEqual(doc['follow_up']['actions'],[first,last])
+                cards = commercial_cards(self.store.capture(self.workspace))
+                card = next(card for card in cards if card['id']==doc['id'])
+                self.assertEqual((card['latest_follow_up'],card['pending_follow_up_date']),(last,first['follow_up_date']))
+                closed = {**first,'status':'Completed'}
+                actor = {'id':'fixture','name':'Estimator One'}
+                doc = self.store.update_follow_up(self.workspace,doc['id'],doc['version'],[closed,last],actor)
+                prior, = doc['follow_up']['history']
+                self.assertEqual((prior['status'],prior['actor']),('Completed',actor['name']))
+                with self.assertRaises(CommercialConflict):
+                    self.store.update_follow_up(self.workspace,doc['id'],doc['version']-1,[first,last],actor)
+                with self.assertRaises(ValidationError):
+                    self.store.save(self.workspace,{**partial,'version':doc['version'],'follow_up_actions':[first,last]})
+                with self.assertRaises(ValidationError):
+                    self.store.update_follow_up(self.workspace,doc['id'],doc['version'],[last],actor)
+                fixed = {**first,'next_action':'Corrected pending action'}
+                updated = self.store.update_follow_up(self.workspace,doc['id'],doc['version'],[fixed,last],actor)
+                self.assertEqual(updated['fields'],doc['fields'])
+                self.assertEqual(updated['status'],doc['status'])
+                history = updated['follow_up']['history']
+                self.assertEqual((history[0], history[1]['previous'],history[1]['status']), (prior,closed,''))
+                self.assertEqual(self.store.update_follow_up(self.workspace,doc['id'],updated['version'],[fixed,last],actor),updated)
+                audit = [r for r in self.store.activity(self.workspace,doc['id'])['events'] if r['label'].startswith('Follow-up')]
+                self.assertEqual([r['label'] for r in audit],['Follow-up completed','Follow-up corrected'])
+                self.assertTrue(all(r['actor']==actor['name'] for r in audit))
+                restored = validate_commercial_documents(self.store.capture(self.workspace))
+                self.assertEqual(next(row for row in restored['documents'] if row['id']==doc['id'])['follow_up'],updated['follow_up'])
+
     def test_activity_follows_selected_version_across_reopens_and_divergent_copies(self):
         doc = self.store.save(self.workspace, self.payload('quote'))
         identity = doc['id']

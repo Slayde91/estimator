@@ -108,6 +108,31 @@ class SavedQuoteTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             saved.activity(self.source['file_id'], self.source['revision'], body['id'])
 
+    def test_board_follow_up_writes_exact_saved_copy_and_rejects_stale_or_ignored_sources(self):
+        copy = self.folder/'same-owner.cf.json'
+        original = self.path.read_bytes()
+        copy.write_bytes(original)
+        self.library.commercial_register(refresh=True)
+        card = next(card for card in self.register()['documents'] if card['source_path']==str(copy))
+        source = {'file_id':card['source_file'],'revision':card['source_revision']}
+        row = {'id':str(uuid.uuid4()),'next_action':'Confirm delivery','follow_up_date':'2020-01-01','status':'Completed'}
+        actor = {'id':'fixture','name':'Exact owner'}
+        operation = partial(self.http.execute,actor=actor)
+        def change(source,version,actions):
+            return self.saved.perform('follow-up',{'id':card['id'],'source':source,'version':version,'follow_up_actions':actions},operation)
+        receipt = change(source,card['version'],[row])
+        updated = {**source,'revision':receipt['revision']}
+        saved = self.saved.activity(updated['file_id'],updated['revision'],card['id'],follow_up=True)
+        self.assertEqual(saved['actions'],[row])
+        self.assertEqual(self.path.read_bytes(),original)
+        self.assertEqual(json.loads(copy.read_bytes())['commercial_documents']['documents'][0]['follow_up']['history'][0]['actor'],actor['name'])
+        self.assertEqual(self.saved.activity(self.source['file_id'],self.source['revision'],card['id'],follow_up=True)['actions'],[])
+        with self.assertRaises(CommercialConflict):
+            change(source,card['version'],[row])
+        self.library._commercial_sources.ignore_owner(card['project_id'])
+        with self.assertRaises(ValidationError):
+            change(updated,saved['version'],[row])
+
     def test_malformed_project_cannot_break_other_cards(self):
         snapshot = json.loads(self.path.read_bytes())
         snapshot['commercial_documents']['documents'][0]['fields']['details'] = None

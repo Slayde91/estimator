@@ -1052,9 +1052,12 @@ def _import_manufacturer(record, row, current):
         record["manufacturer"] = "" if row["_manufacturer_column"] else current["manufacturer"]
 
 
-def import_pricing_workbook(payload, filename, current_configuration):
+def import_pricing_workbook(payload, filename, current_configuration, *, active_library=False):
     """Validate a workbook and return a replacement configuration without saving."""
     _preflight(payload, filename)
+    if active_library:
+        from .active_pricing import active_configuration
+        current_configuration = active_configuration(current_configuration)
     current = effective_catalog(current_configuration)
     previous_inventory = {item["id"]: item for item in current["inventory"]}
     previous_rates = {rate["id"]: (group, rate) for group, rows in current["rate_groups"].items() for rate in rows}
@@ -1213,6 +1216,10 @@ def import_pricing_workbook(payload, filename, current_configuration):
             proposed["rate_groups"][group].append(rate)
 
         configuration = validate_configuration({"catalog": proposed, "inventory": {}, "rates": {}})
+        if active_library:
+            configuration = active_configuration(configuration)
+            proposed = configuration["catalog"]
+            inventory = {item["id"]: item for item in proposed["inventory"]}
         summary = {
             "inventory": _changes({key: _inventory_comparison(item) for key, item in previous_inventory.items()},
                                   {key: _inventory_comparison(item) for key, item in inventory.items()}),

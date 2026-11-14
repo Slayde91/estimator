@@ -10,7 +10,9 @@
 .calculator-workspace-toolbar{display:flex;align-items:center;flex-wrap:nowrap;gap:8px 16px;padding:8px 25px;background:var(--theme-surface,#1b2028);color:var(--ink)}
 .calculator-workspace-toolbar>#calculator-pages{flex:1 1 0;min-width:0;padding:0;align-self:center;align-items:center;flex-wrap:nowrap;background:transparent}
 @media screen {
-  .calculator-workspace[data-factor-view="false"] #calculator-pages{flex:0 1 auto;max-width:100%;box-shadow:0 1px var(--red)}
+  #calculator-workspace #calculator-pages{flex:0 1 auto;max-width:100%;box-shadow:0 1px var(--red)}
+  .calculator-settings-chooser>.calculator-product-tabs{display:flex;flex:none;gap:inherit;border-bottom:1px solid var(--red)}
+  .calculator-product-tabs>.calculator-settings-choice:focus-visible{outline-offset:-4px}
 }
 #calculator-pages>.calculator-page{flex:0 0 auto;display:flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1.4}
 #calculator-pages>.calculator-page,.calculator-workspace[data-factor-view="true"] .calculator-settings-choice{height:var(--calculator-control-height);padding-block:0}
@@ -335,6 +337,45 @@
     color: #fff;
     border-bottom: 4px solid #fff;
     border-radius: 8px;
+  }
+  #calculator-workspace[data-calculator-kind="steel_board"] .calculator-overview-full > .calculator-overview-title,
+  #calculator-grid .calculator-schedule-section > h4 {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    min-height: 56px;
+    padding-block: 0;
+    font-size: 14px;
+  }
+  #calculator-workspace[data-calculator-kind="steel_intumescent"] .calculator-settings-fields .calculator-role-title.calculator-merged {
+    box-sizing: border-box;
+    height: 56px;
+    padding-block: 0;
+    vertical-align: middle;
+    align-content: center;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  #calculator-workspace[data-factor-view="true"] .calculator-settings-fields tr:has(> .calculator-section-anchor) + tr > td {
+    border-top: 8px solid var(--calculator-body-bg, #fff);
+  }
+  #view-calculators:not(:lang(en)) {
+    --calculator-column-header-leading: 1.4;
+  }
+  #calculator-grid .calculator-schedule-table > thead > tr > th,
+  #calculator-grid .calculator-product-totals table > thead > tr > th,
+  #calculator-grid .calculator-projection-table > tbody > tr:first-child:has(> .calculator-role-column_header) > th,
+  #penetration-schedule-panel-schedule > .table-scroll > table > thead th {
+    box-sizing: border-box;
+    height: 45px;
+    padding-block: 0;
+    font-size: 12px;
+    line-height: var(--calculator-column-header-leading, 1.15);
+    vertical-align: middle;
+  }
+  #calculator-grid .calculator-schedule-table > thead > tr > th {
+    padding-inline: 3px;
+    overflow-wrap: anywhere;
   }
   /* Keep unusually long saved values and translated choices reachable within their own cell. */
   .calculator-grid .calculator-settings-fields td.calculator-editable { overflow-x: auto; }

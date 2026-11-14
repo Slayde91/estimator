@@ -90,7 +90,23 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.waitForFunction(() => window.CeasefireDesktop?.status()?.ready);
   await scheduler();
   await expect(page.locator('.scheduler-grid')).toBeVisible();
-  assert.equal(await page.locator('.scheduler-tabs').evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(9, 11, 14)');
+  const previousViewport=page.viewportSize(),tabs=page.locator('.scheduler-tabs');
+  await expect(tabs).toHaveCSS('background-color','rgb(9, 11, 14)');
+  for(const width of [1254,320]){
+    await page.setViewportSize({width,height:900});
+    const gear=tabs.getByRole('button',{name:'Settings',exact:true});
+    await tabs.getByRole('button',{name:'Team members',exact:true}).focus();await page.keyboard.press('Tab');
+    await expect(gear).toBeFocused();
+    await expect(gear).toBeInViewport({ratio:0.99});
+    await expect(tabs).toHaveCSS('box-shadow',/0px 1px 0px 0px/);
+    await expect(tabs.locator('[aria-pressed=true]')).toHaveCSS('border-bottom-color','rgb(255, 255, 255)');
+    await expect.poll(()=>page.evaluate(()=>{
+      const nav=document.querySelector('.scheduler-tabs');
+      return nav ? Math.abs(nav.getBoundingClientRect().right-nav.lastElementChild.getBoundingClientRect().right) : null;
+    })).toBeLessThan(1);
+    await page.screenshot({path:path.join(output,'scheduler-tab-rule-'+width+'.png')});
+  }
+  await page.setViewportSize(previousViewport);checks.push('Scheduler underline ends at the settings gear on desktop and after keyboard scrolling on mobile');
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
   checks.push('administrator setup through UI with HttpOnly session');
   await tab('Team members');

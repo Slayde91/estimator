@@ -38,11 +38,11 @@ async function submit(name) {await page.locator('dialog[open]').getByRole('butto
   await expect(page.locator('.scheduler-grid')).toBeVisible();
   for(const theme of ['ceasefire','midnight','ocean','forest','slate']){
     await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},theme);
-    const chrome=await page.locator('.scheduler-tabs').evaluate(nav=>{
-      const inactive=nav.querySelector('[aria-pressed="false"]');
-      return {nav:getComputedStyle(nav).backgroundColor,background:getComputedStyle(inactive).backgroundColor,text:getComputedStyle(inactive).color};
-    });
-    assert.deepEqual(chrome,{nav:'rgb(9, 11, 14)',background:'rgba(0, 0, 0, 0)',text:'rgb(227, 231, 238)'},theme+' retains a readable scoped Scheduler navigation');
+    const tabs = page.locator('.scheduler-tabs');
+    const inactiveTab = tabs.locator('[aria-pressed="false"]').first();
+    await expect(tabs).toHaveCSS('background-color', 'rgb(9, 11, 14)');
+    await expect(inactiveTab).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(inactiveTab).toHaveCSS('color', 'rgb(227, 231, 238)');
   }
   await page.screenshot({path:path.join(output,'scheduler-slate-navigation.png')});
   await page.evaluate(()=>{document.documentElement.dataset.theme='ceasefire';});

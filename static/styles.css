@@ -551,7 +551,7 @@ html.app-busy,html.app-busy *{cursor:progress!important}
   #project-pages.project-tabs,#document-pages.document-tabs{height:42px;min-height:42px;overflow-y:hidden;scrollbar-width:none}
   #document-pages>.calculator-page:focus-visible{outline-offset:-4px}
   #library-pages.library-tabs,#document-pages.document-tabs,#project-pages.project-tabs,#takeoff-pages.takeoff-tabs,#contacts-root .contacts-tabs{box-shadow:0 1px var(--red)}
-  #document-pages.document-tabs{width:100%;background:transparent}
+  #document-pages.document-tabs{background:transparent}
   #calculator-kind-pages.calculator-kind-tabs{margin-bottom:0}
   #calculator-kind-pages.calculator-kind-tabs{height:auto;min-height:var(--calculator-control-height)}
   #calculator-kind-pages>.calculator-page{height:var(--calculator-control-height)}
@@ -581,6 +581,25 @@ html.app-busy,html.app-busy *{cursor:progress!important}
   #calculators-heading-slot .penetration-library-actions{gap:5px}
   #calculators-heading-slot .calculator-document-toggle{width:48px;padding:0;gap:0;font-size:0}
   #calculators-heading-slot .calculator-document-chevron{display:none}
+}
+/* Match the Steel Takeoffs header. Its 42px action row centers a
+   22px title, then leaves 8px before the next toolbar. */
+@media screen {
+  main:has(>:is(.view,#view-scheduler):not([hidden]) .workspace-title-row){padding-block-start:8px}
+  :is(#main,#staff-scheduler-page main) .workspace-title-row{
+    --workspace-title-inset:10px;
+    min-block-size:42px;align-items:flex-start;margin-block:0 8px;
+  }
+  :is(#main,#staff-scheduler-page main) .workspace-title-row :is(h1,h2){
+    margin-block:var(--workspace-title-inset) 0;font-size:18px;line-height:calc(1em * 22 / 18);
+  }
+  :is(#main,#staff-scheduler-page main) .workspace-title-row :is(.calculator-heading-copy,.estimate-heading-copy,.project-heading-copy){
+    align-self:flex-start;align-items:flex-start;min-block-size:0;padding-block:0;
+  }
+  @media(max-width:350px){
+    /* The Steel heading starts at the top of its wrapped action row. */
+    :is(#main,#staff-scheduler-page main) .workspace-title-row{--workspace-title-inset:0px}
+  }
 }
 #view-quotes #snapshot-message{margin:0 0 18px;flex-wrap:wrap}
 #project-pricing-context{flex-basis:100%;overflow-wrap:anywhere}

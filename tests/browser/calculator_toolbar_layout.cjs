@@ -46,10 +46,6 @@ async function checkWorkbookControls(page, factor) {
 
 async function checkWorkbookDivider(page, title, output) {
   const pages = page.locator('#calculator-pages');
-  if(title==='Factor Calcs'){
-    await expect(pages).toHaveCSS('box-shadow','none');
-    return;
-  }
   const original=page.viewportSize();
   for(const width of [1440,390]){
     await page.setViewportSize({width,height:original.height});
@@ -59,12 +55,13 @@ async function checkWorkbookDivider(page, title, output) {
       const actions=bar.querySelector('.calculator-toolbar-actions').getBoundingClientRect();
       const end=actions.top<rect.bottom ? actions.left-parseFloat(style.columnGap) : bar.getBoundingClientRect().right-parseFloat(style.paddingRight);
       const lastTab=el.lastElementChild.getBoundingClientRect();
+      const selected=el.querySelector('[aria-pressed=true],[aria-expanded=true]');
       return {left:Math.round(rect.left),top:Math.round(rect.bottom),width:Math.round(rect.right)-Math.round(rect.left),
         startGap:rect.left-bar.getBoundingClientRect().left-parseFloat(style.paddingLeft),endGap:Math.min(lastTab.right,end)-rect.right,
-        marker:getComputedStyle(el.querySelector('[aria-pressed=true]')).borderBottomColor};
+        marker:selected ? getComputedStyle(selected).borderBottomColor : null};
     });
     assert.ok(Math.abs(metric.startGap)<1&&Math.abs(metric.endGap)<1,JSON.stringify(metric));
-    assert.equal(metric.marker,'rgb(255, 255, 255)');
+    if(title!=='Factor Calcs' || metric.marker)assert.equal(metric.marker,'rgb(255, 255, 255)');
     // The rule spans the visible tabs and stops at the final tab or the scroller edge.
     const shot=await page.screenshot({clip:{x:metric.left,y:metric.top,width:metric.width,height:1}});
     const unpainted=await page.evaluate(async encoded=>{
@@ -76,7 +73,10 @@ async function checkWorkbookDivider(page, title, output) {
       return -1;
     },shot.toString('base64'));
     assert.equal(unpainted,-1,`${title} at ${width}px, first gap in the red divider`);
-    if(title==='Steel (spray)')await page.screenshot({path:path.join(output,`workbook-divider-${width}.png`)});
+    if(title==='Steel (spray)' || title==='Factor Calcs'){
+      const name=title==='Factor Calcs' ? 'factor-divider' : 'workbook-divider';
+      await page.screenshot({path:path.join(output,`${name}-${width}.png`)});
+    }
   }
   await page.setViewportSize(original);
 }

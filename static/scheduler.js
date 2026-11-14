@@ -314,7 +314,7 @@
   }
   function shell() {
     state.root.replaceChildren();
-    const heading = el("div","page-heading"); const clock = el("time","scheduler-local-time"); clock.id = "scheduler-local-time";
+    const heading = el("div","page-heading workspace-title-row"); const clock = el("time","scheduler-local-time"); clock.id = "scheduler-local-time";
     heading.append(el("h1","","Scheduler"),clock); state.root.append(heading); renderHeaderTime();
     const status = el("p", "scheduler-notice message"); status.setAttribute("role","status"); status.hidden = true;
     state.root.append(status);

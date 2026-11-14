@@ -55,7 +55,8 @@ async function oldDraft(){return page.evaluate(()=>({context:window.CeasefirePro
   await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await expect(modal).toBeHidden();await idle();
   assert.equal(await page.evaluate(()=>window.CeasefireProject.hasCreatedProject()),true);await expect(page.locator('#view-quotes')).toBeVisible();
   const file=JSON.parse(fs.readFileSync(info.project));assert.equal(file.estimate.client,'Popup Account');assert.equal(file.estimate.contact_name,'Popup Contact');assert.equal(file.estimate.contact_phone,'12345678');assert.ok(file.estimate.contact_id);assert.match(file.estimate.project_no,/^PN-/);
-  assert.deepEqual(file.project_follow_up,{next_action:'Arrange initial inspection',follow_up_date:'2028-02-29'});
+  assert.equal(file.project_follow_up.actions.length,1);
+  assert.deepEqual(file.project_follow_up.actions[0],{id: file.project_follow_up.actions[0].id,next_action:'Arrange initial inspection',follow_up_date:'2028-02-29',status:''});
   await openProjectSection(page,'documentation');await expect(page.locator('#view-documentation')).toBeVisible();
   checks.push('Dirty review and picker Cancel retain modal/draft; confirmed Save assigns a real usable Project before Documentation');
   // A new modal starts focused in Client. Use a complete, distinct project to

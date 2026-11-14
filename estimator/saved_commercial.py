@@ -1,6 +1,7 @@
 """Edit commercial documents in a linked project without activating its estimates."""
 from hashlib import sha256
 import json
+from .commercial_sources import source_id
 from .catalog import ValidationError
 from .commercial_documents import KINDS, CommercialConflict, commercial_cards, project_document_details, apply_project_document_details
 from .download_files import DownloadDestination
@@ -47,6 +48,8 @@ class SavedCommercial:
         try:
             self.projects.commercial.files.transfer(commercial, path, restore=True)
             self.projects.commercial.restore(workspace, commercial, return_view=False)
+            with self.projects.commercial._connect() as db:
+                self.projects.commercial.unfiled.bind_file(db, workspace, path)
             self.projects.certifications.activate_created_project(workspace, snapshot['estimate'].get('project_no', ''), project_path=path)
         except Exception:
             self.projects.certifications.discard(workspace)
@@ -58,14 +61,14 @@ class SavedCommercial:
     def activity(self, file_id, revision, identity):
         source = {'file_id':file_id, 'revision':revision}
         if file_id.startswith('local-'):
-            return self.projects.commercial.unfiled.activity(source, identity)
-        with self.projects.commercial_file(file_id, revision) as (_, snapshot, _, _):
+            return self.projects.commercial.unfiled.activity(source, identity, ignored=self.projects._commercial_sources.ignored_owners())
+        with self.projects.commercial_file(file_id, revision) as (path, snapshot, _, _):
             commercial = snapshot.get('commercial_documents')
             certificates = snapshot.get('certifications')
             owner = certificates.get('project_id') if isinstance(certificates, dict) else None
             if not commercial or commercial['project_id'] != owner or owner in self.projects._commercial_sources.ignored_owners():
                 raise ValidationError('This commercial document is unavailable in the current project.')
-            return self.projects.commercial.saved_activity(commercial, identity)
+            return self.projects.commercial.saved_activity(commercial, identity, source_id(str(path)))
 
     def perform(self, action, body, execute):
         source = body.get('source')
@@ -79,11 +82,15 @@ class SavedCommercial:
             raise ValidationError('Saved document estimates and downloads come from their own project.')
         if isinstance(file_id, str) and file_id.startswith('local-'):
             self.projects.recover_commercial_publications()
+            if action == 'activity':
+                return self.projects.commercial.unfiled.perform(action, source, body, execute, ignored=self.projects._commercial_sources.ignored_owners())
             return self.projects.commercial.unfiled.perform(action, source, body, execute)
         # The library holds its lock through the conditional file write. Other
         # open project tabs keep their original save fingerprints and cannot
         # accidentally overwrite a newer commercial document revision.
         with self.projects.commercial_file(file_id, revision, find_issued=action == 'issue') as (path, snapshot, actual_revision, commit):
+            if action == 'activity' and (snapshot.get('commercial_documents') or {}).get('project_id') in self.projects._commercial_sources.ignored_owners():
+                raise ValidationError('This commercial document is unavailable in the current project.')
             session = self._session(file_id, actual_revision, snapshot, path)
             workspace = session['workspace']
             if action == 'attachment' and set(body) == {'name', 'content'}:
@@ -152,7 +159,7 @@ class SavedCommercial:
                     if quote_stage:
                         snapshot['project_status'] = quote_stage
                     self.projects.commercial.files.transfer(snapshot['commercial_documents'], path)
-                    with self.projects.commercial.publishing(workspace, snapshot['commercial_documents'], snapshot.get('project_status')):
+                    with self.projects.commercial.publishing(workspace, snapshot['commercial_documents'], snapshot.get('project_status'), path=path):
                         session['revision'] = commit()
             except Exception:
                 # An abandoned workspace cannot leak an uncommitted edit into

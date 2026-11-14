@@ -6,6 +6,7 @@ import sqlite3
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
+from . import record_activity
 from .catalog import ValidationError
 from .project_relationships import address_key, address_site
 
@@ -73,6 +74,7 @@ class CRMParticipants:
               actor TEXT NOT NULL, event TEXT NOT NULL, snapshot TEXT NOT NULL, recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
             CREATE INDEX IF NOT EXISTS participant_history_source ON participant_history(source,owner,sequence);
             """)
+            record_activity.schema(db)
             if db.execute('PRAGMA user_version').fetchone()[0]==0:
                 db.execute("""INSERT OR IGNORE INTO party_lookup
                     SELECT source,owner,json_extract(j.value,'$.role'),json_extract(j.value,'$.kind'),json_extract(j.value,'$.id')
@@ -236,13 +238,33 @@ class CRMParticipants:
             record=self._view(db,project,catalog)
         return self._decorate(record,project,catalog)
 
+    @staticmethod
+    def _activity_owner(project):
+        return project['owner'] or 'number:' + project['project_no']
+
+    def log_activity(self, body, actor):
+        if not isinstance(body, dict) or set(body) != {'project','revision','activity'}:
+            raise ValidationError('Choose a valid project or site request.')
+        with self.projects._lock:
+            project = self.projects.participant_project(body['project'], activity_only=True)
+            if project['revision'] != body['revision']:
+                raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
+            with self.db() as db:
+                db.execute('BEGIN IMMEDIATE')
+                return record_activity.append(db, project['source'], self._activity_owner(project), body['activity'],
+                                              actor, self.contacts.staff_provider, ParticipantConflict)
+
     def activity(self, selector, revision):
         project = self.projects.participant_project(selector, activity_only=True)
         if project['revision'] != revision:
             raise ParticipantConflict('The project changed. Reopen its details before changing participants.')
         events = [{'label':'Project file modified', 'at':project['modified_at']}]
+        for event in project.get('follow_up_history', []):
+            events.append({'label':'Follow-up completed' if event['status'] == 'Completed' else 'Follow-up canceled',
+                           'at':event['at'], 'subject':' · '.join(filter(None, [event['next_action'], event['follow_up_date']]))})
         with self.db() as db:
             db.execute('BEGIN')
+            events.extend(record_activity.events(db, project['source'], self._activity_owner(project)))
             row = self._existing(db, project)
             if row:
                 for item in db.execute("""SELECT actor,recorded_at FROM participant_history
@@ -305,7 +327,7 @@ class CRMParticipants:
         excluded = [(item[0],item[1]) for item in db.execute(
             'SELECT kind,party_id FROM excluded_project_parties WHERE source=? AND owner=?',
             (row['source'],row['owner']))] if row else []
-        return {'project_revision':project['revision'],'version':row['version'] if row else 0,'_excluded':excluded,
+        return {'project_revision':project['revision'],'project_owner':project['owner'],'version':row['version'] if row else 0,'_excluded':excluded,
                 'participants':json.loads(row['roles']) if row else [], 'roles':ROLES,'linked_bids':peers,
                 'site':sites[0] if sites else None,'linked_sites':sites,'_site_ids':ids,
                 'site_mode':'automatic' if address_key(project['site_address']) else 'manual' if site_id else 'none','site_id':site_id}
@@ -446,11 +468,12 @@ class ParticipantsHTTP:
                 value=self.service.view(args['project'])
             elif handler.command=='GET' and set(args)=={'project','revision'} and route.endswith('/project-activity'):
                 value=self.service.activity(args['project'], args['revision'])
-            elif handler.command=='POST' and not args and not route.endswith('/project-activity'):
+            elif handler.command=='POST' and not args:
                 if handler.headers.get('Sec-Fetch-Site')=='cross-site':
                     handler.send_payload(403,{'error':'Open the project in CLASSIFIRE.'})
                     return True
-                fn=self.service.create_site if route.endswith('/sites') else self.service.save
+                fn={'/api/crm/sites':self.service.create_site, '/api/crm/project-activity':self.service.log_activity,
+                    '/api/crm/project-participants':self.service.save}[route]
                 value=fn(handler.read_json(),getattr(handler,'crm_actor',None))
             else:
                 raise ValidationError('Choose a valid project or site request.')

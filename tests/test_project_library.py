@@ -91,6 +91,34 @@ class ProjectLibraryTests(unittest.TestCase):
             options["refresh"] = False
         self.fail("The project folder scan did not finish within 100 batches.")
 
+    def test_follow_up_saved_file_copy_replays_and_legacy_projection(self):
+        path = self.folder / 'Alpha.cf.json'
+        copy_path = self.folder / 'Copy.cf.json'
+        first = {"id":"ab317c67-92ff-4063-812b-e8089511ff8d", "next_action":"Book visit", "follow_up_date":"2027-01-05", "status":""}
+        second = {"id":"d396b89a-c4e1-40a8-9539-894db34b97c4", "next_action":"Request plans", "follow_up_date":"", "status":""}
+        self.dialogs.selection = SaveSelection(str(path), None)
+        created = self.library.save_as({**self.request, "project_follow_up":{"actions":[first, second]}})
+        completed = {**first, "status":"Completed"}
+        saved = self.library.save({**self.request, "save_token":created["file"]["save_token"], "project_follow_up":{"actions":[completed, second]}})
+        wrapper = saved["project"]["project_follow_up"]
+        self.assertEqual([(event["id"], event["status"]) for event in wrapper["history"]], [(first["id"], "Completed")])
+        # The older browser only knows the projected text/date pair and must retain all other actions and history.
+        legacy = self.library.save({**self.request, "save_token":saved["file"]["save_token"],
+                                    "project_follow_up":{"next_action":"Updated plans","follow_up_date":"2027-04-02"}})
+        updated = legacy["project"]["project_follow_up"]
+        self.assertEqual(updated["actions"], [completed, {**second, "next_action":"Updated plans", "follow_up_date":"2027-04-02"}])
+        self.assertEqual(updated["history"], wrapper["history"])
+        original = path.read_bytes()
+        self.dialogs.selection = SaveSelection(str(copy_path), None)
+        copy_result = self.library.save_as({**self.request, "project_follow_up":updated})
+        self.assertEqual(copy_result["project"]["project_follow_up"],updated)
+        copy_current = self.library.save({**self.request, "save_token":copy_result["file"]["save_token"],
+                                          "project_follow_up":{"actions":[completed, {**updated["actions"][1], "status":"Canceled"}]}})
+        self.assertEqual([row["status"] for row in copy_current["project"]["project_follow_up"]["history"]], ["Completed", "Canceled"])
+        self.assertEqual(path.read_bytes(),original)
+        with self.assertRaises(ValidationError):
+            self.library.save({**self.request, "save_token":copy_current["file"]["save_token"], "project_follow_up":{"actions":[completed]}})
+
     def test_linked_navigation_requires_authorized_matching_file_including_native_project(self):
         first = self.root / 'native.cf.json'
         second = self.root / 'copy.cf.json'
@@ -1126,6 +1154,40 @@ class ProjectLibraryApiTests(unittest.TestCase):
         self.assertEqual(loaded["estimate"]["configuration"], saved["project"]["estimate"]["configuration"])
         for table in ("settings", "quotes", "calculator_states"):
             self.assertEqual(database_rows(self.store)[table], before[table])
+
+    def test_older_browser_reopens_and_resaves_scalar_projection_without_losing_actions(self):
+        path = self.root / 'Follow-ups.cf.json'
+        self.dialogs.selection = SaveSelection(str(path), None)
+        estimate = complete_estimate()
+        first = {'id':'9289607b-f32c-4d1e-b0c4-0742d6544444', 'next_action':'Order',
+                 'follow_up_date':'2027-02-14', 'status':''}
+        second = {'id':'fb9bb075-a826-4f44-86cf-aea92c13fd17', 'next_action':'Call',
+                  'follow_up_date':'2027-02-01', 'status':''}
+        closed = {'id':'8fd24429-942d-4097-b73e-f8fa9c213a16', 'next_action':'Email',
+                  'follow_up_date':'', 'status':'Completed'}
+        rows = [first, second, closed]
+        status, saved = self.request('POST', '/api/project/save-as',
+                                     {'estimate':estimate, 'project_follow_up':{'actions':rows}})
+        self.assertEqual(status, 200, saved)
+        self.dialogs.opened = str(path)
+        status, opened = self.request('POST', '/api/project/open', {})
+        self.assertEqual(status, 200, opened)
+        wrapper = opened['project_follow_up']
+        self.assertEqual(saved['project']['project_follow_up'], wrapper)
+        # This is precisely what the previous browser extracted and submitted on ordinary Save.
+        projected = {key:wrapper.get(key, '') for key in ('next_action','follow_up_date')}
+        self.assertEqual(projected, {'next_action':'Call','follow_up_date':'2027-02-01'})
+        request = {'estimate':json.loads(path.read_bytes())['estimate'],
+                   'calculators':{key:{'inputs':item['inputs']} for key,item in opened['calculators'].items()}}
+        status, old_save = self.request('POST', '/api/project/save',
+                                        {**request, 'save_token':opened['file']['save_token'], 'project_follow_up':projected})
+        self.assertEqual(status, 200, old_save)
+        self.assertEqual(old_save['project']['project_follow_up'], wrapper)
+        status, modern_save = self.request('POST', '/api/project/save',
+                                           {**request, 'save_token':old_save['file']['save_token'], 'project_follow_up':wrapper})
+        self.assertEqual(status, 200, modern_save)
+        stored = json.loads(path.read_bytes())['project_follow_up']
+        self.assertEqual(stored, {'actions':rows, 'history':wrapper['history']})
 
     def test_project_attachment_route_uses_saved_project_capability(self):
         target = self.root / "Saved.cf.json"

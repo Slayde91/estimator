@@ -548,7 +548,7 @@
   }
   async function finishLeavingEditor() {
     const editor = state.editor;
-    if (state.dirty) {
+    if (state.dirty || editor?.panels?.activityDirty?.()) {
       const label = names[state.kind].toLowerCase();
       const discard = await window.CeasefireDialogs.confirm(`Discard the current ${label}?`, "", "Yes", "Cancel");
       if (editor !== state.editor || state.busy) return false;
@@ -902,6 +902,7 @@
         if (!current()) return;
         document = opened.document;
         source.documentId = document.id;
+        source.projectId = card.project_id;
         source.estimates = opened.estimates;
         source.quoteTotals = opened.quote_totals;
         source.quoteRows = opened.quote_rows;
@@ -1216,7 +1217,16 @@
     }
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
-    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
+    const owner = state.editor;
+    const refresh = button("Refresh Records", async () => {
+      if (owner !== state.editor || state.busy || refresh.disabled) return;
+      refresh.disabled = true;
+      try { await owner.refreshRecords(); }
+      catch (error) { if (owner === state.editor) message(error.message,true); }
+      finally { if (owner === state.editor && !state.busy) refresh.disabled = false; }
+    });
+    window.CeasefireI18n?.text(refresh,"Refresh Records");
+    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), refresh, pdfDownloadButton(() => void downloadEditor()));
     if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder()));
     form.append(actions);
@@ -1736,12 +1746,13 @@
   }
   function attachWorkPanels(form) {
     const editor = state.editor, doc = editor.document, fields = doc.fields;
-    const related = editor.source?.related || state.model.documents;
+    const readRelated = () => editor.relatedRecords || editor.source?.related || state.model.documents;
     const staged = new Map();
     function quoteFiles() {
       const quoteId = fields.order.quote_id;
       if (doc.kind !== "work_order" || !quoteId) return [];
-      const quote = editor.linkedQuote?.id === quoteId ? editor.linkedQuote : related.find(row => row.kind === "quote" && row.id === quoteId);
+      const quote = readRelated().find(row => row.kind === "quote" && row.id === quoteId) ||
+        (editor.linkedQuote?.id === quoteId ? editor.linkedQuote : null);
       return quote?.fields.files || [];
     }
     function visibleFiles() {
@@ -1750,14 +1761,44 @@
       return [...attached, ...quoteFiles().filter(file => !hidden.has(file.id))];
     }
     const source = () => ({file_id:editor.source.file_id,revision:editor.source.revision});
+    const readSource = () => (editor.relatedBaseRevision === editor.source?.revision && editor.relatedSource) || source();
     const panelWorkspace=state.workspace,panelContext=window.CeasefireProject?.runtimeContext?.();
     const current = () => state.editor === editor && state.workspace===panelWorkspace && panelWorkspace===currentWorkspace() && panelContext===window.CeasefireProject?.runtimeContext?.();
+    editor.refreshRecords=async () => {
+      const version=doc.version, revision=editor.source?.revision;
+      const unchanged=()=>current() && version===doc.version && revision===editor.source?.revision;
+      let latest, linkedSource;
+      if (editor.source) {
+        // Read newer links without changing the revision that protects unsaved edits.
+        const anchor=editor.source.documentId || doc.id;
+        let page=await request("register?refresh=1");
+        while (unchanged() && page.scan_pending) page=await request("register");
+        if (!unchanged()) return;
+        const card=page.documents.find(item=>item.source_file===editor.source.file_id && item.id===anchor &&
+          (!editor.source.projectId || item.project_id===editor.source.projectId));
+        if (!card) throw Error("The linked document is unavailable. Refresh its board.");
+        linkedSource=sourceFor(card);
+        latest=await request("saved-open",{source:linkedSource,id:anchor});
+      } else latest=await request("state?"+new URLSearchParams({workspace:panelWorkspace,compact:"1"}));
+      if (!unchanged()) return;
+      editor.relatedRecords=editor.source ? latest.related : latest.documents;
+      editor.relatedSource=linkedSource;
+      editor.relatedBaseRevision=revision;
+      if (editor.source) {
+        editor.source.quoteTotals=latest.quote_totals; editor.source.quoteRows=latest.quote_rows;
+        editor.source.related=latest.related;
+      } else {
+        state.model.quote_totals=latest.quote_totals; state.model.quote_rows=latest.quote_rows;
+      }
+      if(editor.refreshLinkOptions) editor.refreshLinkOptions(editor.relatedRecords);
+      await editor.panels.refreshRecords();
+    };
     const encode = blob => new Promise((resolve,reject)=>{
       const reader=new FileReader(); reader.onerror=()=>reject(new Error("The file could not be read."));
       reader.onload=()=>resolve(reader.result.split(",")[1]); reader.readAsDataURL(blob);
     });
     editor.panels=window.ClassifireWorkOrderPanels.attach(form, {
-      fields, kind:doc.kind, id:doc.id, related, visibleFiles, message, richEditor, isCurrent:current,
+      fields, kind:doc.kind, id:doc.id, readRelated, visibleFiles, message, richEditor, isCurrent:current,
       canEdit:()=>current() && !state.busy && (!window.ClassifireAccess || window.ClassifireAccess.can('edit')),
       changeDetails:values=>{if(current() && !state.busy)editDocumentDetails(fields,values);}, projectDetails:projectDetailsSnapshot(editor.source), isSaved:()=>Boolean(doc.version),
       readProjectDetails:()=>projectDetailsSnapshot(editor.source),
@@ -1765,13 +1806,20 @@
         if (!doc.version) return {events:[]};
         const query = new URLSearchParams({document:doc.id});
         if (editor.source) {
-          query.set('file',editor.source.file_id); query.set('revision',editor.source.revision);
+          query.set('file',editor.source.file_id); query.set('revision',readSource().revision);
         } else query.set('workspace',panelWorkspace);
         return request('activity?' + query);
       },
+      async writeActivity(activity) {
+        if (!doc.version || !current() || state.busy) throw new Error("Finish the current document operation first.");
+        state.busy=true;
+        try {
+          return await documentRequest('activity',{workspace_id:panelWorkspace,id:doc.id,version:doc.version,activity},editor.source);
+        } finally { if(current())state.busy=false; }
+      },
       participantSource() {
         if(!current())return null;
-        if(editor.source)return editor.source.file_id.startsWith('local-') ? null : {selector:editor.source.file_id,revision:editor.source.revision};
+        if(editor.source)return editor.source.file_id.startsWith('local-') ? null : {selector:editor.source.file_id,revision:readSource().revision};
         const active=window.CeasefireProject?.context?.();
         const file=window.CeasefireProject?.projectPaneSnapshot?.().file;
         // A visible tab alone does not make an unfiled/history document part
@@ -1819,7 +1867,7 @@
         let href, objectUrl=false;
         if(staged.has(file.id)) {href=URL.createObjectURL(staged.get(file.id));objectUrl=true;}
         else if(editor.source) {
-          const data=await request("saved-read-attachment",{source:source(),id:fileOwner,file_id:file.id});
+          const data=await request("saved-read-attachment",{source:readSource(),id:fileOwner,file_id:file.id});
           const raw=atob(data.content), bytes=Uint8Array.from(raw, ch=>ch.charCodeAt(0));
           href=URL.createObjectURL(new Blob([bytes],{type:data.mime}));objectUrl=true;
         } else href=`/api/commercial/attachment/${encodeURIComponent(file.id)}?workspace=${encodeURIComponent(state.workspace)}&document=${encodeURIComponent(fileOwner)}`;
@@ -2082,9 +2130,8 @@
     const isWorkOrder = state.kind === "work_order";
     const linkKey = isWorkOrder ? "quote_id" : "work_order_id";
     const projectNo=fields.details.project_no.trim();
-    const choices = (state.editor.linkedQuote ? [state.editor.linkedQuote] : state.editor.source?.related || state.model.documents).filter(item => isWorkOrder
-      ? item.kind === "quote" && item.last_number && (!projectNo || item.fields.details.project_no.trim()===projectNo)
-      : item.kind === "work_order" && item.fields.order.work_order_reference);
+    const owner = state.editor;
+    let choices;
     let costControl;
     let costEdited = Boolean(fields.order.estimated_cost);
     const trackingHosts = [];
@@ -2100,19 +2147,25 @@
     const linked = node("select");
     const blank = node("option", "", isWorkOrder ? "Select an issued Quote…" : "No Work Order linked");
     blank.value = "";
-    linked.append(blank);
-    for (const item of choices) {
-      const quoteNumber = state.editor.document.version > 0 && fields.order.quote_id === item.id && fields.order.work_order_reference ? fields.order.quote_reference : item.last_number;
-      const option = node("option", "", `${isWorkOrder ? quoteNumber : item.fields.order.work_order_reference} · ${item.fields.title}`);
-      option.value = item.id;
-      linked.append(option);
-    }
-    if (fields.order[linkKey] && !choices.some(item => item.id === fields.order[linkKey])) {
-      const retained = node("option", "", isWorkOrder ? fields.order.quote_reference : fields.order.work_order_reference);
-      retained.value = fields.order[linkKey];
-      linked.append(retained);
-    }
-    linked.value = fields.order[linkKey] || "";
+    owner.refreshLinkOptions = records => {
+      choices = (owner.linkedQuote ? [records.find(item=>item.id===owner.linkedQuote.id) || owner.linkedQuote] : records).filter(item => isWorkOrder
+        ? item.kind === "quote" && item.last_number && (!projectNo || item.fields.details.project_no.trim()===projectNo)
+        : item.kind === "work_order" && item.fields.order.work_order_reference);
+      linked.replaceChildren(blank);
+      for (const item of choices) {
+        const quoteNumber = owner.document.version > 0 && fields.order.quote_id === item.id && fields.order.work_order_reference ? fields.order.quote_reference : item.last_number;
+        const option = node("option", "", `${isWorkOrder ? quoteNumber : item.fields.order.work_order_reference} · ${item.fields.title}`);
+        option.value = item.id;
+        linked.append(option);
+      }
+      if (fields.order[linkKey] && !choices.some(item => item.id === fields.order[linkKey])) {
+        const retained = node("option", "", isWorkOrder ? fields.order.quote_reference : fields.order.work_order_reference);
+        retained.value = fields.order[linkKey];
+        linked.append(retained);
+      }
+      linked.value = fields.order[linkKey] || "";
+    };
+    owner.refreshLinkOptions(owner.source?.related || state.model.documents);
     linked.dataset.orderLink = linkKey;
     linked.disabled = isWorkOrder && state.editor.quoteLinkLocked;
     const reference = input(state.editor.document.reference || (isWorkOrder ? fields.order.work_order_reference : ""), () => {});
@@ -2768,6 +2821,7 @@
     if(disabled)state.editor?.panels?.closeSearches();
     root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => control.disabled = disabled);
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
+    if (!disabled) state.editor?.panels?.updateActivity?.();
     if (!disabled && state.kind === "work_order" && state.editor?.quoteLinkLocked) {
       const linked = root()?.querySelector('[data-order-link="quote_id"]');
       if (linked) linked.disabled = true;
@@ -3096,10 +3150,10 @@
       });
     },
     hasPendingOperation() {
-      return state.busy || state.dirty || Boolean(rateDefaults.saving || rateDefaults.pending.size);
+      return state.busy || state.dirty || Boolean(state.editor?.panels?.activityDirty?.()) || Boolean(rateDefaults.saving || rateDefaults.pending.size);
     },
     hasProjectChanges() {
-      return state.changed || state.dirty;
+      return state.changed || state.dirty || Boolean(state.editor?.panels?.activityDirty?.());
     },
     markProjectSaved(saved, captured) {
       if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false;

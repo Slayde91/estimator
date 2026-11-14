@@ -9,7 +9,9 @@ import unicodedata
 from uuid import uuid4
 
 from .catalog import ValidationError
-from .follow_up import FOLLOW_UP_LIMITS, validate_follow_up_date
+from .follow_up import (
+    FOLLOW_UP_LIMITS, action_decisions, legacy_actions, reconcile_actions, summary_fields, validate_follow_up_date,
+)
 from . import crm_identity
 from . import crm_activity
 
@@ -46,7 +48,12 @@ def active_lead_status(status, fields, *, selected_contact=False):
 
 
 def checked_fields(kind, values):
-    if kind not in FIELDS or not isinstance(values, dict) or set(values) - set(FIELDS[kind]):
+    if kind not in FIELDS or not isinstance(values, dict):
+        raise ValidationError("Use the fields provided on this form.")
+    allowed = set(FIELDS[kind])
+    if kind == 'leads':
+        allowed.add('follow_up_actions')
+    if values.keys() - allowed:
         raise ValidationError("Use the fields provided on this form.")
     clean = {}
     for field in FIELDS[kind]:
@@ -92,6 +99,12 @@ def company_key(name):
 def complete_contact_identity(data):
     return all(''.join(char for char in data[key] if unicodedata.category(char) != 'Cf').strip()
                for key in CONTACT_CREATION_REQUIRED_FIELDS)
+
+
+def _stored_followups(record, ident):
+    if record['actions'] is not None:
+        return json.loads(record['actions'])
+    return legacy_actions(record, ident)
 
 
 _LEAD_COLUMNS = """id TEXT PRIMARY KEY, contact_id TEXT NOT NULL REFERENCES contacts(id),
@@ -169,7 +182,9 @@ class ContactsStore:
             _migrate_lead_contact_index(db)
             db.execute("""CREATE TABLE IF NOT EXISTS lead_followups (
                 lead_id TEXT PRIMARY KEY REFERENCES leads(id) ON DELETE CASCADE,
-                next_action TEXT NOT NULL, follow_up_date TEXT NOT NULL)""")
+                next_action TEXT NOT NULL, follow_up_date TEXT NOT NULL, actions TEXT)""")
+            if 'actions' not in {row[1] for row in db.execute('PRAGMA table_info(lead_followups)')}:
+                db.execute('ALTER TABLE lead_followups ADD COLUMN actions TEXT')
             crm_identity.initialize(db)
             crm_activity.schema(db)
 
@@ -217,7 +232,7 @@ class ContactsStore:
                 "contacts": [dict(row) for row in db.execute(contacts + " ORDER BY c.name COLLATE NOCASE,c.id")],
                 "leads": [self._lead_record(row) for row in db.execute(f"""
                     SELECT l.*, p.name, p.phone, p.title, p.email, p.company, p.account_id, p.abn_acn,
-                           coalesce(f.next_action,'') AS next_action, coalesce(f.follow_up_date,'') AS follow_up_date
+                           coalesce(f.next_action,'') AS next_action, coalesce(f.follow_up_date,'') AS follow_up_date, f.actions
                     FROM leads l JOIN ({contacts}) p ON p.id=l.contact_id
                     LEFT JOIN lead_followups f ON f.lead_id=l.id
                     ORDER BY p.name COLLATE NOCASE,l.id
@@ -250,6 +265,8 @@ class ContactsStore:
         snapshot = value.pop('person_snapshot', None)
         if snapshot is not None:
             value.update(json.loads(snapshot))
+        value['follow_up_actions'] = _stored_followups(value, value['id'])
+        del value['actions']
         value['status'] = active_lead_status(value['status'], value)
         return value
 
@@ -397,6 +414,9 @@ class ContactsStore:
             if not contact_id and not account_id:
                 item['project_source'] = source_id(row['path'])
             item['snapshot'] = json.loads(row['snapshot']) if row['snapshot'] else None
+            snapshot = item['snapshot']
+            if snapshot is not None and 'follow_up_actions' not in snapshot:
+                snapshot['follow_up_actions'] = legacy_actions(snapshot, row['lead_id'])
             history.append(item)
         return history
 
@@ -563,18 +583,7 @@ class ContactsStore:
                               description=excluded.description,status=excluded.status,person_snapshot=excluded.person_snapshot""",
                            (ident, person_id, data["site_address"], data["billing_address"], data["description"], data["status"],
                             json.dumps(snapshot, ensure_ascii=False, separators=(',', ':'))))
-                # Older forms and stage-only updates omit both fields. Keep the
-                # saved follow-up unless the caller explicitly edits it.
-                if {"next_action", "follow_up_date"} & body["fields"].keys():
-                    prior = db.execute("SELECT next_action,follow_up_date FROM lead_followups WHERE lead_id=?", (ident,)).fetchone()
-                    action, due = (data[key] if key in body["fields"] else prior[key] if prior else ""
-                                   for key in ("next_action", "follow_up_date"))
-                    if action or due:
-                        db.execute("""INSERT INTO lead_followups(lead_id,next_action,follow_up_date) VALUES(?,?,?)
-                                   ON CONFLICT(lead_id) DO UPDATE SET next_action=excluded.next_action,
-                                   follow_up_date=excluded.follow_up_date""", (ident, action, due))
-                    else:
-                        db.execute("DELETE FROM lead_followups WHERE lead_id=?", (ident,))
+                self._save_lead_followups(db, ident, body['fields'], actor)
             elif kind == "contacts":
                 if not data['company']:
                     person_ids = crm_identity.group_ids(mappings['contacts'], ident)
@@ -620,6 +629,30 @@ class ContactsStore:
             result['contact'] = contact
         return result
 
+    @staticmethod
+    def _save_lead_followups(db, ident, fields, actor):
+        values = ({'actions':fields['follow_up_actions']} if 'follow_up_actions' in fields else
+                  {key:fields[key] for key in FOLLOW_UP_LIMITS if key in fields})
+        if not values:
+            return
+        row = db.execute('SELECT actions,next_action,follow_up_date FROM lead_followups WHERE lead_id=?', (ident,)).fetchone()
+        previous = _stored_followups(dict(row), ident) if row else []
+        actions = reconcile_actions(previous, values, ident)
+        if actions == previous:
+            return
+        if actions:
+            summary = summary_fields(actions)
+            db.execute("""INSERT INTO lead_followups(lead_id,next_action,follow_up_date,actions) VALUES(?,?,?,?)
+                ON CONFLICT(lead_id) DO UPDATE SET next_action=excluded.next_action,
+                follow_up_date=excluded.follow_up_date,actions=excluded.actions""",
+                (ident, summary['next_action'], summary['follow_up_date'], json.dumps(actions, ensure_ascii=False, separators=(',', ':'))))
+        else:
+            db.execute('DELETE FROM lead_followups WHERE lead_id=?', (ident,))
+        for action in action_decisions(previous, actions):
+            crm_activity.event(db, 'leads', ident, 'Follow-up ' + action['status'].lower(),
+                               {'action_id':action['id'], 'text':action['next_action'], 'status':action['status']},
+                               actor, due=action['follow_up_date'] or None)
+
     def convert(self, body, create_project, *, actor=None):
         if not isinstance(body, dict) or set(body) != {'id', 'version'} or not isinstance(body['id'], str):
             raise ValidationError('Choose a saved lead to convert.')
@@ -631,7 +664,7 @@ class ContactsStore:
             if type(body['version']) is not int or self._version(db) != body['version']:
                 raise ContactsConflict('The lead changed. Reopen the directory before converting it.')
             lead = db.execute('''SELECT l.*,c.name,c.phone,c.title,c.email,c.account_id,a.company,a.abn_acn,
-                coalesce(f.next_action,'') AS next_action,coalesce(f.follow_up_date,'') AS follow_up_date
+                coalesce(f.next_action,'') AS next_action,coalesce(f.follow_up_date,'') AS follow_up_date,f.actions
                 FROM leads l JOIN contacts c ON l.contact_id=c.id LEFT JOIN accounts a ON a.id=c.account_id
                 LEFT JOIN lead_followups f ON f.lead_id=l.id
                 WHERE l.id=?''', (body['id'],)).fetchone()

@@ -42,7 +42,11 @@ const checks=[],errors=[];
  await post('/api/contacts/accounts',{id:consultant.id,version:(await read('/api/contacts/directory')).version,fields:{company:consultant.company,billing_address:consultant.billing_address,abn_acn:consultant.abn_acn},links});
  await post('/api/crm/project-participants',{project:selector,project_revision:recorded.project_revision,version:recorded.version,site_id:null,participants:[
    {id:primary.id,kind:'contacts',role:'site_contact'},{id:participant.id,kind:'contacts',role:'consultant'},{id:participant.id,kind:'contacts',role:'billing_contact'},{id:supplier.id,kind:'accounts',role:'supplier'}]});
- await left.getByRole('button',{name:'Refresh linked contacts',exact:true}).click();
+ const introduction=quote.getByLabel('Introduction',{exact:true}),originalIntro=await introduction.inputValue();
+ await introduction.fill(originalIntro+' Unsaved refresh test');
+ await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Refresh Records',exact:true}).click();
+ await expect(introduction).toHaveValue(originalIntro+' Unsaved refresh test');
+ await introduction.fill(originalIntro);
  const cards=left.locator('.commercial-linked-contact');await expect(cards).toHaveCount(2);await expect(cards.first()).toHaveAttribute('data-contact-id',primary.id);
  await expect(cards.first()).toContainText('Site contact');
  await expect(cards.nth(1)).toHaveAttribute('data-contact-id',participant.id);await expect(cards.nth(1)).toContainText('Consultant');await expect(cards.nth(1)).toContainText('Billing contact');await expect(left).not.toContainText('Unlinked Employee');

@@ -20,6 +20,7 @@ from .quote_details import compile_work_summary
 from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 from .travel import TravelService, TravelError
+from .follow_up import project_response
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -398,7 +399,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 derive=lambda body, include_pdfs=False: derive_estimates(store, body, edition=edition,
                     company=self.company_details(), library=libraries, include_pdfs=include_pdfs),
                 company=self.company_details, saved=saved_commercial, pricing=store.configuration,
-                rate_defaults=commercial_rate_defaults,billing=billing_contacts)
+                rate_defaults=commercial_rate_defaults,billing=billing_contacts,staff=access.staff)
             if commercial_http.dispatch(self, route):
                 return
             if SwmsHTTP(swms, company=self.company_details).dispatch(self, route):
@@ -525,7 +526,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
                 elif route in {'/passive-fire-register.js', '/passive-fire-register.css',
-                               '/settings-layout.css', '/contacts.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
+                               '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler.css', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
                 elif route in {'/project-popup.css', '/project-pane.js', '/project-details.js', '/games/play.js', '/games/play.css', '/games/fireline-art.js', '/games/fireline.js', '/penetration-references.js', '/sounds/type.mp3', '/sounds/gameover.mp3', '/sounds/money.mp3', '/sounds/flame-whoosh.wav', '/takeoff-visual-search-icon.png', '/takeoff-ocr-icon.png', '/header-steel-intumescent.png', '/sounds/checkpoint.ogg', '/sounds/loading.mp3', '/sounds/new-explosion.mp3', '/sounds/hover.mp3', '/sounds/select.mp3', '/sounds/select-2.mp3', '/sounds/mixkit-vintage-dot-printing-1371.wav', '/takeoff-visual-search.js', '/takeoff-visual-search.css', '/takeoff-ocr-layer.js', '/takeoff-ocr-layer.css', '/header-menu-sounds.js', '/audio-settings.js', '/sounds/mgs1-menu-move.mp3', '/sounds/mgs-confirm2.mp3', '/brand-boot.js', '/brand-boot.css', '/classifire-app.ico', '/register-references.js', '/travel.js', '/travel.css', '/maps-setup.html', '/pdf-cursors.css', '/cursors/pointer.png', '/cursors/precision.png', '/cursors/move.png', '/cursors/text.png', '/cursors/handwriting.png', '/cursors/link.png', '/cursors/resize-nwse.png', '/cursors/resize-nesw.png', '/cursors/resize-horizontal.png', '/cursors/resize-vertical.png', '/cursors/unavailable.png', '/cursors/busy.png', "/", "/index.html", "/company-settings.js", "/classifire-logo.png", "/main-layout.js", "/downloads.css", "/activity.js", "/calculation-queue.js", "/searchable-choice.js", "/penetration-presentation.js", "/icons/navigation-takeoffs.svg", "/icons/navigation-takeoffs.jpg", "/icons/navigation-help.jpg", "/theme.js", "/language.js", "/language-catalog.js", "/language.css", "/theme.css", "/laser.css", "/laser-steel.svg", "/home-steel-frame.png", "/header-layout.css", "/workspace-art.css", "/pointer-effects.css", "/pointer-effects.js", "/laser-reticle.svg", "/takeoff-header-steel.png", "/takeoff-header-ductwork.png", "/takeoff-header-physical.png", "/takeoff-header-service-plans.png", "/header-steel-spray.png", "/header-steel-board.png", "/header-ductwork.png", "/header-firestopping.png", "/header-estimate.png", "/header-projects.png", "/projects-evidence-banner.png", "/header-firestopping-library.png", "/header-technical-library.png", "/app.js", "/downloads.js", "/styles.css", "/calculators.js", "/calculators.css", "/penetration-breakdown.js", "/penetration.js", "/penetration.css", "/libraries.js", "/library-detail-text.js", "/libraries.css", "/library-editor.js", "/library-editor.css", "/icons/navigation-home.png", "/icons/document.png", "/icons/schedule-add.png", "/icons/navigation-help.png", "/icons/navigation-takeoffs.png", "/icons/takeoff-visibility.jpg", "/icons/takeoff-colour-wheel.png", "/icons/takeoff-legend.png", "/ceasefire-logo.png", "/ceasefire-app.ico", "/fonts/Montserrat-Variable.ttf", "/fonts/Vera.ttf", "/fonts/VeraBd.ttf", "/fonts/Montserrat-Regular.ttf", "/fonts/Montserrat-Bold.ttf", "/fonts/Montserrat-Italic.ttf", "/fonts/Montserrat-BoldItalic.ttf", "/fonts/Montserrat-Italic-Variable.ttf", "/takeoffs.js", "/takeoffs.css", "/takeoff-geometry.js", "/takeoff-physical.js", "/takeoff-annotations.js", "/takeoff-signatures.js", "/takeoff-graphics.js", "/takeoff-graphics-ui.js", "/takeoff-pane-resize.js", "/takeoff-initial-pages.js", "/takeoff-pdf-tools.js", "/takeoff-pdf-tools.css", "/icons/default-memory.svg", "/icons/takeoff-set-default.png", "/icons/signature.svg", "/icons/trash.svg", "/help-glossary.js", "/help-glossary.css", "/takeoff-search.js", "/takeoff-shortcuts.js", "/icons/takeoff-callout.png", "/takeoff-pdf-worker.mjs", "/takeoff-library-links.js", "/icons/takeoff-visibility.png", "/icons/takeoff-bullet-list.png", "/icons/takeoff-numbered-list.png", "/icons/takeoff-add-service.png", "/icons/takeoff-add-barrier.png", "/icons/takeoff-transfer.png", "/icons/takeoff-measure.png", "/header-tagline-media.js", "/header-tagline-character.gif", "/header-tagline-character-still.png"}:
@@ -774,37 +775,40 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if ('takeoffs' in body or 'certifications' in body or 'documentation' in body
                             or any(isinstance(workspace, dict) and 'takeoffs' in workspace for workspace in workspaces)):
                         raise ValidationError('Use Save As to save the project together with its evidence and certificate companion folders.')
+                    if 'project_follow_up' in body:
+                        from .follow_up import save_project_follow_up
+                        body = {**body, 'project_follow_up':save_project_follow_up({}, body['project_follow_up'], new_file=True)}
                     project = export_project(store, body, edition=edition)
                     filename = project_filename(json.loads(project)['estimate']['title'])
                     self.send_payload(200, project, 'application/octet-stream',
                                       {'Content-Disposition': project_download_header(filename)})
                 elif route == '/api/project/save-as' and self.command == 'POST':
-                    self.send_payload(200, projects.save_as(body))
+                    self.send_payload(200, project_response(projects.save_as(body)))
                 elif route == '/api/project/estimate/prepare' and self.command == 'POST':
                     self.send_payload(200, projects.prepare_estimate(body))
                 elif route == '/api/project/save' and self.command == 'POST':
-                    self.send_payload(200, projects.save(body))
+                    self.send_payload(200, project_response(projects.save(body)))
                 elif route == '/api/project/attachment' and self.command == 'POST':
                     self.send_payload(200, projects.save_attachment(body))
                 elif route == '/api/project/open' and self.command == 'POST':
                     if body:
                         raise ValidationError('Load Project does not accept a file path or other fields.')
-                    self.send_payload(200, projects.open_file())
+                    self.send_payload(200, project_response(projects.open_file()))
                 elif route == '/api/projects/link-folder' and self.command == 'POST':
                     if body:
                         raise ValidationError('Link folder does not accept a folder path or other fields.')
                     self.send_payload(200, projects.link_folder())
                 elif route == '/api/projects/load' and self.command == 'POST':
                     if set(body) == {'linked_project'}:
-                        self.send_payload(200, projects.load_linked(body['linked_project']))
+                        self.send_payload(200, project_response(projects.load_linked(body['linked_project'])))
                     elif set(body) == {'id'}:
-                        self.send_payload(200, projects.load(body['id']))
+                        self.send_payload(200, project_response(projects.load(body['id'])))
                     else:
                         raise ValidationError('Choose a project file from the linked folder.')
                 elif route == '/api/projects/details' and self.command == 'POST':
-                    self.send_payload(200, projects.read_details(body))
+                    self.send_payload(200, project_response(projects.read_details(body)))
                 elif route == '/api/projects/details/save' and self.command == 'POST':
-                    self.send_payload(200, projects.save_details(body, accounts=contacts_http.store))
+                    self.send_payload(200, project_response(projects.save_details(body, accounts=contacts_http.store)))
                 elif route == '/api/projects/status' and self.command == 'POST':
                     self.send_payload(200, projects.update_status(body))
                 elif route == '/api/projects/delete' and self.command == 'POST':
@@ -823,7 +827,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if set(body) != {'filename', 'content_base64'}:
                         raise ValidationError('Include the project filename and file content only.')
                     project = import_project(store, body['filename'], body['content_base64'], edition=edition)
-                    self.send_payload(200, projects.restore_import(project))
+                    self.send_payload(200, project_response(projects.restore_import(project)))
                 elif route.startswith('/api/quotes/') and route.endswith('/report.pdf') and self.command == 'POST':
                     if set(body) - {'download'}:
                         raise ValidationError('Saved quote report requests accept download options only.')

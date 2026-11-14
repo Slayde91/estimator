@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from estimator.catalog import ValidationError
+from estimator.follow_up import legacy_actions
 from estimator.project_file import WORKSPACE_FIELDS, export_project, load_project_bytes
 from estimator.project_library import ProjectLibrary
 from estimator.storage import Store
@@ -96,7 +97,9 @@ class ProjectEstimatesTests(unittest.TestCase):
 
     def test_switching_estimates_preserves_project_follow_up_on_older_client_save(self):
         follow_up = {'next_action': 'Confirm access with the client', 'follow_up_date': '2026-11-18'}
-        self.path.write_bytes(export_project(self.store, {**self.request, 'project_follow_up': follow_up}))
+        old = json.loads(export_project(self.store, self.request))
+        old['project_follow_up'] = follow_up
+        self.path.write_bytes(json.dumps(old).encode())
         self.store.set_project_folder(self.root)
         file_id = self.library.listing()['files'][0]['id']
         opened = self.library.load(file_id)
@@ -107,7 +110,7 @@ class ProjectEstimatesTests(unittest.TestCase):
         self.library.save(complete_save_metadata(request))
 
         reopened = load_project_bytes(self.store, self.path.read_bytes())
-        self.assertEqual(reopened['project_follow_up'], follow_up)
+        self.assertEqual(reopened['project_follow_up'], {'actions':legacy_actions(follow_up)})
         self.assertEqual(reopened['active_estimate_id'], self.other_id)
         self.assertEqual(reopened['estimate']['measurements'], 'Alternative scope')
 

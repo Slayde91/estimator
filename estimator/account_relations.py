@@ -20,6 +20,20 @@ def _identity(value):
         return False
 
 
+def project_target(row):
+    if row.get("path"):
+        return {"source": source_id(row["path"]), "owner": row.get("source_project_id") or "",
+                "project_no": row.get("project_no", "")}
+
+
+def document_target(document, project_file):
+    file_id = document.get("source_file") or project_file.get("id") or (source_id(project_file["path"]) if project_file.get("path") else None)
+    revision = document.get("source_revision") or project_file.get("revision")
+    if file_id and revision:
+        return {"source_file": file_id, "source_revision": revision, "id": document["id"],
+                "kind": document["kind"], "project_id": document["project_id"]}
+
+
 def _project_label(row):
     return " · ".join(str(row.get(key, "")) for key in ("project_no", "client", "site_address") if row.get(key)) or row.get("title") or "Project"
 
@@ -92,6 +106,8 @@ class AccountRelations:
                 source_links[source] = token
         for token, row in project_rows.items():
             records["projects"][token] = {"id": token, "label": _project_label(row), "available": True}
+            if target := project_target(row):
+                records["projects"][token]["project"] = target
             primary = row.get("account_id", "")
             matches = (primary in members if primary else account is not None
                        and company_key(row.get("client", "")) == company_key(account["company"]))
@@ -146,6 +162,8 @@ class AccountRelations:
             if key in document_rank and document_rank[key] <= rank:
                 continue
             document_rank[key] = rank
+            if target := document_target(document, project_rows.get(project_token, {})):
+                entry["document"] = target
             if supplier:
                 entry['supplier'] = True
             if billing:

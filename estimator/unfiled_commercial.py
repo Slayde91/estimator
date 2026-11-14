@@ -8,6 +8,7 @@ from pathlib import Path
 import secrets
 import zlib
 
+from .commercial_sources import source_id
 from .catalog import ValidationError
 from .commercial_documents import apply_project_document_details, CommercialConflict, commercial_cards, _stored_document
 
@@ -35,6 +36,7 @@ class UnfiledCommercial:
         self.service = service
         self._access = ContextVar('unfiled_commercial_access', default=None)
         db.executescript("""
+            CREATE TABLE IF NOT EXISTS commercial_activity_sources(workspace TEXT PRIMARY KEY, source TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS local_commercial_owners (
                 workspace TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE, generation INTEGER NOT NULL DEFAULT 1,
                 filed INTEGER NOT NULL DEFAULT 0);
@@ -70,7 +72,14 @@ class UnfiledCommercial:
             db.execute('UPDATE local_commercial_owners SET generation=generation+1 WHERE workspace=?', (workspace,))
 
     @staticmethod
-    def bind_file(db, workspace):
+    def bind_file(db, workspace, path=None):
+        if path is not None:
+            source = source_id(str(path))
+            # Only the first filing adopts previously workspace-owned entries.
+            # A later Save As binds future writes to its own source.
+            db.execute('UPDATE record_activity SET source=? WHERE source=?', (source, 'workspace:'+workspace))
+            db.execute("""INSERT INTO commercial_activity_sources VALUES(?,?) ON CONFLICT(workspace)
+                DO UPDATE SET source=excluded.source""", (workspace,source))
         # A filed workspace can never regain local ownership, even through a stale window.
         db.execute('INSERT INTO local_commercial_owners(workspace,token,filed) VALUES(?,?,1) '
                    'ON CONFLICT(workspace) DO UPDATE SET filed=1,generation=generation+1',
@@ -95,7 +104,7 @@ class UnfiledCommercial:
             for row in db.execute("""SELECT p.*,w.project_id FROM local_commercial_publications p
                     JOIN commercial_workspaces w USING(workspace)""").fetchall():
                 if verify_and_register(row):
-                    self.bind_file(db, row['workspace'])
+                    self.bind_file(db, row['workspace'], row['path'])
                     db.execute('DELETE FROM pending_quote_project_stages WHERE workspace=?', (row['workspace'],))
 
     def cancel_publication(self, workspace, path, digest):
@@ -116,24 +125,24 @@ class UnfiledCommercial:
                               'source_path':None, 'unfiled':True, 'current_workspace':active_workspace == row['workspace']})
             return cards
 
-    def _owner(self, db, source):
+    def _owner(self, db, source, ignored=()):
         row = db.execute('SELECT o.*,w.project_id FROM local_commercial_owners o JOIN commercial_workspaces w '
                          'USING(workspace) WHERE o.token=? AND o.filed=0', (source['file_id'],)).fetchone()
-        if row is None or _revision(row) != source['revision']:
+        if row is None or row['project_id'] in ignored or _revision(row) != source['revision']:
             raise CommercialConflict(STALE)
         return row
 
-    def activity(self, source, identity):
+    def activity(self, source, identity, *, ignored=()):
         with self.service._connect() as db:
             db.execute('BEGIN')
-            owner = self._owner(db, source)
+            owner = self._owner(db, source, ignored)
             self._check_pending(db, owner['workspace'])
             row = db.execute('''SELECT d.data FROM local_commercial_documents m
                 JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=? AND m.id=?''',
                 (owner['workspace'], identity)).fetchone()
             if not row:
                 raise CommercialConflict(STALE)
-            return self.service._document_activity(db, owner['project_id'], json.loads(row['data']))
+            return self.service._document_activity(db, owner['project_id'], json.loads(row['data']), 'workspace:'+owner['workspace'])
 
     def scheduler_order(self, source, revision, project, identity):
         """Verify exactly one explicitly saved board record, including an interrupted file handover."""
@@ -205,11 +214,11 @@ class UnfiledCommercial:
         finally:
             self._access.reset(token)
 
-    def perform(self, action, source, body, execute):
+    def perform(self, action, source, body, execute, *, ignored=()):
         if action == 'issue':
             raise ValidationError('Save this project before downloading its commercial documents.')
         with self.service._connect() as db:
-            owner = self._owner(db, source)
+            owner = self._owner(db, source, ignored)
             workspace, project = owner['workspace'], owner['project_id']
             records = {row['id']:row for row in db.execute(
                 'SELECT m.id,d.data FROM local_commercial_documents m JOIN commercial_drafts d USING(workspace,id) WHERE m.workspace=?',

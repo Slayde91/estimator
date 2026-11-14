@@ -30,7 +30,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.url().endsWith('/api/commercial/derive'))derive.push(request.postDataJSON());});
   await page.goto(`http://127.0.0.1:${info.port}/`);await idle();await clickProjectControl(page,'Load');
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
-  // Measure the actual SWMS Add person control as the larger reference size.
+  // Confirm the separate SWMS control remains available at its own size.
   await openProjectSection(page,'swms');const swms=page.locator('#swms-root');await swms.getByRole('button',{name:'New SWMS',exact:true}).click();
   const people=swms.locator('details.swms-section:has(button[aria-label="Add person"])').first();
   if(!await people.evaluate(item=>item.open))await people.locator(':scope>summary').click();
@@ -46,7 +46,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
         overflow:document.documentElement.scrollWidth-innerWidth};
     });
     assert.ok(metrics.document.height>0&&(width<570?metrics.document.y>=metrics.estimate.y+metrics.estimate.height:Math.abs(metrics.document.y+metrics.document.height-metrics.estimate.y-metrics.estimate.height)<1),JSON.stringify(metrics));
-    assert.equal(metrics.otherDocumentHeight,'48px');assert.ok(metrics.overflow<=1);
+    assert.equal(metrics.otherDocumentHeight,'42px');assert.ok(metrics.overflow<=1);
     evidence.estimate.push({width,...metrics});
   }
   await page.setViewportSize({width:1915,height:1000});await page.locator('[aria-controls="firestopping-document-actions"]').click();await page.locator('#estimate-open-quote').click();
@@ -62,16 +62,16 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
       return{host:rect(host),add:rect(add),summary:rect(summary),nestedInteractive:summary.querySelectorAll('button,input,select,a,[contenteditable]').length,
         overflow:document.documentElement.scrollWidth-innerWidth};
     });
-    assert.equal(metrics.add.width,36);assert.equal(metrics.add.height,36);assert.ok(metrics.add.height<evidence.swmsAdd.height);
-    assert.ok(metrics.add.right<=metrics.summary.x);assert.ok(Math.abs(metrics.add.y+18-metrics.summary.y-metrics.summary.height/2)<1);
-    assert.ok(Math.abs(metrics.summary.width-Math.min(261,metrics.host.width-46))<1,JSON.stringify(metrics));assert.equal(metrics.nestedInteractive,0);assert.ok(metrics.overflow<=1);
+    assert.equal(metrics.add.width,42);assert.equal(metrics.add.height,42);
+    assert.ok(metrics.add.right<=metrics.summary.x);assert.ok(Math.abs(metrics.add.y+metrics.add.height/2-metrics.summary.y-metrics.summary.height/2)<1);
+    assert.ok(Math.abs(metrics.summary.width-Math.min(261,metrics.host.width-metrics.add.width-10))<1,JSON.stringify(metrics));assert.equal(metrics.nestedInteractive,0);assert.ok(metrics.overflow<=1);
     await add.focus();await page.keyboard.press('Tab');await expect(summary).toBeFocused();await page.keyboard.press('Enter');await expect(picker).toHaveAttribute('open','');
     await expect(quote.getByRole('checkbox',{name:secondaryName,exact:true})).toBeVisible();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,`quote-picker-open-${width}.png`),fullPage:true});
     await summary.focus();await page.keyboard.press('Space');await expect(picker).not.toHaveAttribute('open','');
     evidence.picker.push({width,...metrics});
   }
-  checks.push('36px Add custom row remains left of a 261px responsive native summary; Tab/Enter/Space retain keyboard details behavior at 1213/1915/390');
+  checks.push('42px Add custom row remains left of a 261px responsive native summary; Tab/Enter/Space retain keyboard details behavior at 1213/1915/390');
   await page.setViewportSize({width:1915,height:1000});const rows=quote.locator('.commercial-lines tbody tr');
   await rows.first().locator('textarea').fill('Manual linked-estimate description');await rows.first().locator('input[type="number"]').first().fill('2');
   const generatedUnit=Number(await rows.first().locator('input[type="number"]').last().inputValue());

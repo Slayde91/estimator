@@ -9,10 +9,8 @@
   const button = (label, run, cls='button secondary') => {
     const item=node('button',cls,label);item.type='button';item.addEventListener('click',run);return item;
   };
-  const field = (label, control) => {const item=node('label','field');item.append(node('span','',label),control);return item;};
   function attach(host, options) {
     const owner=options.owner ? {...options.owner} : null;
-    const richNotes=['projects','leads'].includes(owner?.kind);
     let showAllNotes=false;
     let alive=true,busy=false,loaded=false,version=0,state={notes:[],files:[]},readTicket=0,noteEditor=null;
     const requests=new Set();
@@ -65,33 +63,6 @@
     }
     function openNote(existing) {
       if(!editable() || noteEditor)return;
-      if(richNotes){openRichNote(existing);return;}
-      const original=existing || {id:crypto.randomUUID(),title:'',body:''};
-      const dialog=node('dialog','record-note-dialog'),form=node('form','record-note-form'),title=node('input'),body=node('textarea');
-      title.value=original.title;title.maxLength=300;title.required=true;body.value=original.body;body.maxLength=8000;body.rows=8;
-      dialog.setAttribute('aria-label',tr(existing?'Edit note':'New note'));
-      const status=node('p','helper');status.setAttribute('role','status');
-      noteEditor={dialog,dirty:()=>title.value!==original.title || body.value!==original.body,
-        fingerprint:()=>JSON.stringify([original.id,title.value,body.value])};
-      const actions=node('div','actions');
-      const cancel=button('Cancel',()=>void leave());
-      let conflict=false;
-      const submit=node('button','button primary','Save');submit.type='submit';
-      form.addEventListener('submit',async event=>{
-        event.preventDefault();if(!editable() || !form.reportValidity())return;
-        if(conflict && !await window.CeasefireDialogs.confirm(tr('Notes or Files changed. Save this note using the latest record?'),'',tr('Save'),tr('Cancel')))return;
-        if(!editable() || noteEditor?.dialog!==dialog)return;
-        const note={id:original.id,title:title.value,body:body.value};
-        submit.disabled=cancel.disabled=true;
-        try{if(await save('notes',{notes:[note,...values(state.notes.filter(item=>item.id!==note.id))]}))closeNote();}
-        catch(error){if(current() && dialog.isConnected){conflict=error.status===409;status.textContent=tr(error.message);}}
-        finally{if(dialog.isConnected)submit.disabled=cancel.disabled=false;}
-      });
-      dialog.addEventListener('cancel',event=>{event.preventDefault();void leave();});
-      dialog.addEventListener('close',()=>{if(noteEditor?.dialog===dialog)noteEditor=null;dialog.remove();});
-      actions.append(cancel,submit);form.append(node('h2','',existing?'Edit note':'New note'),field('Note title',title),field('Note',body),status,actions);dialog.append(form);document.body.append(dialog);dialog.showModal();title.focus();
-    }
-    function openRichNote(existing) {
       const id=existing?.id || crypto.randomUUID();
       let initial=existing,conflict=false;
       if(existing && existing.format!=='rich'){
@@ -100,7 +71,9 @@
       }
       async function write(next){
         if(!editable() || noteEditor!==editor)return false;
-        if(conflict && !await window.CeasefireDialogs.confirm(tr('Notes or Files changed. Save this note using the latest record?'),'',tr('Save'),tr('Cancel')))return false;
+        const latest=state.notes.find(note=>note.id===id);
+        const changed=existing && (!latest || latest.title!==existing.title || latest.body!==existing.body || latest.format!==existing.format);
+        if((conflict || changed) && !await window.CeasefireDialogs.confirm(tr('Notes or Files changed. Save this note using the latest record?'),'',tr('Save'),tr('Cancel')))return false;
         if(!editable() || noteEditor!==editor)return false;
         const rest=values(state.notes.filter(note=>note.id!==id));
         try{return await save('notes',{notes:next ? [next,...rest] : rest});}
@@ -114,10 +87,6 @@
         onClose:()=>{if(noteEditor===editor)noteEditor=null;}
       });
       noteEditor=editor;
-    }
-    async function removeNote(item) {
-      if(!editable() || !await window.CeasefireDialogs.confirm(tr('Delete this note?'),item.title,tr('Delete'),tr('Cancel')) || !editable())return;
-      try{await save('notes',{notes:values(state.notes.filter(note=>note.id!==item.id))});}catch(_){}
     }
     async function removeFile(item) {
       if(!editable() || !await window.CeasefireDialogs.confirm(tr('Remove this file?'),item.name,tr('Remove'),tr('Cancel')) || !editable())return;
@@ -144,18 +113,16 @@
       const create=button('New note',()=>openNote(null));create.disabled=!editable();
       notes.replaceChildren(summary('Notes',state.notes.length),create);
       const ordered=[...state.notes].sort((a,b)=>b.updated_at.localeCompare(a.updated_at));
-      for(const item of richNotes && !showAllNotes ? ordered.slice(0,3) : ordered){
+      for(const item of !showAllNotes ? ordered.slice(0,3) : ordered){
         const row=node('article','record-resource-note'),title=node('button','text-button project-title-button');title.type='button';title.textContent=item.title;title.addEventListener('click',()=>openNote(item));title.disabled=!editable();
-        const remove=button('Delete',()=>void removeNote(item),'text-button');remove.disabled=!editable();
         const body=node('p','record-resource-note-body');
         const preview=item.format==='rich'?window.ClassifireWorkOrderPanels.plain(item.body):item.body;
-        body.textContent=richNotes?preview.slice(0,180):preview;
+        body.textContent=editable()?preview.slice(0,180):preview;
         const meta=node('small');meta.textContent=[item.author,item.updated_at ? new Date(item.updated_at).toLocaleString() : ''].filter(Boolean).join(' · ');
-        if(richNotes){row.classList.add('commercial-note-card');row.append(title,meta,body);}
-        else row.append(title,body,meta,remove);
+        row.classList.add('commercial-note-card');row.append(title,meta,body);
         notes.append(row);
       }
-      if(richNotes && ordered.length>3)notes.append(button(showAllNotes?'Show less':'View all notes',()=>{showAllNotes=!showAllNotes;paint();},'text-button'));
+      if(ordered.length>3)notes.append(button(showAllNotes?'Show less':'View all notes',()=>{showAllNotes=!showAllNotes;paint();},'text-button'));
       const input=node('input');input.type='file';input.multiple=true;input.hidden=true;
       input.addEventListener('change',()=>void upload([...input.files]));
       const add=button('Add files',()=>input.click());add.disabled=!editable();files.replaceChildren(summary('Files',state.files.length),add,input);

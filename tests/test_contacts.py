@@ -9,6 +9,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 from openpyxl import Workbook, load_workbook
 
@@ -53,6 +54,24 @@ class DirectoryTests(unittest.TestCase):
         saved = self.request('contacts', {'version': before['version'], 'fields': complete})
         self.assertEqual(saved['contact']['title'], '')
         self.assertEqual(saved['contact']['company'], 'Manual Company')
+
+    def test_lead_actions_use_existing_http_save_versions_and_named_activity(self):
+        fields = {'name':'Action contact', 'company':'Company Three'}
+        action = {'id':str(uuid4()), 'next_action':'Confirm visit', 'follow_up_date':'2028-11-01', 'status':''}
+        saved = self.request('leads', {'version':0,'fields':{**fields,'follow_up_actions':[action]}})
+        lead, = self.request('directory?board=1')['leads']
+        self.assertEqual(lead['follow_up_actions'],[action])
+        completed = dict(action,status='Completed')
+        body = {'version':saved['version'], 'id':saved['id'], 'fields':{**fields,'follow_up_actions':[completed]}}
+        self.request('leads',body)
+        self.request('leads',body,409)
+        self.assertEqual(self.request('directory?board=1')['leads'][0]['follow_up_date'],'')
+        activity = self.request('activity?kind=leads&id='+saved['id'])['events']
+        event, = [entry for entry in activity if entry['event_type']=='Follow-up completed']
+        self.assertEqual(event['detail']['action_id'],action['id'])
+        self.assertEqual(event['detail']['text'],'Confirm visit')
+        self.assertTrue(event['actor_id'])
+        self.request('accounts', {'version':2, 'fields':{'company':'Extra','follow_up_actions':[action]}},400)
 
     def test_lead_abn_overwrite_requires_matching_company_and_value(self):
         company = self.request('accounts', {'version':0,'fields':{'company':'Builder','abn_acn':'Old'}})

@@ -33,6 +33,17 @@ async function saveDraft(pane, boardName) {
   await ready();
   await button(pane.locator('.commercial-editor-actions'), 'Save').click();
   await expect(pane.locator('.commercial-message')).toContainText('Document saved.');
+  const timeline=pane.locator('.record-activity-history');
+  await timeline.locator('summary').click();
+  const values=timeline.locator('fieldset:last-child');
+  await field(values,'Activity details').fill(boardName+' site visit');
+  await field(values,'Activity type').selectOption('Meeting');
+  await field(values,'Interaction time').fill('2026-01-02T10:00');
+  await button(values,'Log activity').click();
+  const visit=timeline.locator('li').filter({hasText:boardName+' site visit'});
+  await expect(visit).toContainText('Meeting');
+  await expect(visit).toContainText('Interaction time');
+  await expect(visit).toContainText('Owner');
   await button(pane, 'Back to ' + boardName).click();
 }
 async function move(pane, from, to) {

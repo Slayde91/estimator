@@ -49,7 +49,8 @@ const ready = new Promise((resolve,reject)=>{
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.site_address,'10 Synthetic Street\nLevel 2');
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).estimate.abn_acn,'Project ABN');
   const native=JSON.parse(fs.readFileSync(info.project,'utf8'));
-  assert.deepEqual(native.project_follow_up,{next_action:'Confirm\nsite access',follow_up_date:'2001-01-01'});
+  assert.equal(native.project_follow_up.actions.length,1);
+  assert.deepEqual(native.project_follow_up.actions[0],{id:native.project_follow_up.actions[0].id,next_action:'Confirm\nsite access',follow_up_date:'2001-01-01',status:''});
   assert.equal(Object.hasOwn(native.estimate,'next_action'),false);
   await page.locator('#link-project-folder').click();await idle();
   fs.copyFileSync(info.project,path.join(output,'second-project.cf.json'));
@@ -61,6 +62,10 @@ const ready = new Promise((resolve,reject)=>{
   const reminder=file=>title(file).locator('xpath=ancestor::article').getByRole('img',{name:'Follow-up due',exact:true});
   await expect(reminder(first)).toBeVisible();await expect(reminder(first)).toHaveText('!');
   await expect(reminder(first)).toHaveCSS('color','rgb(217, 54, 71)');
+  const firstCard=title(first).locator('xpath=ancestor::article');
+  await expect(firstCard.locator('dl')).toContainText('Confirm site access');
+  await expect(firstCard.locator('dl')).toContainText('01/01/2001');
+  assert.ok(await reminder(first).evaluate(marker=>marker.nextElementSibling.matches('.project-card-menu')));
   const back=async()=>{await page.locator('#project-details-close').click();await expect(page.locator('#project-list-card')).toBeVisible();};
   const openDetails=async file=>{
     if(await page.locator('#project-details-pane').isVisible())await back();
@@ -72,7 +77,7 @@ const ready = new Promise((resolve,reject)=>{
   // Clean active-project metadata saves stay clean and rotate its writable target.
   await openDetails(first);
   const toolbar=page.locator('#project-details-actions');
-  await expect(toolbar.locator('button')).toHaveCount(2);
+  await expect(toolbar.locator('button')).toHaveCount(3);await expect(toolbar.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
   assert.equal(await page.locator('#project-details-pane #project-details-close').count(),0);
   const [barBox,detailsBox,backBox,saveBox]=await Promise.all([toolbar.boundingBox(),page.locator('#project-details-pane').boundingBox(),toolbar.getByRole('button',{name:'Back to Projects',exact:true}).boundingBox(),page.locator('#project-details-toolbar-save').boundingBox()]);
   assert.ok(barBox.y+barBox.height<detailsBox.y&&Math.abs(backBox.y-saveBox.y)<1&&backBox.x+backBox.width<saveBox.x,'Back and Save share a separate toolbar above Project Details');
@@ -139,7 +144,7 @@ const ready = new Promise((resolve,reject)=>{
   const contactPanel=page.locator('#project-workspace-side details').filter({has:page.locator('#project-contact-participants')});
   await expect(companyPanel.locator(':scope > summary')).toHaveText('Companies');
   await expect(contactPanel.locator(':scope > summary')).toHaveText('Contacts');
-  const metadataOrder=await pane.locator('#project-details-form > .project-pane-fields').evaluateAll(groups=>
+  const metadataOrder=await pane.locator('#project-details-form > :is(.project-pane-fields,.project-follow-up-fields)').evaluateAll(groups=>
     groups.flatMap(group=>[...group.querySelectorAll('input[id],textarea[id]')].map(control=>control.id)));
   assert.deepEqual(metadataOrder,['project-pane-number','project-pane-client','project-pane-address','project-pane-billing-address',
     'project-pane-abn-acn','project-pane-contact-name','project-pane-contact-email','project-pane-contact-phone','project-pane-next-action','project-pane-follow-up-date']);
@@ -154,9 +159,28 @@ const ready = new Promise((resolve,reject)=>{
   await page.locator('#project-pane-contact-name').fill('Other Project Person');
   await expect(action).toHaveValue('Confirm\nsite access');await expect(dueDate).toHaveValue('2001-01-01');
   await action.fill('Await delivery');await dueDate.fill('2099-12-31');
+  const refreshPanel=page.waitForResponse(response=>response.url().includes('/api/commercial/register?refresh=1'));
+  await page.getByRole('button',{name:'Refresh Records',exact:true}).click();await refreshPanel;
+  await expect(action).toHaveValue('Await delivery');await expect(dueDate).toHaveValue('2099-12-31');
+  await form.getByRole('button',{name:'Add follow-up'}).click();
+  const rows=form.locator('.follow-up-action-row');
+  await rows.nth(1).getByLabel('Next action',{exact:true}).fill('Phone the site supervisor');
+  await rows.nth(1).getByLabel('Follow-up due',{exact:true}).fill('2001-02-03');
   response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
-  await back();await expect(reminder(first)).toBeVisible();await expect(reminder(second)).toHaveCount(0);
-  await openDetails(second);await expect(action).toHaveValue('Await delivery');await expect(dueDate).toHaveValue('2099-12-31');
+  await back();await expect(reminder(second)).toBeVisible();
+  const secondCard=title(second).locator('xpath=ancestor::article');
+  await expect(secondCard.locator('dl')).toContainText('Phone the site supervisor');
+  await openDetails(second);
+  await rows.nth(1).getByLabel('Follow-up status').selectOption('Completed');
+  await expect(rows.nth(1).locator('textarea')).toHaveJSProperty('readOnly',true);
+  response=saved();await page.locator('#project-details-save').click();assert.equal((await response).status(),200);await idle();
+  const history=page.locator('#project-workspace-side details').filter({has:page.locator('#project-activity-heading')});
+  await history.locator('summary').click();await expect(history).toContainText('Follow-up completed');
+  await expect(history).toContainText('Phone the site supervisor');
+  await back();await expect(reminder(first)).toBeVisible();await expect(reminder(second)).toBeHidden();
+  await expect(secondCard.locator('dl')).toContainText('Await delivery');
+  await openDetails(second);await expect(rows.first().locator('textarea')).toHaveValue('Await delivery');
+  await expect(rows.nth(1).getByLabel('Follow-up status')).toBeDisabled();
   await expect(page.locator('#project-pricing-context')).toHaveText(active.file.title);
   assert.deepEqual(fs.readFileSync(info.project),original);
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.projectPaneSnapshot().details),active.details);
@@ -219,8 +243,8 @@ const ready = new Promise((resolve,reject)=>{
     const next=page.locator('#project-pane-next-action'),due=page.locator('#project-pane-follow-up-date');
     const original=await next.inputValue();await next.fill('');
     const empty=await next.boundingBox(),date=await due.boundingBox();
-    if(width===390)assert.ok(date.y>=empty.y+empty.height);
-    else assert.ok(date.x>=empty.x+empty.width && Math.abs(date.y-empty.y)<=1);
+    assert.ok(date.x>=empty.x+empty.width && Math.abs(date.y-empty.y)<=1);
+    assert.ok(date.width<=175);
     await next.fill('A single action');assert.equal((await next.boundingBox()).height,empty.height);
     await next.fill('A longer follow-up action that needs more room.\n'.repeat(9));assert.ok((await next.boundingBox()).height>empty.height);
     await next.fill(original);

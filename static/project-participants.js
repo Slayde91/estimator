@@ -33,7 +33,7 @@
 
   let selection = null, fileRevision = null, record = null, generation = 0, directory = {accounts:[],contacts:[]}, roleSelection = {};
   let saving = false, loading = false, scanTimer, retriedScan = false;
-  let history = null;
+  let history = null, projectOwner = null;
   const canEdit = () => !window.ClassifireAccess || window.ClassifireAccess.can("edit");
 
   async function api(path, data) {
@@ -84,14 +84,18 @@
     for (const host of Object.values(hosts)) host.querySelectorAll("fieldset").forEach(node => { node.disabled = value; });
   }
 
-  async function readRecord() {
+  async function readRecord(checkRevision = true) {
     const data = await api("crm/project-participants?project=" + encodeURIComponent(selection));
-    if (fileRevision && data.project_revision !== fileRevision) throw Error("The project changed. Reopen its details before changing participants.");
+    if ((projectOwner && data.project_owner !== projectOwner) || (checkRevision && fileRevision && data.project_revision !== fileRevision)) throw Error("The project changed. Reopen its details before changing participants.");
     return data;
   }
 
   async function save(rows, host, removed) {
     if (saving || !record || !canEdit()) return;
+    if (fileRevision && record.project_revision !== fileRevision) {
+      text(host.querySelector('[role="status"]'), "The project changed. Reopen its details before changing participants.");
+      return;
+    }
     const ticket = generation;
     clearTimeout(scanTimer);
     saving = true;
@@ -296,9 +300,9 @@
   function close() {
     ++generation;
     for (const host of Object.values(hosts)) window.ClassifireCrmActivity.stopSizing(host.querySelector('.project-party-cards'));
-    history?.element.remove(); history = null;
+    history?.dispose(); history?.element.remove(); history = null;
     clearTimeout(scanTimer);
-    selection = fileRevision = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
+    selection = fileRevision = projectOwner = record = null; directory = {accounts:[],contacts:[]}; roleSelection = {};
     loading = saving = retriedScan = false;
     sites.hidden = true;
     for (const host of Object.values(hosts)) { host.hidden = true; host.closest("details").hidden = true; host.replaceChildren(); }
@@ -309,7 +313,16 @@
     if (sites.open && (!record || record.scan_pending)) void load();
   });
   window.ClassifireProjectParticipants = {
-    close, pending: () => saving,
+    close, pending: () => saving || Boolean(history?.pending()), dirty: () => Boolean(history?.dirty()), fingerprint: () => history?.dirty() ? history.fingerprint() : null,
+    async refresh(latest) {
+      if (!selection || saving) return;
+      const ticket = generation, previous = record;
+      const data = await readRecord(false);
+      if (ticket !== generation || saving || (previous && record !== previous)) return;
+      if (latest) directory = latest;
+      record = data; renderParticipants(); showProjects(data);
+      await history?.refresh();
+    },
     primaryChanged() {
       if (!record || saving) return;
       renderParticipants();
@@ -324,11 +337,15 @@
       const ticket = generation;
       history = window.ClassifireCrmActivity.historyPanel(() => {
         if (!selector) return {events:[]};
-        return api("crm/project-activity?" + new URLSearchParams({project:selector, revision:file.revision}));
-      }, () => ticket === generation, 'project-activity-heading');
+        const revision = projectOwner && record?.project_owner === projectOwner ? record.project_revision : file.revision;
+        return api("crm/project-activity?" + new URLSearchParams({project:selector, revision}));
+      }, () => ticket === generation, 'project-activity-heading', {
+        canWrite:()=>Boolean(selector) && ticket === generation && canEdit() && !saving,
+        write:activity=>api('crm/project-activity',{project:selector, revision:file.revision, activity})
+      });
       hosts.contacts.closest("details").after(history.element);
       if (!selector) return;
-      selection = selector; fileRevision = file.revision;
+      selection = selector; fileRevision = file.revision; projectOwner = file.source_project_id;
       sites.hidden = false;
       for (const host of Object.values(hosts)) host.hidden = false;
       text(siteStatus, "Loading…");

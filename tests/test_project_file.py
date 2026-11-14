@@ -481,6 +481,21 @@ class ProjectFileApiTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_browser_project_download_carries_decision_history_through_import(self):
+        action = {"id":"ab317c67-92ff-4063-812b-e8089511ff8d", "next_action":"Call client", "follow_up_date":"", "status":"Completed"}
+        status, _, payload = self.request("/api/project/export", {"estimate":{}, "project_follow_up":{"actions":[action]}})
+        self.assertEqual(status, 200)
+        follow_up = json.loads(payload)["project_follow_up"]
+        self.assertEqual(follow_up["actions"], [action])
+        self.assertEqual([{key:event[key] for key in action} for event in follow_up["history"]], [action])
+        status, _, restored = self.request("/api/project/import", upload(payload))
+        self.assertEqual(status, 200)
+        imported = json.loads(restored)["project_follow_up"]
+        self.assertEqual(imported, {**follow_up, "next_action":"", "follow_up_date":""})
+        status, _, reexport = self.request("/api/project/export", {"estimate":{}, "project_follow_up":imported})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(reexport)["project_follow_up"], follow_up)
+
     def test_download_and_load_round_trip_without_local_save(self):
         before = stored_rows(self.store)
         status, headers, payload = self.request("/api/project/export", {"estimate": {"project_no": "Project 17"}})

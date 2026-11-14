@@ -68,6 +68,8 @@ vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/calculation-queue.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/downloads.js','utf8'),context);
   vm.runInContext(fs.readFileSync('static/document-workflow-board.js','utf8'),context);
+  context.crypto = require('node:crypto').webcrypto;
+  vm.runInContext(fs.readFileSync('static/follow-up-actions.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
   const bridge = '  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };';
   assert.ok(calculatorSource.includes(bridge), 'Calculator test hook must match the actual project bridge');
@@ -1437,7 +1439,7 @@ async function penetrationCheck(name, fn) {
     h.app.state.quoteConfiguration=null;h.app.state.projectPricingDraft=null;h.context.window.CeasefireCalculators.hasUnsavedChanges=()=>false;
     const before=project.projectPaneSnapshot();
     assert.equal(h.context.window.CeasefireDesktop.status().dirty,false);
-    project.applyProjectPaneDraft({...before.details,next_action:'Call supplier',follow_up_date:'2030-01-31'},before.context);
+    project.applyProjectPaneDraft({...before.details,follow_up_actions:[{id:'00000000-0000-4000-8000-000000000002',next_action:'Call supplier',follow_up_date:'2030-01-31',status:''}]},before.context);
     h.app.state.dirty=false;
     assert.equal(h.context.window.CeasefireDesktop.status().dirty,true);
     assert.equal(Object.hasOwn(project.details(),'follow_up_date'),false);

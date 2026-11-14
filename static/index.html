@@ -68,6 +68,7 @@
   <link rel="stylesheet" href="/record-resources.css">
   <script src="/record-resources.js" defer></script>
   <script src="/crm-activity.js" defer></script>
+  <script src="/follow-up-actions.js" defer></script>
   <script src="/contacts.js" defer></script>
   <script src="/personal-signature.js" defer></script>
   <script src="/personal-details.js" defer></script>
@@ -533,7 +534,7 @@ SOFTWARE. -->
           </div>
       </aside>
       <div class="project-workspace-main">
-      <div id="project-details-actions" class="project-details-actions"><button id="project-details-close" type="button" class="button secondary icon-only" aria-label="Back to Projects" title="Back to Projects" data-i18n-aria-label="Back to Projects" data-i18n-title="Back to Projects"><span class="button-symbol" aria-hidden="true">←</span></button><button id="project-details-toolbar-save" type="button" class="button primary" data-i18n="Save">Save</button></div>
+      <div id="project-details-actions" class="project-details-actions"><button id="project-details-close" type="button" class="button secondary icon-only" aria-label="Back to Projects" title="Back to Projects" data-i18n-aria-label="Back to Projects" data-i18n-title="Back to Projects"><span class="button-symbol" aria-hidden="true">←</span></button><button id="project-details-toolbar-save" type="button" class="button primary" data-i18n="Save">Save</button><button id="project-refresh-records" type="button" class="button secondary" data-i18n="Refresh Records">Refresh Records</button></div>
       <aside id="project-details-pane" class="card project-details-pane" aria-labelledby="projects-details-heading" hidden>
         <div class="section-heading"><h2 id="projects-details-heading" data-i18n="Project Details">Project Details</h2></div>
         <p id="project-details-target" class="helper"></p>
@@ -552,10 +553,7 @@ SOFTWARE. -->
             <label class="field"><span data-i18n="Contact email">Contact email</span><input id="project-pane-contact-email" type="email" maxlength="254" autocomplete="email"></label>
             <label class="field"><span data-i18n="Contact phone">Contact phone</span><input id="project-pane-contact-phone" type="tel" maxlength="60" autocomplete="tel"></label>
           </div>
-          <div class="project-pane-fields project-follow-up-fields">
-            <label class="field"><span data-i18n="Next action">Next action</span><textarea id="project-pane-next-action" rows="1" maxlength="500"></textarea></label>
-            <label class="field"><span data-i18n="Follow-up due">Follow-up due</span><input id="project-pane-follow-up-date" type="date" max="9999-12-31"></label>
-          </div>
+          <div id="project-pane-follow-ups" class="project-follow-up-fields"></div>
           <p id="project-details-status" class="helper" role="status" aria-live="polite"></p>
           <div class="actions"><button id="project-new-cancel" type="button" class="button secondary" hidden data-i18n="Cancel">Cancel</button><button id="project-details-save" type="submit" class="button primary" data-i18n="Save project details">Save project details</button></div>
         </form>

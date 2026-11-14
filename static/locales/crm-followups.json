@@ -1,4 +1,11 @@
 {
+  "Refresh Records": ["刷新记录","रिकॉर्ड रीफ़्रेश करें","Actualizar registros","تحديث السجلات","รีเฟรชระเบียน"],
+  "Pending": ["待处理","लंबित","Pendiente","قيد الانتظار","รอดำเนินการ"],
+  "Add follow-up": ["添加跟进","फ़ॉलो-अप जोड़ें","Añadir seguimiento","إضافة متابعة","เพิ่มการติดตาม"],
+  "Follow-up status": ["跟进状态","फ़ॉलो-अप की स्थिति","Estado del seguimiento","حالة المتابعة","สถานะการติดตาม"],
+  "Canceled": ["已取消","रद्द","Cancelado","ملغى","ยกเลิกแล้ว"],
+  "Follow-up completed": ["跟进已完成","फ़ॉलो-अप पूरा हुआ","Seguimiento completado","اكتملت المتابعة","ติดตามเสร็จแล้ว"],
+  "Follow-up canceled": ["跟进已取消","फ़ॉलो-अप रद्द हुआ","Seguimiento cancelado","أُلغيت المتابعة","ยกเลิกการติดตามแล้ว"],
   "Follow-up due": ["跟进已到期", "फ़ॉलो-अप का समय आ गया है", "Seguimiento pendiente", "حان موعد المتابعة", "ถึงกำหนดติดตามแล้ว"],
   "Next action": [
     "下一步行动",

@@ -10,7 +10,7 @@ from feature_client import StaffConnection
 from estimator.server import create_server, main
 
 
-STRICT_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+STRICT_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 ANNOTATION_POLICY = STRICT_POLICY + "; style-src-elem 'self' 'unsafe-inline'"
 
 

@@ -65,7 +65,9 @@ function harness({ random = 0, previous, reduced = false, blocked = false, missi
   const label = { textContent: '' }, sizer = { children: [], get textContent() { return this.children.map(line => line.textContent).join(''); }, replaceChildren(...lines) { this.children = lines; } }, cursor = { hidden: false }, frames = [], timers = new Map(), writes = [];
   let current = '', last = previous, nextTimer = 0, preference, pagehide, languagechange, visibilitychange, now = 0, audioChange;
   const audio = {plays:0,pauses:0,loads:0,currentTime:0,src:'',preload:'',load(){this.loads++;},pause(){this.pauses++;},play(){this.plays++;return {catch(callback){if(rejectSound)callback(Error('Autoplay blocked'));}};}};
-  const typed = { get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
+  const classes = new Set();
+  const typed = { classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),contains:name=>classes.has(name)},
+    get textContent() { return current; }, set textContent(value) { current = value; frames.push(value); } };
   const elements = { 'header-tagline-label': label, 'header-tagline-sizer': sizer, 'header-tagline-typed': typed };
   const motion = { matches: reduced, addEventListener(name, callback) { assert.equal(name, 'change'); preference = callback; } };
   let mediaTimer = null; const media = { playing: false, starts: 0, closed: false, start() { context.clearTimeout(mediaTimer); this.starts++; this.playing = !this.closed && !motion.matches; }, finish() { context.clearTimeout(mediaTimer); mediaTimer = context.setTimeout(() => this.stop(), 2000); }, stop() { context.clearTimeout(mediaTimer); this.playing = false; }, close() { this.closed = true; this.stop(); } };
@@ -129,7 +131,9 @@ for (let index = 0; index < phrases.length-1; index++) {
   assert.equal(h.typed.textContent, Array.from(phrase)[0]); assert.deepEqual(h.writes, [phrase]);
   assert.equal(h.media.playing, true, 'The supplied character starts with phrase typing');
   assert.equal(h.audio.plays,0,'Ordinary phrases do not play the brand sound');
+  assert.equal(h.typed.classList.contains('tagline-complete'), false);
   h.finishTyping();
+  assert.equal(h.typed.classList.contains('tagline-complete'), true, 'Underline starts with the fully revealed phrase');
   assert.equal(h.now(), (Array.from(phrase).length - 1) * 35);
   assert.equal(h.cursor.hidden, true, 'Cursor stops as soon as the final character prints');
   assert.equal(h.media.playing, true, 'The supplied character continues after the final character');

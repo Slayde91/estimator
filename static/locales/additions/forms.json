@@ -1,0 +1,32 @@
+{
+  "Forms": [
+    "양식",
+    "Mga form",
+    "Biểu mẫu"
+  ],
+  "Form templates": [
+    "양식 템플릿",
+    "Mga template ng form",
+    "Mẫu biểu mẫu"
+  ],
+  "Form records": [
+    "양식 기록",
+    "Mga rekord ng form",
+    "Bản ghi biểu mẫu"
+  ],
+  "Create template": [
+    "템플릿 만들기",
+    "Gumawa ng template",
+    "Tạo mẫu"
+  ],
+  "Fill out": [
+    "작성",
+    "Sagutan",
+    "Điền biểu mẫu"
+  ],
+  "Template editor": [
+    "템플릿 편집기",
+    "Editor ng template",
+    "Trình chỉnh sửa mẫu"
+  ]
+}

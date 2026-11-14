@@ -7,7 +7,7 @@
     const url=new URL(typeof input==='string' || input instanceof URL ? input : input.url,location.href);
     const method=(options.method || (typeof input==='object' && input.method) || 'GET').toUpperCase();
     const accessChange=['/api/access/roles','/api/access/settings'].includes(url.pathname);
-    const identityRead=['GET','HEAD'].includes(method) && ['/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'].includes(url.pathname);
+    const identityRead=['GET','HEAD'].includes(method) && (url.pathname.startsWith('/api/forms/') || ['/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'].includes(url.pathname));
     const mutation=(!['GET','HEAD'].includes(method) || url.pathname==='/api/libraries/technical/new') && (!url.pathname.startsWith('/api/access/') || accessChange) && !url.pathname.startsWith('/api/scheduler/');
     if(url.origin===location.origin && url.pathname.startsWith('/api/') && (identityRead || mutation)){
       await ready;

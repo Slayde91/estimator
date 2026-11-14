@@ -1,0 +1,48 @@
+#forms-root { margin-block: 1rem 2rem; }
+.forms-content, .forms-register, .forms-entry-toolbar, .forms-dialog { display: grid; gap: 1rem; }
+.forms-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; }
+.forms-heading h2, .forms-register h3, .forms-entry-toolbar p, .forms-paper h2 { margin:0; }
+.forms-heading .actions, .forms-row-actions, .forms-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; }
+.forms-search { max-width:36rem; }
+.forms-badge { display:inline-block; padding:.15rem .65rem; border:1px solid currentColor; border-radius:999px; font-size:.85em; text-transform:capitalize; }
+.forms-status-submitted, .forms-status-published { color:var(--success, #208555); }
+.forms-dialog:not([open]) { display:none; }
+.forms-dialog { width:min(58rem, calc(100% - 2rem)); max-height:85dvh; overflow:auto; padding:1.25rem; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-top:3px solid var(--accent,#d6002a); border-radius:.8rem; }
+.forms-dialog::backdrop { background:rgb(0 0 0 / .58); }
+.forms-start-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr)); gap:.7rem; }
+.forms-start-option { display:grid; gap:.4rem; padding:1rem; text-align:start; white-space:normal; }
+.forms-start-option small { font-weight:400; }
+.forms-paper { display:grid; gap:1rem; min-width:0; padding:clamp(1rem,3vw,2.25rem); border:1px solid var(--line); background:var(--paper); border-radius:.75rem; }
+.forms-paper h3, .forms-paper p, .forms-attachments { margin:0; }
+.forms-paper-header, .forms-paper-footer { padding:.75rem 0; color:var(--muted); border-block:1px solid var(--line); white-space:pre-wrap; }
+.forms-photo-appendix { display:grid; gap:.75rem; grid-template-columns:repeat(auto-fill,minmax(min(12rem,100%),1fr)); }
+.forms-photo-appendix h3 { grid-column:1/-1; }
+.forms-photo-appendix figure { margin:0; break-inside:avoid; }
+.forms-photo-appendix :is(img,video) { max-width:100%; max-height:17rem; object-fit:contain; }
+.forms-print { display:none; }
+@page form-portrait { size:A4 portrait; margin:15mm; @bottom-right {content:counter(page) " / " counter(pages); font-size:9pt;} }
+@page form-landscape { size:A4 landscape; margin:15mm; @bottom-right {content:counter(page) " / " counter(pages); font-size:9pt;} }
+@media print {
+  body.forms-printing > :not(.forms-print) { display:none !important; }
+  body.forms-printing, .forms-printing .forms-print { display:block !important; background:white; color:black; padding:0; margin:0; }
+  .forms-print .forms-paper { color:black; background:white; border:0; padding:0; display:block; }
+  .forms-print:has(.forms-landscape) { page:form-landscape; }
+  .forms-print:has(.forms-portrait) { page:form-portrait; }
+  .forms-print .forms-photo-appendix { break-before:page; }
+  .forms-print .table-scroll { overflow:visible; }
+}
+
+.forms-stage-board { display:flex; gap:.75rem; overflow:auto; }
+.forms-stage { flex:1 0 12rem; display:grid; align-content:start; gap:.5rem; border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:.5rem; padding:.8rem; }
+.forms-stage h4 { margin:0; }
+.forms-outline { display:grid; gap:1rem; grid-column:1/-1; }
+
+.forms-layout-controls, .forms-layout-output { display:grid; gap:.5rem; margin:.75rem 0; min-width:0; }
+.forms-layout-row { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; padding:.45rem; border:1px solid var(--line); }
+.forms-layout-row :is(input,select) { width:auto; max-width:100%; }
+.forms-layout-output img { max-width:12rem; max-height:4rem; }
+.forms-align-center { text-align:center; } .forms-align-left { text-align:left; } .forms-align-right { text-align:right; }
+
+.forms-photo-page { grid-column:1/-1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; break-inside:avoid; }
+.forms-photos-1 { grid-template-columns:1fr; }
+@media print { .forms-photo-page + .forms-photo-page { break-before:page; } .forms-photo-page :is(img,video) { max-height:28vh; } .forms-photos-1 :is(img,video) { max-height:72vh; } .forms-photos-8 :is(img,video), .forms-photos-10 :is(img,video) { max-height:13vh; } }

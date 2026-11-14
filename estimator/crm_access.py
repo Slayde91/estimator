@@ -36,7 +36,8 @@ AUDIT_SEGMENTS = frozenset(('record-resources','upload','remove-file','file','ap
     'configuration','pricing','company-settings','project-details','document-numbering','numbering-settings','migrate-orders',
     'certifications','defaults','workspaces','discard','revisions','legacy','swms','rate-defaults','purchase-order-defaults',
     'takeoffs','calculators','penetration','libraries','definition','validate-item','calculate','state','new','cover','pdf-covers',
-    'documentation','download-files','template','reset','workflows','calculation'))
+    'documentation','download-files','template','reset','workflows','calculation',
+    'forms','templates','entries','entry','approve','reopen','history','staff'))
 
 def audit_route(route):
     # Path parameters may be bearer download tokens or private user text.
@@ -275,7 +276,7 @@ class CRMAccess:
         expected=handler.headers.get('X-CRM-Member')
         identity=user['id'] if user else 'anonymous'
         read_operation=handler.command == 'POST' and route in READ_POSTS
-        if handler.command in ('GET','HEAD') and route in IDENTITY_READS and expected is not None and expected != identity:
+        if handler.command in ('GET','HEAD') and (route in IDENTITY_READS or route.startswith('/api/forms/')) and expected is not None and expected != identity:
             raise AccessError('The signed-in staff account changed. Reload this tab before continuing.',409)
         bound_mutation=route.startswith('/api/') and not route.startswith('/api/scheduler/') and (
             handler.command not in ('GET','HEAD') and not read_operation or route in EDIT_GETS)

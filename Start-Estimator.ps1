@@ -18,7 +18,7 @@ $requiredPackages = ($packagePins | ForEach-Object { $_.Matches[0].Value.Trim() 
 function Get-EndpointState {
     # Reopen either official policy without changing the running app's mode.
     # New launches below continue to use the strict application default.
-    $strictPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    $strictPolicy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     $knownPolicies = @($strictPolicy, "$strictPolicy; style-src-elem 'self' 'unsafe-inline'")
     return Get-LocalEstimatorEndpoint $Port $knownPolicies
 }

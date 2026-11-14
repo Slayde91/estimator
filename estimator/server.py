@@ -27,7 +27,7 @@ from .follow_up import project_response
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
 LOGGER = logging.getLogger(__name__)
-DEFAULT_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+DEFAULT_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 
 
 def create_server(port=8765, database=None, project_dialogs=None, library_directory=None, *, allow_annotation_styles=False, edition='full', warm_libraries=False):
@@ -58,6 +58,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     scheduler_http = SchedulerHTTP(store.path.with_name(store.path.stem + "-scheduler.sqlite3"), projects=projects)
     from .crm_access import CRMAccess, AccessHTTP, AccessError, download_route, audit_route
     access = CRMAccess(store.path.with_name(store.path.stem + '-access.sqlite3'), scheduler_http.store)
+    from .forms import Forms
+    from .forms_http import FormsHTTP
     access_http = AccessHTTP(access)
     contacts_http = ContactsHTTP(store.path.with_name(store.path.stem + "-contacts.sqlite3"), projects, staff_provider=access.staff)
     from .crm_participants import CRMParticipants, ParticipantsHTTP
@@ -81,6 +83,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     def require_project_for_legacy_creation():
         raise ValidationError(PROJECT_REQUIRED)
     certifications = CertificationService(store, numbering=document_numbers, creation_guard=require_project_for_legacy_creation)
+    forms_http = FormsHTTP(Forms(store.path.with_name(store.path.stem + '-forms.sqlite3'),
+                                access.staff, store.company_settings, certifications.get_defaults))
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
     from .documentation_catalog import document_catalog, export_identity, PDF, XLSX
@@ -348,7 +352,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 page = 'scheduler-only.html' if self.crm_user else 'access-login.html'
                 self.send_payload(200, (ROOT / 'static' / page).read_bytes(), 'text/html; charset=utf-8')
                 return
-            if self.command == 'GET' and route in {'/record-resources.js', '/record-resources.css', '/project-record-panels.js', '/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js'}:
+            if self.command == 'GET' and route in {'/record-resources.js', '/record-resources.css', '/project-record-panels.js', '/crm-access.js', '/crm-access.css', '/crm-identity.js', '/project-participants.js', '/scheduler-only.js',
+                    '/forms.js','/forms.css','/forms-builder.js','/forms-builder.css','/form-fields.js','/form-fields.css','/forms-layout.js'}:
                 path = ROOT / 'static' / route[1:]
                 if not path.is_file():
                     self.send_payload(404, {'error': 'Not found.'})
@@ -390,6 +395,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     self.send_payload(405, {'error': 'Method not allowed.'})
                 return
             if scheduler_http.dispatch(self, route):
+                return
+            if forms_http.dispatch(self, route):
                 return
             if contacts_http.dispatch(self, route):
                 return

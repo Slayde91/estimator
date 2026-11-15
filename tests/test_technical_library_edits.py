@@ -1,5 +1,7 @@
 """Technical CRUD is persistent metadata, with no supplier/pricing authority."""
 from copy import deepcopy
+import base64
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
@@ -7,6 +9,8 @@ import unittest
 import threading
 from uuid import uuid4
 from unittest.mock import patch
+
+from PIL import Image
 
 from feature_client import StaffConnection
 from estimator.catalog import ValidationError
@@ -60,6 +64,21 @@ class TechnicalLibraryEditTests(unittest.TestCase):
                 'title': edit['record']['title'] or 'A new technical system',
                 'fields': [{'label': field['label'], 'value': field.get('value', '')} for field in edit['record']['fields']],
                 'facets': facets, 'report': {'number': 'Sample report', 'url': 'https://example.test/report.pdf'}}
+
+    def test_unassessed_reference_is_searchable_without_claiming_a_rating(self):
+        body = self.body()
+        body['facets']['frl'] = ['Not assessed']
+        key = self.library.technical_save(None, body)['id']
+        self.assertEqual(self.library.technical_edit(key)['record']['filter_values']['frl'], ['Not assessed'])
+        self.assertEqual(self.library.listing('technical', search=body['title'])['total'], 1)
+        self.assertEqual(self.library.listing('technical', search=body['title'], frl='-/120/120')['total'], 0)
+        overview = next(row for row in self.library.overview()['libraries'] if row['id'] == 'technical')
+        options = next(row['options'] for row in overview['filters'] if row['key'] == 'frl')
+        self.assertNotIn('Not assessed', [option['value'] for option in options])
+        change = self.body(key)
+        change['facets']['frl'].append('-/120/120')
+        with self.assertRaisesRegex(ValidationError, 'unassessed'):
+            self.library.technical_save(key, change)
 
     def protected(self):
         self.assertEqual(self.source.read_bytes(), self.original_source)
@@ -344,7 +363,39 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         self.assertEqual(request('GET', f'/api/libraries/technical/{key}')[0], 404)
         self.protected()
 
-    def test_initialization_adds_only_two_tables_and_crud_preserves_every_existing_row(self):
+    def test_uploaded_diagrams_persist_render_and_export_without_changing_source(self):
+        upload = {'filename': 'Section.png', 'content_base64': base64.b64encode(
+            (self.root / 'library/images/diagram-a.png').read_bytes()).decode('ascii')}
+        body = self.body()
+        body['diagrams'] = {'remove': [], 'uploads': [upload]}
+        receipt = self.library.technical_save(None, body)
+        self.assertEqual(self.library.technical_save(None, body), receipt)
+        key = receipt['id']
+        reopened = ManualTechnicalLibrary(self.root / 'library', self.store)
+        detail = reopened.detail('technical', key)
+        image, = detail['images']
+        self.assertTrue(image['user_uploaded'])
+        image_id = image['id']
+        self.assertEqual(detail['thumbnail_url'], f'/api/libraries/images/{image_id}/thumbnail')
+        self.assertEqual(reopened.asset(image_id, pdf=False)[1], 'image/jpeg')
+        with Image.open(BytesIO(reopened.image_thumbnail(image_id))) as thumb:
+            self.assertLessEqual(thumb.width, 240)
+        snapshot = prepare_technical_item({'id': key}, library=reopened)
+        self.assertEqual([(item['id'], item['caption']) for item in snapshot['images']], [(image_id, 'Section.png')])
+        change = self.body(key)
+        change['diagrams'] = {'remove': [image_id], 'uploads': [{'filename': 'bad.png', 'content_base64': 'YWJj'}]}
+        with self.assertRaises(ValidationError):
+            reopened.technical_save(key, change)
+        self.assertEqual(reopened.technical_edit(key)['revision'], receipt['revision'])
+        self.assertTrue(reopened.asset(image_id, pdf=False)[0])
+        change['diagrams']['uploads'] = []
+        reopened.technical_save(key, change)
+        self.assertFalse(reopened.detail('technical', key)['images'])
+        with self.assertRaises(ReferenceNotFound):
+            reopened.asset(image_id, pdf=False)
+        self.protected()
+
+    def test_initialization_adds_only_library_tables_and_crud_preserves_every_existing_row(self):
         store = Store(self.root / 'existing.sqlite3')
         FirestoppingLibrary(self.root / 'library', store)
         with store.connect() as db:
@@ -362,7 +413,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         context = library.technical_edit(result['id'])
         library.technical_delete(result['id'], {key:context[key] for key in ('revision','source_sha256')})
         schema, rows = snapshot()
-        self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links'})
+        self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links', 'technical_library_diagrams'})
         for name in old_schema:
             self.assertEqual(schema[name], old_schema[name]); self.assertEqual(rows[name], old_rows[name])
         self.protected()
@@ -424,7 +475,10 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         options = {entry['key']:entry['options'] for entry in technical['filters']}
         self.assertTrue(options['substrate']); self.assertIn('Mechanical', [entry['value'] for entry in options['category']])
         self.assertCountEqual([entry['value'] for entry in options['services']], TECHNICAL_SERVICES)
-        self.assertEqual(library.technical_edit()['filters'], technical['filters'])
+        expected_editor_filters = deepcopy(technical['filters'])
+        frl = next(row for row in expected_editor_filters if row['key'] == 'frl')
+        frl['options'].append({'value': 'Not assessed', 'label': 'Not assessed'})
+        self.assertEqual(library.technical_edit()['filters'], expected_editor_filters)
         body = self.body(); created = library.technical_save(None, body)
         reopened = ManualTechnicalLibrary(absent, store)
         self.assertEqual(reopened.detail('technical', created['id'])['title'], body['title'])

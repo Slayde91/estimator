@@ -48,6 +48,7 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
     for(const width of [1254,390,320]){
       await page.setViewportSize({width,height:900});
       const empty=field('Diagrams & Figures'),long=field('Loaded long description');
+      await empty.fill('');
       assert.equal(await empty.getAttribute('rows'),'1');await expect.poll(()=>empty.evaluate(e=>e.getBoundingClientRect().height<=60&&e.clientHeight>=e.scrollHeight)).toBe(true);
       await expect.poll(()=>long.evaluate(e=>e.clientHeight>=e.scrollHeight)).toBe(true);
       assert.ok((await long.boundingBox()).height>80,'Existing loaded text expands without clipping');
@@ -76,12 +77,21 @@ async function snapshot(){return page.evaluate(()=>({details:window.CeasefirePro
     expected[key]=await page.locator(`select[data-technical-editor-facet="${key}"]`).evaluate(e=>[...e.selectedOptions].map(o=>o.value));assert.ok(expected[key].length>1);
   }
   page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.endsWith('/save'))requests.push(JSON.parse(r.postData()));});
+  await field('Diagrams / images / illustrations').setInputFiles({
+    name: 'Uploaded detail.png', mimeType: 'image/png', buffer: fs.readFileSync(path.join(info.library, 'images', 'diagram-a.png'))
+  });
   const saved=page.waitForResponse(r=>new URL(r.url()).pathname===`/api/libraries/technical/${info.id}/save`);
   await page.locator('[data-technical-editor-save]').click();const savedResponse=await saved,savedBody=await savedResponse.json();assert.equal(savedResponse.status(),200,JSON.stringify(savedBody));await expect(page.locator('.library-technical-editor')).toBeHidden();
   const persisted=await page.evaluate(async id=>{const r=await fetch(`/api/libraries/technical/${id}/edit`);if(!r.ok)throw Error('Reopen failed');return r.json();},info.id);
   for(const key of keys)assert.deepEqual(persisted.record.filter_values[key],expected[key]);assert.equal(persisted.record.fields.find(f=>f.label==='System Products').value,text);
   assert.equal(requests.length,1);assert.equal(requests[0].report.url,originalUrl);assert.ok(requests[0].facets.services.includes('Retained legacy QA value'));
+  const upload = persisted.record.images.find(image => image.user_uploaded);
+  assert.equal(upload.caption, 'Uploaded detail.png');
+  const rendered = page.locator(`[data-library-detail="technical"] img[src$="/${upload.id}"]`);
+  await rendered.scrollIntoViewIfNeeded();
+  await expect.poll(() => rendered.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
   await page.locator('[data-library-detail="technical"]').locator(`[data-library-edit="${info.id}"]`).click();await expect(field('System Products')).toHaveValue(text);
+  await expect(field('Remove Uploaded detail.png')).not.toBeChecked();
   await expect.poll(()=>field('System Products').evaluate(e=>e.clientHeight>=e.scrollHeight)).toBe(true);
   for(const key of keys){await expect(picker(key)).not.toHaveAttribute('open','');assert.deepEqual(await page.locator(`select[data-technical-editor-facet="${key}"]`).evaluate(e=>[...e.selectedOptions].map(o=>o.value)),expected[key]);}
   checks.push('Actual save/reopen retains multiple canonical and legacy selections, long literal fields and URL');

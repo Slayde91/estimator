@@ -424,6 +424,21 @@
       const urlCheck = node("input"); urlCheck.type = "url";
       const validateUrl = () => { urlCheck.value = reportUrl.value; reportUrl.value = urlCheck.value; reportUrl.setCustomValidity?.(urlCheck.validationMessage || ""); grow(reportUrl); };
       reportUrl.addEventListener("input", validateUrl); validateUrl();
+      const diagramField = node("div", "field"), diagramLabel = node("label", "field"), diagramFiles = node("input");
+      diagramFiles.type = "file"; diagramFiles.multiple = true; diagramFiles.accept = ".png,.jpg,.jpeg,.webp";
+      diagramLabel.append(uiNode("span", "", "Diagrams / images / illustrations"), diagramFiles);
+      diagramField.append(diagramLabel, uiNode("small", "helper", "PNG, JPEG or WebP. Up to 15 MB per save."));
+      const removedDiagrams = new Set();
+      const uploadedDiagrams = (record.images || []).filter(image => image.user_uploaded);
+      for (const image of uploadedDiagrams) {
+        const row = node("label", "library-technical-choice"), remove = node("input"); remove.type = "checkbox";
+        remove.addEventListener("change", () => {
+          if (remove.checked) removedDiagrams.add(image.id); else removedDiagrams.delete(image.id);
+        });
+        row.append(remove, uiNode("span", "", "Remove {0}", [image.caption]));
+        diagramField.append(row);
+      }
+      form.append(diagramField);
       const actions = node("div", "actions"), save = uiButton("Save item", () => {}, "button primary"), cancel = uiButton("Cancel", () => {
         if (token.saving) return; token.cleanup(); pane.technicalEditor = null; panel.hidden = true; open("technical", id || { list: true });
       }); save.type = "submit"; save.dataset.technicalEditorSave = ""; actions.append(save, cancel); form.append(problems, actions);
@@ -436,6 +451,16 @@
         token.saving = true; problems.hidden = true; for (const picker of dropdowns) picker.open = false;
         for (const control of form.querySelectorAll("input,select,textarea,button")) control.disabled = true;
         try {
+          const files = Array.from(diagramFiles.files || []);
+          if (files.length + uploadedDiagrams.length - removedDiagrams.size > 16) throw new Error("Include at most 16 uploaded diagrams per Technical Library item.");
+          if (files.reduce((total, file) => total + file.size, 0) > 15 * 1048576) throw new Error("Choose at most 15 MB of diagram files per save.");
+          if (files.length || removedDiagrams.size) {
+            const uploads = [];
+            for (const file of files) {
+              uploads.push({ filename: file.name, content_base64: await window.CeasefireLibraryEditor.readDiagramFile(file) });
+            }
+            payload.diagrams = { remove: [...removedDiagrams], uploads };
+          }
           const receipt = await request(id ? `/api/libraries/technical/${encodeURIComponent(id)}/save` : "/api/libraries/technical", null, payload);
           if (!receipt.saved || !validId(receipt.id)) throw new Error("The server did not confirm the saved item.");
           if (pane.technicalEditor !== token) return;

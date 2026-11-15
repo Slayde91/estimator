@@ -229,6 +229,11 @@ async function run() {
   assert.equal(receipt.documentation.item.kind,'passive_fire_register.pdf');
   assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
   await idle();
+  const savedFile = page.locator('#app-message').getByRole('link', {name:receipt.path, exact:true});
+  await expect(savedFile).toBeVisible();
+  await expect(savedFile).toHaveAttribute('href', receipt.download_url);
+  await expect(savedFile).toHaveAttribute('target', '_blank');
+  assert.deepEqual(await (await page.request.get(new URL(receipt.download_url, page.url()).href)).body(), fs.readFileSync(receipt.path));
   await downloadRegister(true);
   await register();
   const savedFinal = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');

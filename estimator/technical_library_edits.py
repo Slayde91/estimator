@@ -10,7 +10,8 @@ import json
 import re
 
 from .catalog import ValidationError
-from .firestopping_library import FirestoppingLibrary, LibraryConflict, encoded, timestamp, empty_library
+from .firestopping_library import (FirestoppingLibrary, LibraryConflict, MAX_DIAGRAM_BYTES,
+                                   diagram_upload, encoded, timestamp, empty_library)
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
@@ -26,12 +27,54 @@ FIELD_FACETS = {'Manufacturer': 'manufacturer', 'Substrate': 'substrate',
 NEW_FIELDS = ('Manufacturer', 'System Products', 'Installation Type', 'Barrier Type',
               'Barrier Construction', 'Service', 'Service Size / Configuration',
               'Installation Details')
+UNASSESSED_FRL = 'Not assessed'
+MAX_UPLOADED_DIAGRAMS = 16
 
 
 def text(value, maximum, *, blank=True):
     if not isinstance(value, str) or len(value) > maximum or '\x00' in value or (not blank and not value.strip()):
         raise ValidationError('Enter valid Technical Library text within the field limit.')
     return value
+
+
+def uploaded_diagram_id(owner, digest):
+    return 'technical-upload-' + hashlib.sha256(f'{owner}:{digest}'.encode()).hexdigest()
+
+
+def prepare_diagrams(owner, record, change):
+    if not isinstance(change, dict) or set(change) != {'remove', 'uploads'}:
+        raise ValidationError('Choose the Technical Library diagrams to save.')
+    existing = record.get('images', [])
+    uploaded = {image['id'] for image in existing if image.get('user_uploaded')}
+    remove, uploads = change['remove'], change['uploads']
+    if not isinstance(remove, list) or any(not isinstance(key, str) or key not in uploaded for key in remove):
+        raise ValidationError('Only diagrams uploaded to this item can be removed.')
+    if not isinstance(uploads, list) or len(uploads) + len(uploaded.difference(remove)) > MAX_UPLOADED_DIAGRAMS:
+        raise ValidationError('Include at most 16 uploaded diagrams per Technical Library item.')
+    if any(not isinstance(item, dict) or not isinstance(item.get('content_base64'), str) for item in uploads):
+        raise ValidationError('Choose valid diagram image files.')
+    encoded_files = [item['content_base64'] for item in uploads]
+    total_bytes = sum((len(value) // 4) * 3 - int(value.endswith('=')) - int(value.endswith('=='))
+                      for value in encoded_files)
+    if total_bytes > MAX_DIAGRAM_BYTES:
+        raise ValidationError('Choose at most 15 MB of diagram files per save.')
+    images = [image for image in existing if image['id'] not in remove]
+    retained = {image['id'] for image in images}
+    blobs = {}
+    for item in uploads:
+        rendered = diagram_upload(item)
+        key = uploaded_diagram_id(owner, rendered['sha256'])
+        if key in retained:
+            continue
+        filename = re.split(r'[/\\]', item['filename'])[-1]
+        if any(ord(char) < 32 for char in filename):
+            raise ValidationError('Choose a diagram with a valid filename.')
+        images.append({'id': key, 'caption': filename, 'user_uploaded': True})
+        blobs[key] = rendered['image_data']
+        retained.add(key)
+    if existing or images:
+        record['images'] = images
+    return blobs
 
 
 class TechnicalEdits:
@@ -45,6 +88,11 @@ class TechnicalEdits:
                     deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS technical_library_diagrams (
+                    id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES technical_library_items(id),
+                    image_data BLOB NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS technical_library_diagrams_item ON technical_library_diagrams(item_id);
                 CREATE TABLE IF NOT EXISTS technical_library_links (
                     penetration_id TEXT NOT NULL, technical_id TEXT NOT NULL,
                     penetration_source TEXT NOT NULL, technical_source TEXT NOT NULL,
@@ -71,7 +119,7 @@ class TechnicalEdits:
             return tuple(db.execute('SELECT count(*),COALESCE(sum(revision),0) FROM technical_library_items').fetchone()) + tuple(
                 db.execute('SELECT count(*),COALESCE(sum(revision),0) FROM technical_library_links').fetchone())
 
-    def save(self, key, revision, source, record, *, created=False, deleted=False):
+    def save(self, key, revision, source, record, *, created=False, deleted=False, diagrams=None):
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             current = db.execute('SELECT revision,source_sha256,created FROM technical_library_items WHERE id=?', (key,)).fetchone()
@@ -83,6 +131,14 @@ class TechnicalEdits:
             else:
                 db.execute('INSERT INTO technical_library_items VALUES (?,?,?,?,?,?,?)',
                            (key, 1, source, int(created), int(deleted), encoded(record), timestamp()))
+            if deleted:
+                db.execute('DELETE FROM technical_library_diagrams WHERE item_id=?', (key,))
+            elif diagrams is not None:
+                retained = {image['id'] for image in record.get('images', []) if image.get('user_uploaded')}
+                old = db.execute('SELECT id FROM technical_library_diagrams WHERE item_id=?', (key,)).fetchall()
+                db.executemany('DELETE FROM technical_library_diagrams WHERE id=?', [row for row in old if row[0] not in retained])
+                db.executemany('INSERT OR IGNORE INTO technical_library_diagrams VALUES (?,?,?)',
+                               [(image_id, key, payload) for image_id, payload in diagrams.items()])
         return revision + 1
 
 
@@ -137,6 +193,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             *values.get('report', []), *values.get('document', [])]))}
             for key, values in data['_technical_discovery'].items()}
         data['_manual_technical_sources'] = {}
+        data['_manual_technical_images'] = set()
         for key, edit in saved.items():
             if edit['created']:
                 if key in base['_technical_public_records']:
@@ -152,6 +209,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 data['_visible']['technical'] = [value for value in data['_visible']['technical'] if value not in members]
                 continue
             record = deepcopy(edit['record'])
+            data['_manual_technical_images'].update(image['id'] for image in record.get('images', []) if image.get('user_uploaded'))
             data['_manual_technical_sources'][key] = edit['source_sha256']
             data['_technical_public_records'][key] = record
             data['_records']['technical'][key] = record
@@ -275,6 +333,18 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 result['user_authored'] = key in self._load().get('_manual_technical_sources', {})
             return result
 
+    def asset(self, key, pdf=True):
+        if not pdf and identifier(key).startswith('technical-upload-'):
+            with self._lock:
+                data = self._load()
+                if key in data.get('_manual_technical_images', ()):
+                    with self.technical_edits.store.connect() as db:
+                        row = db.execute('SELECT item_id, image_data FROM technical_library_diagrams WHERE id=?', (key,)).fetchone()
+                    if row is None or uploaded_diagram_id(row[0], hashlib.sha256(row[1]).hexdigest()) != key:
+                        raise ValidationError('The saved Technical Library diagram could not be verified.')
+                    return row[1], 'image/jpeg', key + '.jpg'
+        return super().asset(key, pdf)
+
     def technical_edit(self, key=None, *, for_display=True):
         with self._lock:
             data = self._load()
@@ -297,12 +367,17 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     for field in record.get('fields', []):
                         if field['label'] == 'ID' and field.get('value') == key:
                             field['value'] = display['source_code']
-            return {'record': record, 'revision': revision, 'source_sha256': source,
-                    'filters': deepcopy(data['_canonical_library_filters'])}
+            # A technical reference can document a test outside an assessment's scope.
+            # This editor choice is deliberately absent from rated system searches.
+            filters = deepcopy(data['_canonical_library_filters'])
+            ratings = next(entry['options'] for entry in filters if entry['key'] == 'frl')
+            if not any(option['value'] == UNASSESSED_FRL for option in ratings):
+                ratings.append({'value': UNASSESSED_FRL, 'label': UNASSESSED_FRL})
+            return {'record': record, 'revision': revision, 'source_sha256': source, 'filters': filters}
 
     def technical_save(self, key, body):
         with self._lock:
-            if not isinstance(body, dict) or set(body) != {'revision', 'source_sha256', 'title', 'fields', 'facets', 'report', 'request_key'}:
+            if not isinstance(body, dict) or set(body) - {'diagrams'} != {'revision', 'source_sha256', 'title', 'fields', 'facets', 'report', 'request_key'}:
                 raise ValidationError('Save the complete current Technical Library form.')
             if key is None and (not isinstance(body['request_key'], str) or not re.fullmatch(r'[a-f0-9]{32}', body['request_key'])):
                 raise ValidationError('Start a new Technical Library form before saving.')
@@ -353,6 +428,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 if facet not in ('report',) and not values:
                     raise ValidationError('Assign Manufacturer, Substrate, Orientation, Type, Category, Services and FRL before saving.')
                 chosen[facet] = list(values)
+            if UNASSESSED_FRL in chosen['frl'] and len(chosen['frl']) > 1:
+                raise ValidationError('An unassessed reference cannot also have an assessed FRL.')
             report = body['report']
             if not isinstance(report, dict) or set(report) != {'number', 'url'}:
                 raise ValidationError('Enter the report number and its URL.')
@@ -385,6 +462,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 key = context['record']['id']
                 source = context['source_sha256']
             record.update(title=title, fields=normalized, filter_values=chosen, editable=True)
+            diagrams = prepare_diagrams(key, record, body['diagrams']) if 'diagrams' in body else None
             record['notice'] = ('User-created Technical Library item.' if created else
                                 'User-edited Technical Library item. Original supplier evidence is retained separately.')
             if created:
@@ -393,7 +471,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     if previous['created'] and not previous['deleted'] and previous['record'] == record:
                         return {'saved': True, 'id': key, 'revision': previous['revision']}
                     raise LibraryConflict('This new-item request was already used. Start a new form.')
-            revision = self.technical_edits.save(key, context['revision'], source, record, created=created)
+            revision = self.technical_edits.save(key, context['revision'], source, record, created=created, diagrams=diagrams)
             return {'saved': True, 'id': key, 'revision': revision}
 
     def technical_delete(self, key, body):

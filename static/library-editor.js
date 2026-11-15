@@ -739,7 +739,7 @@
     await window.CeasefireLibraryNavigation.open("penetration");
     return { selectionRequired: true };
   }
-  window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem, documentationExport };
+  window.CeasefireLibraryEditor = { open, present, close, isOpen: () => state.open, hasUnsavedChanges, inputProblem, documentationExport, readDiagramFile: fileBase64 };
   Object.assign(window.CeasefireLibraryEditor, { projectSnapshot, projectFingerprint, hasProjectChanges, prepareProject, applyProject, completeProjectSnapshot, markProjectSaved,
     projectRecords: () => (projectSnapshot()?.records || []).map(({ id, title, library_id }) => ({ id, title, library_id })) });
   Object.assign(window.CeasefireLibraryEditor, { hasPendingOperation: () => !!(state.busy || state.diagramReading) });

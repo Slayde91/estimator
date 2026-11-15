@@ -12,6 +12,7 @@ from .library_facets import (MOVED_SERVICE_CATEGORIES, SERVICE_DISCOVERY_GENERAL
 from .library_substrates import canonical_substrate
 
 
+ALLPROOF_MANUAL_SOURCE = 'Allproof Australian fire technical manual'
 FRL_ALIASES = {
     '-/45/45': '-/30/30', '-/45/30': '-/30/30',
     '-/120/15': '-/120/-', '-/120/45': '-/120/30',
@@ -42,17 +43,19 @@ def matches_browse_service(item, values, service):
                for field in item.get('fields', []))
 
 
-def canonical_frl(value):
+def canonical_frl(value, *, source_label=None):
     if not isinstance(value, str):
         return value
     token = re.sub(r'\s+', '', value.translate(_DASHES))
     if not _TRIPLE.fullmatch(token):
         return value
     token = '/'.join('-' if part == '0' else part for part in token.split('/'))
-    return FRL_ALIASES.get(token, token)
+    # Allproof publishes the assessed minutes for each individual table row.
+    # Historical catalogue display aliases can change the rating of these systems.
+    return token if source_label == ALLPROOF_MANUAL_SOURCE else FRL_ALIASES.get(token, token)
 
 
-def present_frl_text(value, *, rating=False, known_ratings=()):
+def present_frl_text(value, *, rating=False, known_ratings=(), source_label=None):
     if not isinstance(value, str):
         return value
     if rating and value.strip() == '0':
@@ -65,7 +68,7 @@ def present_frl_text(value, *, rating=False, known_ratings=()):
         # rating field, a dash-leading FRL, or explicit FRL context establishes it.
         if (rating or token.startswith('-') or re.sub(r'\s+', '', token) in known
                 or re.search(r'\bfrl\s*:?\s*$', context, re.I)):
-            return canonical_frl(match[0])
+            return canonical_frl(match[0], source_label=source_label)
         return match[0]
     return _TRIPLE.sub(replace, value)
 
@@ -111,7 +114,7 @@ def discovery_facets(item, *, imported_services=None):
         services = ['N/A']
     return {'category': sorted(categories), 'services': services,
             'substrate': list(dict.fromkeys(canonical_substrate(value) for value in item.get('filter_values', {}).get('substrate', []))),
-            'frl': sorted({canonical_frl(value) for value in frl_values(item)})}
+            'frl': sorted({canonical_frl(value, source_label=item.get('source_label')) for value in frl_values(item)})}
 
 
 def project_smoke_sampling_services(records, discovery, *, explicit_ids=(), lineage=None):
@@ -154,15 +157,17 @@ def present_technical(item, *, source_ratings=None):
         result['filter_values']['substrate'] = list(dict.fromkeys(canonical_substrate(value)
             for value in result['filter_values']['substrate']))
     source_ratings = frl_values(item) if source_ratings is None else source_ratings
+    source_label = item.get('source_label')
     for key in ('title', 'subtitle', 'summary'):
         if key in result:
-            result[key] = present_frl_text(result[key], known_ratings=source_ratings)
+            result[key] = present_frl_text(result[key], known_ratings=source_ratings, source_label=source_label)
     for field in result.get('fields', []):
         field['value'] = present_frl_text(field.get('value', ''),
-                                        rating=bool(re.search(r'\bfrl\b', field['label'], re.I)))
+                                        rating=bool(re.search(r'\bfrl\b', field['label'], re.I)),
+                                        source_label=source_label)
         for table in ([field['table']] if 'table' in field else []) + field.get('tables', []):
             columns = {index for index, label in enumerate(table['columns'])
                        if re.search(r'\bfrl\b', label.replace('_', ' '), re.I)}
-            table['rows'] = [[present_frl_text(value, rating=True) if index in columns else value
+            table['rows'] = [[present_frl_text(value, rating=True, source_label=source_label) if index in columns else value
                               for index, value in enumerate(row)] for row in table['rows']]
     return result

@@ -114,7 +114,7 @@
         control.add(option);
       }
     } else control.maxLength = key === 'comments' ? 4000 : 1000;
-    control.value = record[key];
+    control.value = record[key] || '';
     control.addEventListener(values ? 'change' : 'input', () => {
       record[key] = control.value;
       changed();
@@ -125,6 +125,41 @@
     });
     control.name = key;
     return field(label,control);
+  }
+  function customFields(entry) {
+    const grid = el('div','register-grid');
+    for (const [key, label] of [['seal_type','Seal Type'], ['installation_type','Installation Type']]) {
+      const wrap = editor(entry, key, label, options[key]);
+      wrap.querySelector('select').required = true;
+      grid.append(wrap);
+    }
+    const report = editor(entry, 'report', 'Report/Assessment');
+    const input = report.querySelector('input');
+    const list = el('datalist');
+    list.id = 'register-manual-reports';
+    input.setAttribute('list', list.id);
+    report.append(list);
+    grid.append(report);
+    const fields = [grid];
+    for (const [key, label] of [['service_types','Service Type'], ['products','Products']]) {
+      const group = el('fieldset','register-choices');
+      group.append(el('legend','',label));
+      for (const value of options[key]) {
+        const wrap = el('label'), check = el('input');
+        check.type = 'checkbox';
+        check.value = value;
+        check.checked = (entry[key] || []).includes(value);
+        check.addEventListener('change', () => {
+          const checked = group.querySelectorAll('input:checked');
+          entry[key] = Array.from(checked, node => node.value);
+          changed();
+        });
+        wrap.append(check, document.createTextNode(value));
+        group.append(wrap);
+      }
+      fields.push(group);
+    }
+    return fields;
   }
   async function readPhoto(file) {
     if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024)
@@ -279,7 +314,7 @@
     status.setAttribute('role','status');
     if (pickerEntry !== entry) {
       libraryPicker?.close();
-      libraryPicker = window.ClassifireRegisterLibrary.picker(entry, changed);
+      libraryPicker = window.ClassifireRegisterLibrary.picker(entry, changed, options, customFields);
       pickerEntry = entry;
     }
     const card = el('section','card');
@@ -367,6 +402,9 @@
       libraryPicker?.close(); libraryPicker = null; pickerEntry = null;
       photoPixels.clear();
       entries = structuredClone(snapshot?.entries || []);
+      for (const {technical_filters} of entries) {
+        if (['HVAC','Mechanical'].includes(technical_filters?.category)) technical_filters.category = 'HVAC & Mechanical';
+      }
       nextNumber = snapshot?.next_number ?? entries.length+1;
       if (snapshot && snapshot.next_number == null) entries.forEach((entry,i) => {
         entry.number = i+1;

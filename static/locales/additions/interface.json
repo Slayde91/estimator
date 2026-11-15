@@ -1,4 +1,8 @@
 {
+  "Manage leads, contacts and companies.": ["잠재 고객, 연락처 및 회사를 관리합니다.", "Pamahalaan ang mga potensyal na kliyente, contact at kumpanya.", "Quản lý khách hàng tiềm năng, người liên hệ và công ty."],
+  "Open project documentation and forms.": ["프로젝트 문서와 양식을 엽니다.", "Buksan ang mga dokumento at form ng proyekto.", "Mở tài liệu và biểu mẫu của dự án."],
+  "Manage schedules, time entries and reports.": ["일정, 근무 시간 기록 및 보고서를 관리합니다.", "Pamahalaan ang mga iskedyul, tala ng oras at ulat.", "Quản lý lịch làm việc, giờ công và báo cáo."],
+  "Manage your preferences and team settings.": ["개인 환경설정과 팀 설정을 관리합니다.", "Pamahalaan ang iyong mga kagustuhan at setting ng pangkat.", "Quản lý tùy chọn cá nhân và cài đặt nhóm."],
   "Skip to content": [
     "본문으로 건너뛰기",
     "Lumaktaw sa nilalaman",

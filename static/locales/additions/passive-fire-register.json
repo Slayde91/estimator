@@ -1,4 +1,7 @@
 {
+  "Custom entry": ["사용자 지정 항목", "Pasadyang tala", "Mục tùy chỉnh"],
+  "Enter custom manufacturer": ["제조사 직접 입력", "Maglagay ng ibang tagagawa", "Nhập nhà sản xuất khác"],
+  "Manufacturer name": ["제조사 이름", "Pangalan ng tagagawa", "Tên nhà sản xuất"],
   "Uncheck this item to complete the seven filters.": ["일곱 가지 필터를 모두 지정하려면 이 항목의 선택을 해제하세요.", "Alisin ang tsek sa item na ito upang makumpleto ang pitong filter.", "Bỏ chọn mục này để điền đủ bảy bộ lọc."],
   "Choose all seven filters to select a Technical Library item.": ["기술 라이브러리 항목을 선택하려면 일곱 가지 필터를 모두 선택하세요.", "Piliin ang lahat ng pitong filter upang makapili ng item sa Teknikal na Aklatan.", "Chọn đủ bảy bộ lọc để chọn một mục trong thư viện kỹ thuật."],
   "Passive Fire Registers": ["수동 방화 등록부", "Mga rehistro ng pasibong proteksiyon sa sunog", "Sổ theo dõi phòng cháy thụ động"],

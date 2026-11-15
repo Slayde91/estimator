@@ -42,7 +42,7 @@ async function downloadRegister(expectFile) {
   if (!await row.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
   assert.equal(await row.locator('xpath=preceding-sibling::tr[1]').getAttribute('data-document-kind'),'passive_fire_register.pdf');
   const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-registers.pdf');
-  await row.getByRole('button',{name:'Download Passive Fire Registers'}).click();
+  await row.getByRole('button',{name:'Download Passive Fire Register'}).click();
   const result = await response;
   if (expectFile) {
     assert.equal(result.status(),200,await result.text());
@@ -129,8 +129,36 @@ async function run() {
   await expect(picker.locator('[data-library-filter="report"]')).toHaveCount(0);
   for (const filter of filters.filter(f => f.key !== 'report')) {
     const actual = await picker.locator('[data-library-filter="' + filter.key + '"] option').evaluateAll(options => options.map(o => o.value));
-    assert.deepEqual(actual, ['', ...filter.options.map(o => o.value)]);
+    const manual = filter.key === 'manufacturer' ? ['__enter_manufacturer__'] : [];
+    assert.deepEqual(actual, ['', ...filter.options.map(o => o.value), ...manual]);
   }
+  const manufacturer = picker.locator('[data-library-filter="manufacturer"]');
+  await manufacturer.selectOption({label:'Enter custom manufacturer'});
+  const custom = picker.getByLabel('Custom entry', {exact:true});
+  await expect(custom).toBeChecked();
+  await picker.getByLabel('Manufacturer name').fill('Independent works');
+  await picker.getByLabel('Seal Type',{exact:true}).selectOption('Fire Seal');
+  await picker.getByLabel('Installation Type',{exact:true}).selectOption('Collar');
+  await picker.getByLabel('Cast-In Collar',{exact:true}).check();
+  await picker.getByLabel('Copper pipe(s)',{exact:true}).check();
+  await picker.getByLabel('Report/Assessment').fill('MAN-590');
+  await expect(picker.locator('table')).toHaveCount(0);
+  const savedManual = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
+  await page.locator('#save-current-project').click();
+  assert.equal((await savedManual).status(),200);
+  await idle();
+  const manualEntry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
+  assert.equal(manualEntry.custom_entry, true);
+  assert.equal(manualEntry.technical_filters.manufacturer, 'Independent works');
+  assert.deepEqual(manualEntry.products, ['Cast-In Collar']);
+  assert.equal(manualEntry.report, 'MAN-590');
+  await page.evaluate(value => window.ClassifirePassiveRegister.applyProject(value),
+    JSON.parse(fs.readFileSync(info.project)).passive_fire_register);
+  await expect(picker.getByLabel('Manufacturer name')).toHaveValue('Independent works');
+  await expect(picker.getByLabel('Report/Assessment')).toHaveValue('MAN-590');
+  await custom.uncheck();
+  await expect(picker.getByLabel('Report/Assessment')).toHaveCount(0);
+  await expect(manufacturer).toHaveValue('');
   const chosen = picker.locator('[data-technical-item-id="report-a-v1"]');
   const choices = {substrate:'Concrete/masonry wall', orientation:'Vertical', manufacturer:'Synthetic manufacturer',
     type:'Core hole', category:'Plumbing & Hydraulic', services:'Copper Pipes', frl:'-/90/90'};

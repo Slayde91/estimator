@@ -7,7 +7,7 @@ and group labels; an empty catalogue still offers the approved vocabulary.
 from copy import deepcopy
 
 from .library_facets import CATEGORIES, FRLS
-from .library_filter_groups import grouped_filter_options
+from .library_filter_groups import display_category, grouped_filter_options
 from .library_opening_types import OPENING_TYPES
 from .library_substrates import classification_substrate_options
 from .penetration_calculator import MANUFACTURERS
@@ -31,6 +31,11 @@ def classification_filters(observed=()):
         if not options:
             options = (classification_substrate_options() if key == 'substrate' else
                        [{'value': value, 'label': value} for value in values[key]])
+            options = grouped_filter_options(key, options)
+        if key == 'category':
+            names = dict.fromkeys(display_category(option['value']) for option in options)
+            options = [{'value': name, 'label': name} for name in names]
+        if key == 'services':
             options = grouped_filter_options(key, options)
         result.append({'key': key, 'label': label, 'options': options})
     return result

@@ -188,7 +188,7 @@ async function controls() {
   await renderedPage(() => page.locator('#takeoff-upload').setInputFiles(info.fixture), 1, true);
   const defect = await create('defect', { 'Defect Ref.': 'REPORT-A', 'Location': 'Report only', 'FRL': '-/120/120' });
   const reportBarrier = await create('barrier', { 'Barrier type': 'Core hole', 'Substrate': 'Concrete/masonry wall' }, 'Add barrier to D-0001');
-  const reportService = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 3, 'Service Size (mm)': '25' }, 'Add service to B-0001');
+  const reportService = await create('service', { 'Category': 'HVAC & Mechanical', 'Explicit service quantity': 3, 'Service Size (mm)': '25' }, 'Add service to B-0001');
   const reportBefore = structuredClone(state.physical);
   await tab('Service Plans'); await expect(page.locator('tr[data-physical-id]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add defect', exact: true })).toHaveCount(0);
@@ -202,7 +202,7 @@ async function controls() {
   await apply('Create one draft barrier?'); const barrier = preview.changed_ids[0];
   assert.equal(state.service_plans.version, 3); assert.ok(!Object.hasOwn(state.service_plans, 'defects')); assert.ok(!Object.hasOwn(entity(barrier), 'defect_id')); assert.equal(entity(barrier).fields.frl, '-/90/90');
   assert.deepEqual(state.physical, reportBefore); await expect(row(barrier)).toContainText('B-0001'); await expect(details().getByLabel('FRL', { exact: true })).toHaveValue('-/90/90');
-  const service = await create('service', { 'Category': 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '32' }, 'Add service in Item Details');
+  const service = await create('service', { 'Category': 'HVAC & Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '32' }, 'Add service in Item Details');
   assert.equal(entity(service).barrier_id, barrier); assert.ok(!Object.hasOwn(entity(service).fields, 'frl')); await expect(details().getByLabel('FRL', { exact: true })).toHaveCount(0);
   await expect(row(service)).toContainText('-/90/90'); await controls();
   await expect(page.locator('table[aria-label="Draft penetration hierarchy register"] thead th').last()).toHaveText('Delete');

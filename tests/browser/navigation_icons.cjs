@@ -8,6 +8,10 @@ const root=path.resolve(__dirname,'../..'),python=process.env.CEASEFIRE_PYTHON||
 const output=path.join(root,'.runtime/browser-qa',`navigation-icons-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const assets=[['help','navigation-help.jpg','cbeb2e143619ed7fde0ed7662977852d14e82465fe46d6b07d3d1c8131af2b5b',5000],['takeoffs','navigation-takeoffs.jpg','20ba5328f2968dd61c0df31e4a1678bc538a0d509e30dc42f0425aabd404b08b',1200]];
 const homeAreas=[
+  ['contacts','Contacts','Manage leads, contacts and companies.'],
+  ['documents','Documents','Open project documentation and forms.'],
+  ['scheduler','Scheduler','Manage schedules, time entries and reports.'],
+  ['settings','Settings','Manage your preferences and team settings.'],
   ['estimate','Estimates','Build the project material and labour estimates.'],
   ['pricing','Libraries','Manage pricing, firestopping records and technical references.'],
   ['calculators','Calculators','Use the specialist workbook calculators and export schedules.'],
@@ -104,9 +108,9 @@ async function homeIcons(theme){
   for(const [view,label] of homeAreas){
     await page.locator('nav [data-view="home"]').click();const card=page.locator(`.home-card[data-home-view="${view}"]`);
     if(view==='help'){await card.focus();await page.keyboard.press('Enter');}else await card.click();
-    await expect(page.locator(`#view-${view==='projects'?'quotes':view}`)).toBeVisible();homeActions.push({view,label,method:view==='help'?'keyboard Enter':'native click'});
+    await expect(page.locator(`#view-${view==='projects'?'quotes':view==='documents'?'documentation':view}`)).toBeVisible();homeActions.push({view,label,method:view==='help'?'keyboard Enter':'native click'});
   }
   csp.push(...await page.evaluate(()=>window.qaIconCsp||[]));
   assert.deepEqual(errors,[]);assert.deepEqual(csp,[]);assert.deepEqual(saveRequests,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,projectSetup:{project_no:projectSetup.project.estimate.project_no,created_before_navigation_save_observer:true},evidence,homeEvidence,homeActions,errors,csp,saveRequests,assets},null,2));console.log(`PASS: all eight header icons and six matching Home icons; five themes, desktop/tablet/mobile and native card actions. ${output}`);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,projectSetup:{project_no:projectSetup.project.estimate.project_no,created_before_navigation_save_observer:true},evidence,homeEvidence,homeActions,errors,csp,saveRequests,assets},null,2));console.log(`PASS: header and matching Home icons; five themes, desktop/tablet/mobile and native card actions. ${output}`);
 })().catch(async error=>{console.error(error);process.exitCode=1;await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}).finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

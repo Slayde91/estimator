@@ -13,14 +13,13 @@ const translated=(source,locale,args=[])=>String(locale==='en'?source:[...base[s
 // approved descriptions; the calculator's pricing inputs keep their original 30.
 const technicalServiceGroups = [
  ['Electrical & communications',['Busbar Trunking','Cable Bundles','Cable Trays','Coaxial Cables','Conduits','D1 Power Cables','D2 Comms Cables','Data Cables','Downlights','Fibre Optic','Fire Resistant Cables','Power Cables','Single Cables','TPS & Fire Alarm Cables','Communications Cables','Wall Sockets','Smoke Sampling Tubes']],
- ['Mechanical',['Pair Coils','Beverage / Beer Lines','Insulated Gas Lines']],
- ['HVAC',['Fire Dampers','Flexible Ducts','Air Transfer Grilles']],
+ ['HVAC & Mechanical', ['Fire Dampers', 'Flexible Ducts', 'Pair Coils', 'Air Transfer Grilles', 'Beverage / Beer Lines', 'Insulated Gas Lines']],
  ['Plastic pipes',['uPVC pipe','uPVC floorwaste','PEX pipe','HDPE pipe','PP pipe','CPVC pipe','Raupiano Plus pipe','dBlue pipe','PU air line','Concentric plastic pipe','ABS pipe','PB pipe','Kelox / KeKilit pipe']],
  ['Lagged metal pipes',['Lagged Copper Pipes','Lagged Steel Pipes','Lagged Iron Pipes']],
  ['Unlagged metal pipes',['Copper Pipes','Steel Pipes','Unlagged Iron Pipes','Unlagged Brass Pipes']],
 ];
 const technicalServices = ['N/A','Mixed Services',...technicalServiceGroups.flatMap(([,values])=>values)];
-const serviceGroups=['Electrical & communications','Mechanical','HVAC','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
+const serviceGroups=['Electrical & communications','HVAC & Mechanical','Plastic pipes','Lagged metal pipes','Unlagged metal pipes'];
 const sourceFiles=['estimator/library_filter_groups.py','estimator/reference_library.py','estimator/firestopping_library.py','estimator/technical_service_options.py','static/libraries.js','static/libraries.css','static/theme.css','static/laser.css','static/penetration-references.js','static/takeoff-library-links.js','static/language-catalog.js','static/locales/library-filter-groups.json','static/locales/additions/library-filter-groups.json','tests/browser/library_link_picker_fixture.py','tests/browser/library_filter_groups.cjs'];
 const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex'),bindings=()=>Object.fromEntries(sourceFiles.map(file=>[file,hash(path.join(root,file))]));
 const sourceBefore=bindings(),server=spawn(process.env.CEASEFIRE_PYTHON||'python',[path.join(__dirname,'library_link_picker_fixture.py'),'--directory',output,'--filter-groups'],{cwd:root,windowsHide:true});

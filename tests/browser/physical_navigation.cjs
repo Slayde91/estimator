@@ -113,11 +113,11 @@ async function layout(width) {
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await idle();
   const defect = await create('defect', { 'Defect Ref.': 'NAV-A', Location: 'Existing unplaced barrier', FRL: '-/120/120' });
   const barrier = await create('barrier', { Substrate: 'Concrete/masonry wall' });
-  const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '25' });
+  const service = await create('service', { Category: 'HVAC & Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '25' });
   assert.equal(state.physical.barriers[0].defect_id, defect); assert.equal(state.physical.services[0].barrier_id, barrier); assert.equal(state.physical.barriers[0].marker, undefined); assert.equal(state.documents.length, 1);
   const otherDefect = await create('defect', { 'Defect Ref.': 'NAV-B', Location: 'Second family', FRL: '-/90/90' });
   const otherBarrier = await create('barrier', {});
-  const otherService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 3 });
+  const otherService = await create('service', { Category: 'HVAC & Mechanical', 'Explicit service quantity': 3 });
   assert.equal(state.physical.barriers[1].defect_id, otherDefect); assert.equal(state.physical.services[1].barrier_id, otherBarrier); evidence.createdFromSource = { defect, barrier, service, otherDefect, otherBarrier, otherService };
   await expect(page.locator('.takeoff-physical-register')).not.toContainText('UNAPPROVED DRAFT. These are recorded physical assertions');
   await idle();
@@ -135,7 +135,7 @@ async function layout(width) {
   const newBarrier = await create('barrier', {}, () => row(otherDefect).getByRole('button', { name: /^Add barrier to / }).click());
   assert.equal(state.physical.barriers.at(-1).defect_id, otherDefect); await place(newBarrier, [500, 300], true);
   await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-B');
-  const newService = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 4 }, () => row(newBarrier).getByRole('button', { name: /^Add service to / }).click()); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
+  const newService = await create('service', { Category: 'HVAC & Mechanical', 'Explicit service quantity': 4 }, () => row(newBarrier).getByRole('button', { name: /^Add service to / }).click()); assert.equal(state.physical.services.at(-1).barrier_id, newBarrier);
   await marker(barrier).dblclick({ delay: 100 }); await expect(details().getByLabel('Defect Ref.', { exact: true })).toHaveValue('NAV-A'); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'true');
   const navigation = details().getByRole('table', { name: 'Item Details navigation', exact: true });
   assert.deepEqual(await navigation.getByRole('columnheader').allTextContents(), ['Defect', 'Barrier', 'Service']);

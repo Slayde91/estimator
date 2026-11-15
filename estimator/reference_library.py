@@ -31,7 +31,7 @@ from .library_facets import FACETS, classify_facets, facet_options
 from .library_filter_groups import grouped_filter_options
 from .technical_service_options import options as technical_service_options
 from .technical_presentation import present_options, technical_title
-from .technical_discovery import (HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets, matches_browse_service,
+from .technical_discovery import (ALLPROOF_MANUAL_SOURCE, HIDDEN_FRL_CHOICES, canonical_frl, discovery_facets, matches_browse_service,
                                   present_frl_text, present_technical,
                                   project_smoke_sampling_services)
 from .technical_fields import (FIELD_LABELS, LEGACY_LABELS,
@@ -588,8 +588,10 @@ class ReferenceLibrary:
                 return number(int(raw), minimum, maximum)
             offset, limit = page_value('offset', 0, 0, 1000000), page_value('limit', 50, 1, 100)
             chosen = {key: string(query[key], 1000) for key in filter_keys if query.get(key)}
-            if kind == 'technical' and 'frl' in chosen:
-                chosen['frl'] = canonical_frl(chosen['frl'])
+            requested_rating = chosen.pop('frl', None) if kind == 'technical' else None
+            if requested_rating:
+                assessed_rating = canonical_frl(requested_rating, source_label=ALLPROOF_MANUAL_SOURCE)
+                catalogue_rating = canonical_frl(requested_rating)
             if kind == 'technical' and 'substrate' in chosen:
                 chosen['substrate'] = canonical_substrate(chosen['substrate'])
             if kind == 'technical' and chosen.get('services') == 'Junction Box':
@@ -606,6 +608,10 @@ class ReferenceLibrary:
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
                         continue
                     values = data['_technical_discovery'][key] if kind == 'technical' else item.get('filter_values', {})
+                    if requested_rating:
+                        rating = assessed_rating if item.get('source_label') == ALLPROOF_MANUAL_SOURCE else catalogue_rating
+                        if rating not in values.get('frl', []):
+                            continue
                     if browse_service and not matches_browse_service(item, values, browse_service):
                         continue
                     if any(value not in values.get(name, []) for name, value in chosen.items()):
@@ -670,7 +676,8 @@ class ReferenceLibrary:
                     source = {field['value'].strip() for field in fields if field['label'] == label and field.get('value')}
                     if facet not in values and len(source) == 1:
                         value = source.pop()
-                        values[facet] = present_frl_text(value, rating=True) if facet == 'frl' else value
+                        values[facet] = (present_frl_text(value, rating=True, source_label=data['_technical_public_records'][key].get('source_label'))
+                                         if facet == 'frl' else value)
                 result[key] = values
             return result
 
@@ -708,13 +715,15 @@ class ReferenceLibrary:
                 item['related_technical_records'] = [
                     {'kind': 'technical', 'id': target,
                      'title': present_frl_text(variant_display(data, target).get('title', data['_technical_public_records'][target]['title']),
+                         source_label=data['_technical_public_records'][target].get('source_label'),
                          known_ratings=data['_records']['technical'][target].get('filter_values', {}).get('frl', []))}
                     for target in data['_technical_related_records'][key]]
             for link in item['links']:
                 if link['kind'] == 'technical':
                     ratings = data['_records']['technical'][link['id']].get('filter_values', {}).get('frl', [])
                     title = variant_display(data, link['id']).get('title', link['title'])
-                    link['title'] = present_frl_text(title, known_ratings=ratings)
+                    link['title'] = present_frl_text(title, known_ratings=ratings,
+                        source_label=data['_technical_public_records'][link['id']].get('source_label'))
             return item
 
     def image_replicas(self):

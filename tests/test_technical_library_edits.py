@@ -11,6 +11,8 @@ from uuid import uuid4
 from unittest.mock import patch
 
 from PIL import Image
+from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from feature_client import StaffConnection
 from estimator.catalog import ValidationError
@@ -18,7 +20,8 @@ from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.storage import Store
 from estimator.technical_library_edits import ManualTechnicalLibrary, FACETS
-from estimator.technical_item_exports import prepare_technical_item
+from estimator.technical_item_exports import prepare_technical_item, build_technical_item_xlsx, render_technical_item_pdf
+from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE
 from estimator.server import create_server
 from estimator.library_classifications import classification_filters
 from estimator.technical_service_options import TECHNICAL_SERVICES
@@ -79,6 +82,40 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         change['facets']['frl'].append('-/120/120')
         with self.assertRaisesRegex(ValidationError, 'unassessed'):
             self.library.technical_save(key, change)
+
+    def test_assessed_manual_ratings_match_and_export_the_exact_table_row(self):
+        choices = {'substrate': 'Concrete/masonry wall', 'orientation': 'Vertical', 'manufacturer': 'Allproof',
+                   'type': 'Core hole', 'category': 'Electrical & Communications', 'services': 'D1 Power Cables'}
+        for minutes in (30, 45):
+            rating = f'-/60/{minutes}'
+            key = f'allproof-exact-{minutes}'
+            record = {'id': key, 'title': f'ALLFC25 1 × TPS {rating}', 'source_label': ALLPROOF_MANUAL_SOURCE,
+                      'fields': [{'label': 'FRL', 'value': rating},
+                                 {'label': 'Installation Details', 'value': f'Assessed to FRL {rating}.'}],
+                      'filter_values': {**{k: [v] for k, v in choices.items()}, 'report': ['Manual'], 'frl': [rating]},
+                      'sources': [], 'images': []}
+            self.library.technical_edits.save(key, 0, 'a' * 64, record, created=True)
+        for inspection in ('', '1'):
+            for minutes in (30, 45):
+                with self.subTest(inspection=inspection, minutes=minutes):
+                    result = self.library.listing('technical', inspection=inspection, **choices, frl=f'-/60/{minutes}')
+                    self.assertEqual([item['id'] for item in result['items']], [f'allproof-exact-{minutes}'])
+                    self.assertIn(f'-/60/{minutes}', result['items'][0]['title'])
+        key = 'allproof-exact-45'
+        self.assertEqual(self.library.inspection_labels([key])[key]['frl'], '-/60/45')
+        self.assertEqual(self.library.detail('technical', key)['inspection_options']['frl'], ['-/60/45'])
+        self.assertEqual(self.library.technical_edit(key)['record']['filter_values']['frl'], ['-/60/45'])
+        filters = {**choices, 'frl': '-/60/45'}
+        snapshot = prepare_technical_item({'id': key}, library=self.library, inspection_filters=filters)
+        self.assertEqual(next(f['value'] for f in snapshot['fields'] if f['label'] == 'FRL'), '-/60/45')
+        pdf_text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        self.assertIn('-/60/45', pdf_text)
+        self.assertNotIn('-/60/30', pdf_text)
+        workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), read_only=True)
+        try:
+            self.assertIn(('FRL', '-/60/45'), list(workbook['Item Details'].values))
+        finally:
+            workbook.close()
 
     def protected(self):
         self.assertEqual(self.source.read_bytes(), self.original_source)
@@ -200,6 +237,41 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.assertEqual(detail['related_technical_records'], [])
         self.protected()
 
+    def test_hvac_aliases_and_plumbing_service_groups_work_across_both_libraries(self):
+        data = json.loads(self.original_source)
+        records = data['libraries']['penetration']['items']
+        for record, category, service in zip(records, ('Mechanical', 'Electrical & Communications'),
+                                             ('Lagged Copper Pipes', 'Cable Trays')):
+            record['estimate']['draft']['rows'][0]['inputs'].update(J=category, K=service)
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        library = self.library
+        for category in ('HVAC & Mechanical', 'HVAC', 'Mechanical', 'Plumbing & Hydraulic'):
+            with self.subTest(kind='penetration', category=category):
+                self.assertEqual([item['id'] for item in library.listing('penetration', category=category)['items']],
+                                 [records[0]['id']])
+        self.assertEqual(library.edit(records[0]['id'])['draft']['rows'][0]['inputs']['J'], 'Mechanical')
+
+        services = ('Pair Coils', 'uPVC pipe', 'Lagged Copper Pipes', 'Copper Pipes', 'Cable Trays')
+        ids = {}
+        for service in services:
+            body = self.body()
+            body['title'] = 'Taxonomy fixture ' + service
+            body['facets'].update(category=['Electrical & Communications'], services=[service])
+            ids[service] = library.technical_save(None, body)['id']
+        for category in ('HVAC & Mechanical', 'HVAC', 'Mechanical', 'Plumbing & Hydraulic'):
+            with self.subTest(kind='technical', category=category):
+                listed = library.listing('technical', category=category, search='Taxonomy fixture')
+                expected = [ids[service] for service in services[:4]] if category == 'Plumbing & Hydraulic' else [ids['Pair Coils']]
+                self.assertCountEqual([item['id'] for item in listed['items']], expected)
+        for key in ('technical', 'penetration'):
+            options = next(field['options'] for field in library.listing(key)['filters'] if field['key'] == 'category')
+            displayed = [o['value'] for o in options]
+            self.assertEqual(displayed.count('HVAC & Mechanical'), 1)
+            self.assertNotIn('HVAC', displayed)
+            self.assertNotIn('Mechanical', displayed)
+        self.protected()
+
     def test_shared_service_aliases_find_historical_and_current_rows_once(self):
         data = json.loads(self.source.read_text(encoding='utf-8'))
         prototype = data['libraries']['penetration']['items'][0]
@@ -211,7 +283,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             item = deepcopy(prototype)
             item['id'] = 'service-' + str(index)
             item['library_id'] = f'FL-ID-{index:03d}'
-            item['estimate']['draft']['rows'][0]['inputs']['K'] = service
+            item['estimate']['draft']['rows'][0]['inputs'].update(J='Mechanical', K=service)
             rows.append(item)
         data['libraries']['penetration']['items'] = rows
         data['links'] = []
@@ -233,6 +305,9 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         for key in ['service-8', 'service-9', 'service-10', 'service-11']:
             self.assertEqual(library._load()['_records']['penetration'][key]['filter_values']['service_type'],
                              [services[int(key.split('-')[-1])-1]])
+        plumbing = library.listing('penetration', category='Plumbing & Hydraulic')
+        self.assertCountEqual([item['id'] for item in plumbing['items']],
+                              ['service-1', 'service-2', 'service-8', 'service-9', 'service-10'])
         edit = library.edit('service-10')
         before = deepcopy(edit['result']['rows'][0]['outputs'])
         body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
@@ -473,7 +548,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         rename = {'service_type':'services','penetration_type':'type'}
         self.assertEqual(technical['filters'], [{**entry,'key':rename.get(entry['key'],entry['key'])} for entry in firestopping['filters']])
         options = {entry['key']:entry['options'] for entry in technical['filters']}
-        self.assertTrue(options['substrate']); self.assertIn('Mechanical', [entry['value'] for entry in options['category']])
+        self.assertTrue(options['substrate']); self.assertIn('HVAC & Mechanical', [entry['value'] for entry in options['category']])
         self.assertCountEqual([entry['value'] for entry in options['services']], TECHNICAL_SERVICES)
         expected_editor_filters = deepcopy(technical['filters'])
         frl = next(row for row in expected_editor_filters if row['key'] == 'frl')

@@ -1,4 +1,12 @@
 {
+  "Manage leads, contacts and companies.": "Gérez les prospects, les contacts et les entreprises.",
+  "Open project documentation and forms.": "Ouvrez les documents et les formulaires du projet.",
+  "Manage schedules, time entries and reports.": "Gérez les plannings, les relevés d’heures et les rapports.",
+  "Manage your preferences and team settings.": "Gérez vos préférences et les paramètres de l’équipe.",
+  "Custom entry": "Saisie personnalisée",
+  "Enter custom manufacturer": "Saisir un autre fabricant",
+  "Manufacturer name": "Nom du fabricant",
+  "HVAC & Mechanical": "Chauffage, ventilation, climatisation et mécanique",
   "Uncheck this item to complete the seven filters.": "Décochez cet élément pour renseigner les sept filtres.",
   "Choose all seven filters to select a Technical Library item.": "Choisissez les sept filtres pour sélectionner un élément de la bibliothèque technique.",
   "Passive Fire Registers": "Registres de protection passive contre l’incendie",

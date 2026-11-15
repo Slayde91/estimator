@@ -15,10 +15,12 @@ from .firestopping_library import (FirestoppingLibrary, LibraryConflict, MAX_DIA
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
+from .technical_discovery import ALLPROOF_MANUAL_SOURCE
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
 from .library_classifications import FACETS, classification_filters
+from .library_filter_groups import discovery_categories, display_category
 
 PENETRATION_KEYS = {'type': 'penetration_type', 'services': 'service_type'}
 FIELD_FACETS = {'Manufacturer': 'manufacturer', 'Substrate': 'substrate',
@@ -122,24 +124,29 @@ class TechnicalEdits:
     def save(self, key, revision, source, record, *, created=False, deleted=False, diagrams=None):
         with self.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            current = db.execute('SELECT revision,source_sha256,created FROM technical_library_items WHERE id=?', (key,)).fetchone()
-            if revision != (current[0] if current else 0) or (current and current[1] != source):
-                raise LibraryConflict('This Technical Library item changed. Reopen it before saving.')
-            if current:
-                db.execute('UPDATE technical_library_items SET revision=?,deleted=?,data=?,updated_at=? WHERE id=?',
-                           (revision + 1, int(deleted), encoded(record), timestamp(), key))
-            else:
-                db.execute('INSERT INTO technical_library_items VALUES (?,?,?,?,?,?,?)',
-                           (key, 1, source, int(created), int(deleted), encoded(record), timestamp()))
-            if deleted:
-                db.execute('DELETE FROM technical_library_diagrams WHERE item_id=?', (key,))
-            elif diagrams is not None:
-                retained = {image['id'] for image in record.get('images', []) if image.get('user_uploaded')}
-                old = db.execute('SELECT id FROM technical_library_diagrams WHERE item_id=?', (key,)).fetchall()
-                db.executemany('DELETE FROM technical_library_diagrams WHERE id=?', [row for row in old if row[0] not in retained])
-                db.executemany('INSERT OR IGNORE INTO technical_library_diagrams VALUES (?,?,?)',
-                               [(image_id, key, payload) for image_id, payload in diagrams.items()])
+            self.save_transaction(db, key, revision, source, record, created=created, deleted=deleted, diagrams=diagrams)
         return revision + 1
+
+    @staticmethod
+    def save_transaction(db, key, revision, source, record, *, created=False, deleted=False, diagrams=None):
+        """Write inside the caller's immediate transaction; revision checks also apply to batch imports."""
+        current = db.execute('SELECT revision,source_sha256,created FROM technical_library_items WHERE id=?', (key,)).fetchone()
+        if revision != (current[0] if current else 0) or (current and current[1] != source):
+            raise LibraryConflict('This Technical Library item changed. Reopen it before saving.')
+        if current:
+            db.execute('UPDATE technical_library_items SET revision=?,deleted=?,data=?,updated_at=? WHERE id=?',
+                       (revision + 1, int(deleted), encoded(record), timestamp(), key))
+        else:
+            db.execute('INSERT INTO technical_library_items VALUES (?,?,?,?,?,?,?)',
+                       (key, 1, source, int(created), int(deleted), encoded(record), timestamp()))
+        if deleted:
+            db.execute('DELETE FROM technical_library_diagrams WHERE item_id=?', (key,))
+        elif diagrams is not None:
+            retained = {image['id'] for image in record.get('images', []) if image.get('user_uploaded')}
+            old = db.execute('SELECT id FROM technical_library_diagrams WHERE item_id=?', (key,)).fetchall()
+            db.executemany('DELETE FROM technical_library_diagrams WHERE id=?', [row for row in old if row[0] not in retained])
+            db.executemany('INSERT OR IGNORE INTO technical_library_diagrams VALUES (?,?,?)',
+                           [(image_id, key, payload) for image_id, payload in diagrams.items()])
 
 
 class ManualTechnicalLibrary(FirestoppingLibrary):
@@ -250,16 +257,24 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     target_kind = 'technical' if kind == 'penetration' else 'penetration'
                     target_record = data['_technical_public_records'][target] if target_kind == 'technical' else data['_records']['penetration'][target]
                     values.append({'kind': target_kind, 'id': target, 'title': target_record['title'], 'relationship': 'Manually linked.', 'origin': 'user'})
+        for key, values in data['_technical_discovery'].items():
+            values['category'] = discovery_categories(values.get('category', []), values.get('services', []))
         canonical = self._canonical(data)
         # New reports/manufacturers are user-authored metadata, not new
         # passive-fire classifications. Classification values stay canonical.
         for definition in canonical:
-            if definition['key'] in ('report', 'manufacturer'):
-                known = {option['value'] for option in definition['options']}
-                for key in data['_manual_technical_sources']:
-                    for value in data['_technical_public_records'][key].get('filter_values', {}).get(definition['key'], []):
-                        if value not in known:
-                            definition['options'].append({'value': value, 'label': value}); known.add(value)
+            facet = definition['key']
+            known = {option['value'] for option in definition['options']}
+            for key in data['_manual_technical_sources']:
+                record = data['_technical_public_records'][key]
+                # Imported assessments can have specific tested FRLs and substrates
+                # outside the installed catalogue. Only this reviewed source adds them.
+                if facet not in ('report', 'manufacturer') and record.get('source_label') != ALLPROOF_MANUAL_SOURCE:
+                    continue
+                for value in data['_technical_discovery'][key].get(facet, []):
+                    if value not in known and value != UNASSESSED_FRL:
+                        definition['options'].append({'value': value, 'label': value})
+                        known.add(value)
         data['_canonical_library_filters'] = canonical
         data['_filters']['technical'] = deepcopy(canonical)
         data['_filters']['penetration'] = [{**deepcopy(entry), 'key': PENETRATION_KEYS.get(entry['key'], entry['key'])} for entry in canonical]
@@ -283,6 +298,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     *source_services, *canonical_services(source_services),
                     *(SERVICE_DISCOVERY_GENERALIZATIONS[value.strip().casefold()]
                       for value in source_services if value.strip().casefold() in SERVICE_DISCOVERY_GENERALIZATIONS)]))
+            values['category'] = discovery_categories(values.get('category', []), values.get('service_type', []))
             values['report'] = list(dict.fromkeys(value for link in data['_links']['penetration'].get(key, [])
                 for value in data['_technical_discovery'].get(link['id'], {}).get('report', data['_technical_discovery'].get(link['id'], {}).get('document', []))))
             # These are descriptive search facets, not workbook/pricing
@@ -306,6 +322,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
 
     def listing(self, kind, **query):
         with self._lock:
+            if 'category' in query:
+                query['category'] = display_category(query['category'])
             if kind == 'technical' and 'document' in query:
                 if query.get('report') and query['report'] != query['document']:
                     raise ValidationError('Choose one Report filter value.')

@@ -67,7 +67,7 @@ function contrast(a,b){const luminance=rgb=>{const c=rgb.match(/[\d.]+/g).slice(
   await showPanel();await search(true);await expect(panel().locator('.takeoff-visual-result')).toHaveCount(3);evidence.rotated=3;
   await panel().getByLabel('Select visual match 3',{exact:true}).check();await panel().getByRole('button',{name:'Add selected as services',exact:true}).click();
   await fillDialog({'Find barrier by label, location or ID':barriers[0].id},'Find parents');await fillDialog({'Physical parent':barriers[0].id},'Use parent');
-  await fillDialog({'Category':'Mechanical','Explicit service quantity':'2','Service Size (mm)':'25'},'Preview selected callouts');
+  await fillDialog({'Category':'HVAC & Mechanical','Explicit service quantity':'2','Service Size (mm)':'25'},'Preview selected callouts');
   await response(()=>page.getByRole('dialog').getByRole('button',{name:'Add selected callouts',exact:true}).click(),'/physical/apply');await settingsSettled(page);
   let after=await snapshot();const service=after.service_plans.services[0];assert.equal(after.service_plans.barriers.length,2);assert.equal(after.service_plans.services.length,1);assert.equal(service.barrier_id,barriers[0].id);assert.equal(service.quantity,2);assert.ok(service.annotation&&service.evidence[0].region);assert.equal(service.uncertainty.state,'not_assessed');evidence.service={id:service.id,parent:service.barrier_id,quantity:service.quantity,annotation:service.annotation};
   await panel().getByRole('button',{name:'Close Visual Search',exact:true}).click();await expect(page.locator(`.takeoff-physical-callout[data-physical-id="${service.id}"]`)).toBeVisible();

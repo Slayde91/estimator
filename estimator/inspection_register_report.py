@@ -17,7 +17,7 @@ from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .technical_item_exports import prepare_technical_item, technical_pdf_rows
 
 
-TITLE = 'Passive Fire Registers'
+TITLE = 'Passive Fire Register'
 HEADINGS = ('Level/Location', 'Penetration ID', 'Substrate', 'Orientation', 'Category', 'Services',
             'Manufacturer', 'FRL', 'Report Numbers', *PHASES.values())
 FACETS = ('substrate', 'orientation', 'category', 'services', 'manufacturer', 'frl')
@@ -35,6 +35,9 @@ class _RegisterTable(LongTable):
 
 def _system_cells(report, entry, library):
     key = entry.get('technical_item_id')
+    if entry.get('custom_entry'):
+        values = [entry['technical_filters'][facet] for facet in FACETS]
+        return [report.p(value or '—', 'cell') for value in [*values, entry['report']]]
     if not key:
         legacy = [entry['substrate'], entry['orientation'], '', ', '.join(entry['service_types']),
                   entry['manufacturer'], entry['frl'], entry['report']]

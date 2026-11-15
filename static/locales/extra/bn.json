@@ -1,4 +1,12 @@
 {
+  "Manage leads, contacts and companies.": "সম্ভাব্য গ্রাহক, পরিচিতি ও কোম্পানি পরিচালনা করুন।",
+  "Open project documentation and forms.": "প্রকল্পের নথিপত্র ও ফর্ম খুলুন।",
+  "Manage schedules, time entries and reports.": "কাজের সময়সূচি, কর্মঘণ্টার রেকর্ড ও প্রতিবেদন পরিচালনা করুন।",
+  "Manage your preferences and team settings.": "নিজের পছন্দ ও দলের সেটিংস পরিচালনা করুন।",
+  "Custom entry": "নিজস্ব এন্ট্রি",
+  "Enter custom manufacturer": "অন্য প্রস্তুতকারকের নাম লিখুন",
+  "Manufacturer name": "প্রস্তুতকারকের নাম",
+  "HVAC & Mechanical": "এইচভিএসি ও যান্ত্রিক ব্যবস্থা",
   "Uncheck this item to complete the seven filters.": "সাতটি ফিল্টার পূরণ করতে এই আইটেমের টিক সরান।",
   "Choose all seven filters to select a Technical Library item.": "প্রযুক্তিগত লাইব্রেরির একটি আইটেম বেছে নিতে সাতটি ফিল্টারই নির্বাচন করুন।",
   "Passive Fire Registers": "নিষ্ক্রিয় অগ্নি সুরক্ষা রেজিস্টার",

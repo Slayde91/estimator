@@ -1,8 +1,4 @@
-"""Presentation-only groups for existing library filter choices.
-
-Groups never classify records, change option values or participate in source,
-duplicate-review or saved-link identities. Unrecognised choices stay available.
-"""
+"""Service group labels and category discovery for library filters."""
 import re
 
 
@@ -14,8 +10,8 @@ SERVICE_GROUPS = (
         'Single Cables', 'TPS & Fire Alarm Cables', 'Communications Cables',
         'Wall Sockets', 'Smoke Sampling Tubes',
     })),
-    ('Mechanical', frozenset({'Pair Coils', 'Beverage / Beer Lines', 'Insulated Gas Lines'})),
-    ('HVAC', frozenset({'Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles'})),
+    ('HVAC & Mechanical', frozenset({'Pair Coils', 'Beverage / Beer Lines', 'Insulated Gas Lines',
+                                    'Fire Dampers', 'Flexible Ducts', 'Air Transfer Grilles'})),
     ('Plastic pipes', frozenset({'uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe',
                                'PP pipe', 'CPVC pipe', 'Raupiano Plus pipe', 'dBlue pipe',
                                'PU air line', 'Concentric plastic pipe', 'ABS pipe', 'PB pipe',
@@ -24,8 +20,27 @@ SERVICE_GROUPS = (
     ('Unlagged metal pipes', frozenset({'Copper Pipes', 'Steel Pipes', 'Unlagged Iron Pipes', 'Unlagged Brass Pipes'})),
 )
 _SERVICE_GROUP = {value: group for group, values in SERVICE_GROUPS for value in values}
+_DISCOVERY_GROUP = {service.casefold(): group for service, group in _SERVICE_GROUP.items()}
+# Older workbook rows describe the pipe group without identifying the pipe material.
+_DISCOVERY_GROUP.update({'plastic pipes': 'Plastic pipes', 'lagged pipes': 'Lagged metal pipes',
+                         'unlagged pipes': 'Unlagged metal pipes'})
 _SERVICE_ORDER = {group: index for index, (group, _) in enumerate(SERVICE_GROUPS)}
 _FRL = re.compile(r'(?:-|\d+)\s*/\s*(\d+)\s*/\s*(?:-|\d+)\Z')
+
+
+def display_category(value):
+    return 'HVAC & Mechanical' if value in ('HVAC', 'Mechanical') else value
+
+
+def discovery_categories(categories, services):
+    values = list(dict.fromkeys(display_category(value) for value in categories))
+    groups = {_DISCOVERY_GROUP.get(service.strip().casefold()) for service in services}
+    if 'HVAC & Mechanical' in groups and 'HVAC & Mechanical' not in values:
+        values.append('HVAC & Mechanical')
+    plumbing_groups = {'HVAC & Mechanical', 'Plastic pipes', 'Lagged metal pipes', 'Unlagged metal pipes'}
+    if groups & plumbing_groups and 'Plumbing & Hydraulic' not in values:
+        values.append('Plumbing & Hydraulic')
+    return values
 
 
 def grouped_filter_options(key, options, records=()):

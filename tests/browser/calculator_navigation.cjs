@@ -162,7 +162,7 @@ async function workbook(title) {
   }
   evidence.viewports = [1600, 1146, 825, 570, 390];
   await page.setViewportSize({width:1440,height:1000});
-  await expect(page.locator('#view-home .home-card')).toHaveCount(6);
+  await expect(page.locator('#view-home .home-card')).toHaveCount(10);
   await page.locator('[data-home-view="help"]').click();await expect(page.locator('#view-help')).toBeVisible();
   await page.getByRole('button',{name:'Home',exact:true}).click();await page.locator('[data-home-view="takeoffs"]').click();await expect(page.locator('#view-takeoffs')).toBeVisible();
   await chooseCalculator(page,'Firestopping');await idle();

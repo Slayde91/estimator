@@ -65,8 +65,8 @@ async function checkRegisterLimits(browser) {
     await reopen('removed-item');
     await expect(picker.getByRole('checkbox', {name:'removed-item'})).toBeChecked();
     await expect(picker.getByText('Library reference not found.')).toBeVisible();
-    await picker.getByRole('checkbox').click();
-    await expect(picker.getByRole('checkbox')).toHaveCount(0);
+    await picker.getByRole('checkbox',{name:'removed-item'}).click();
+    await expect(picker.locator('[data-technical-item-id]')).toHaveCount(0);
     assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_item_id),'');
     await reopen('available-item');
     await expect(picker.getByRole('checkbox', {name:'Available system'})).toBeChecked();

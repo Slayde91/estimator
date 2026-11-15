@@ -1,4 +1,8 @@
 {
+  "Manage leads, contacts and companies.": ["管理潜在客户、联系人和公司。", "संभावित ग्राहकों, संपर्कों और कंपनियों को प्रबंधित करें।", "Gestione los clientes potenciales, los contactos y las empresas.", "إدارة العملاء المحتملين وجهات الاتصال والشركات.", "จัดการผู้มุ่งหวัง ผู้ติดต่อ และบริษัท"],
+  "Open project documentation and forms.": ["打开项目文档和表单。", "परियोजना के दस्तावेज़ और फ़ॉर्म खोलें।", "Abra la documentación y los formularios del proyecto.", "فتح مستندات المشروع ونماذجه.", "เปิดเอกสารและแบบฟอร์มของโครงการ"],
+  "Manage schedules, time entries and reports.": ["管理排班、工时记录和报告。", "समय-सारणियाँ, कार्य समय की प्रविष्टियाँ और रिपोर्ट प्रबंधित करें।", "Gestione los horarios, los registros de horas y los informes.", "إدارة الجداول الزمنية وسجلات ساعات العمل والتقارير.", "จัดการตารางงาน รายการบันทึกเวลา และรายงาน"],
+  "Manage your preferences and team settings.": ["管理个人偏好和团队设置。", "अपनी प्राथमिकताएँ और टीम की सेटिंग प्रबंधित करें।", "Gestione sus preferencias y la configuración del equipo.", "إدارة تفضيلاتك وإعدادات الفريق.", "จัดการการตั้งค่าส่วนตัวและการตั้งค่าทีม"],
   "Skip to content": [
     "跳到主要内容",
     "मुख्य सामग्री पर जाएँ",

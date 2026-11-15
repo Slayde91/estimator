@@ -21,6 +21,10 @@
 .register-library-picker td:first-child { width: 3rem; }
 .register-library-picker input[type=checkbox] { width: 1.15rem; height: 1.15rem; }
 .register-library-picker .library-pagination:empty { display: none; }
+.register-custom-mode, .register-choices label { display: inline-flex; align-items: center; gap: .4rem; }
+.register-custom-mode { margin-bottom: .65rem; }
+.register-manual-fields:not(:empty) { display: grid; gap: .8rem; margin-top: 1rem; }
+.register-choices { display: flex; flex-wrap: wrap; gap: .4rem 1rem; min-width: 0; }
 .register-photo-field figure { display: inline-flex; vertical-align: top; align-items: center; gap: .5rem; margin: .35rem; }
 .register-photo-field img { max-width: 7rem; max-height: 5rem; width: auto; height: auto; }
 .register-signature { display: block; background: white; max-width: 12rem; max-height: 4rem; margin: .5rem 0; }

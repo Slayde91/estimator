@@ -200,6 +200,41 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.assertEqual(detail['related_technical_records'], [])
         self.protected()
 
+    def test_hvac_aliases_and_plumbing_service_groups_work_across_both_libraries(self):
+        data = json.loads(self.original_source)
+        records = data['libraries']['penetration']['items']
+        for record, category, service in zip(records, ('Mechanical', 'Electrical & Communications'),
+                                             ('Lagged Copper Pipes', 'Cable Trays')):
+            record['estimate']['draft']['rows'][0]['inputs'].update(J=category, K=service)
+        self.source.write_text(json.dumps(data), encoding='utf-8')
+        self.original_source = self.source.read_bytes()
+        library = self.library
+        for category in ('HVAC & Mechanical', 'HVAC', 'Mechanical', 'Plumbing & Hydraulic'):
+            with self.subTest(kind='penetration', category=category):
+                self.assertEqual([item['id'] for item in library.listing('penetration', category=category)['items']],
+                                 [records[0]['id']])
+        self.assertEqual(library.edit(records[0]['id'])['draft']['rows'][0]['inputs']['J'], 'Mechanical')
+
+        services = ('Pair Coils', 'uPVC pipe', 'Lagged Copper Pipes', 'Copper Pipes', 'Cable Trays')
+        ids = {}
+        for service in services:
+            body = self.body()
+            body['title'] = 'Taxonomy fixture ' + service
+            body['facets'].update(category=['Electrical & Communications'], services=[service])
+            ids[service] = library.technical_save(None, body)['id']
+        for category in ('HVAC & Mechanical', 'HVAC', 'Mechanical', 'Plumbing & Hydraulic'):
+            with self.subTest(kind='technical', category=category):
+                listed = library.listing('technical', category=category, search='Taxonomy fixture')
+                expected = [ids[service] for service in services[:4]] if category == 'Plumbing & Hydraulic' else [ids['Pair Coils']]
+                self.assertCountEqual([item['id'] for item in listed['items']], expected)
+        for key in ('technical', 'penetration'):
+            options = next(field['options'] for field in library.listing(key)['filters'] if field['key'] == 'category')
+            displayed = [o['value'] for o in options]
+            self.assertEqual(displayed.count('HVAC & Mechanical'), 1)
+            self.assertNotIn('HVAC', displayed)
+            self.assertNotIn('Mechanical', displayed)
+        self.protected()
+
     def test_shared_service_aliases_find_historical_and_current_rows_once(self):
         data = json.loads(self.source.read_text(encoding='utf-8'))
         prototype = data['libraries']['penetration']['items'][0]
@@ -211,7 +246,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             item = deepcopy(prototype)
             item['id'] = 'service-' + str(index)
             item['library_id'] = f'FL-ID-{index:03d}'
-            item['estimate']['draft']['rows'][0]['inputs']['K'] = service
+            item['estimate']['draft']['rows'][0]['inputs'].update(J='Mechanical', K=service)
             rows.append(item)
         data['libraries']['penetration']['items'] = rows
         data['links'] = []
@@ -233,6 +268,9 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         for key in ['service-8', 'service-9', 'service-10', 'service-11']:
             self.assertEqual(library._load()['_records']['penetration'][key]['filter_values']['service_type'],
                              [services[int(key.split('-')[-1])-1]])
+        plumbing = library.listing('penetration', category='Plumbing & Hydraulic')
+        self.assertCountEqual([item['id'] for item in plumbing['items']],
+                              ['service-1', 'service-2', 'service-8', 'service-9', 'service-10'])
         edit = library.edit('service-10')
         before = deepcopy(edit['result']['rows'][0]['outputs'])
         body = {key: deepcopy(edit[key]) for key in ('draft', 'revision', 'pricing_token')}
@@ -473,7 +511,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         rename = {'service_type':'services','penetration_type':'type'}
         self.assertEqual(technical['filters'], [{**entry,'key':rename.get(entry['key'],entry['key'])} for entry in firestopping['filters']])
         options = {entry['key']:entry['options'] for entry in technical['filters']}
-        self.assertTrue(options['substrate']); self.assertIn('Mechanical', [entry['value'] for entry in options['category']])
+        self.assertTrue(options['substrate']); self.assertIn('HVAC & Mechanical', [entry['value'] for entry in options['category']])
         self.assertCountEqual([entry['value'] for entry in options['services']], TECHNICAL_SERVICES)
         expected_editor_filters = deepcopy(technical['filters'])
         frl = next(row for row in expected_editor_filters if row['key'] == 'frl')

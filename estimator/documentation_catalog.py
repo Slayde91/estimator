@@ -49,7 +49,7 @@ def document_catalog(edition='full'):
             if scope == 'schedule' and format == 'pdf':
                 add('passive_fire_register.pdf', 'Passive Fire Inspections', 'pdf', 'passive_fire_register',
                     options=register_options())
-                add('passive_fire_registers.pdf', 'Passive Fire Registers', 'pdf', 'passive_fire_register', action='register')
+                add('passive_fire_registers.pdf', 'Passive Fire Register', 'pdf', 'passive_fire_register', action='register')
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
     add('swms', 'Safe Work Method Statement', 'pdf', 'swms')

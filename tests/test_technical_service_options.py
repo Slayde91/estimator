@@ -59,7 +59,7 @@ class TechnicalServiceOptionsTests(unittest.TestCase):
         by_value = {row['value']: row for row in grouped}
         expected = {
             'Smoke Sampling Tubes': 'Electrical & communications',
-            'Beverage / Beer Lines': 'Mechanical', 'Insulated Gas Lines': 'Mechanical',
+            'Beverage / Beer Lines': 'HVAC & Mechanical', 'Insulated Gas Lines': 'HVAC & Mechanical',
             'Unlagged Iron Pipes': 'Unlagged metal pipes',
             'Unlagged Brass Pipes': 'Unlagged metal pipes', 'Lagged Iron Pipes': 'Lagged metal pipes',
         }

@@ -3231,13 +3231,14 @@
     }
   }
 
+  function navigateToArea(view) {
+    if (view === "calculators") return requestCalculatorNavigation();
+    if (view === "documents") return requestDocumentsNavigation();
+    return requestViewNavigation(view);
+  }
   for (const button of document.querySelectorAll("[data-view]")) button.addEventListener("click", event => {
     if (button.id === "settings-navigation-toggle" && event.pointerType === "touch") return;
-    return navigateFromControl(button,"header",()=>{
-      if (button.id === "calculator-navigation-toggle") return requestCalculatorNavigation();
-      if (button.id === "documents-navigation-toggle") return requestDocumentsNavigation();
-      return requestViewNavigation(button.dataset.view);
-    });
+    return navigateFromControl(button,"header",()=>navigateToArea(button.dataset.view));
   });
   setupWorkspaceTabs("project-pages","[data-project-section]",button=>requestViewNavigation(button.dataset.projectSection));
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
@@ -3247,7 +3248,7 @@
   setupWorkspaceTabs("library-pages", "[data-library-kind]", button => requestLibraryNavigation(button.dataset.libraryKind));
   setupWorkspaceTabs("takeoff-pages", "[data-mode]", button => requestTakeoffNavigation(button.dataset.mode, button.dataset.physicalScope));
   setupCalculatorNavigation();
-  for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => requestViewNavigation(button.dataset.homeView));
+  for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => navigateToArea(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });
   for (const id of Object.values(projectDetailControls)) $(id).addEventListener("input", () => { updateQuoteTitle(); updateDirty(); window.CeasefireCommercial?.projectDetailsChanged?.(); });
   $("measurements").addEventListener("input", () => updateDirty());

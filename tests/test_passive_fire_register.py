@@ -40,6 +40,31 @@ def completed_entry():
 
 
 class PassiveFireRegisterTests(unittest.TestCase):
+    def test_custom_inspection_round_trip_and_both_exports_without_library_item(self):
+        entry = {**completed_entry(), 'custom_entry': True, 'technical_item_id': '', 'report': 'MAN-590',
+                 'technical_filters': {'substrate':'Concrete/masonry wall', 'orientation':'Vertical',
+                                       'manufacturer':'Independent supplier', 'type':'Core hole',
+                                       'category':'Plumbing', 'services':'Copper Pipes', 'frl':'-/90/90'}}
+        draft = normalize_register({'entries':[entry]})
+        self.assertEqual(normalize_register(draft), draft)
+        for old_category in ('HVAC', 'Mechanical'):
+            old = {**entry, 'technical_filters':{**entry['technical_filters'], 'category':old_category}}
+            self.assertEqual(normalize_register({'entries':[old]})['entries'][0]['technical_filters']['category'],
+                             'HVAC & Mechanical')
+        inspection = render_register_pdf(draft, {}, company=DEFAULTS)
+        register = render_inspection_register(draft, {}, library=None, company=DEFAULTS)
+        for pdf in [inspection, register]:
+            words = ' '.join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
+            words = ' '.join(words.split())
+            for value in ['Independent supplier', 'Plumbing', 'Copper Pipes', 'MAN-590', 'Concrete/masonry wall']:
+                self.assertIn(value, words)
+        for changes, message in [({'technical_item_id':'a-system'}, 'cannot also reference'),
+                                 ({'custom_entry':'true'}, 'checkbox'),
+                                 ({'products':[]}, 'Products'),
+                                 ({'technical_filters':{**entry['technical_filters'], 'services':''}}, 'Services')]:
+            with self.subTest(message=message), self.assertRaisesRegex(ValidationError, message):
+                render_register_pdf({'entries':[{**entry, **changes}]}, {}, company=DEFAULTS)
+
     def assert_red_table_grids(self, page):
         """Return (column dividers, row rules) for each table fragment on this fixture page."""
         grids = []

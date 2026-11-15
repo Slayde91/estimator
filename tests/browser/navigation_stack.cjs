@@ -254,7 +254,7 @@ async function checkWorkspaceTabs(info) {
 
     await page.getByRole('button', { name: 'Home', exact: true }).click(); await idle();
     const cards = page.locator('#view-home .home-card');
-    assert.equal(await cards.count(), 6);
+    assert.equal(await cards.count(), 10);
     for (let i = 0; i < await cards.count(); i++) {
       const card = cards.nth(i); await card.hover();
       assert.match(await card.evaluate(el => getComputedStyle(el).cursor), /laser-reticle\.svg.*16 16, pointer/);

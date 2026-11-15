@@ -61,7 +61,7 @@ class InspectionRegisterReportTests(unittest.TestCase):
             headings = 'Level/Location Penetration ID Substrate Orientation Category Services Manufacturer FRL Report Numbers Before During After Label'
             self.assertEqual(words.count(headings), 1)
             self.assertEqual(words.count('PASSIVE FIRE REGISTER'), int(number == 1))
-            self.assertEqual(words.count('Passive Fire Registers'), 1)  # Footer only.
+            self.assertEqual(words.count('Passive Fire Register'), 1)  # Footer only.
         self.assertIn('Lobby 15', pages[-1].extract_text())
 
 
@@ -112,7 +112,7 @@ class InspectionRegisterHTTPTests(unittest.TestCase):
         pages = PdfReader(BytesIO(payload)).pages
         texts = [page.extract_text() for page in pages]
         self.assertEqual(texts[0].strip(), 'Register cover')
-        self.assertIn('Passive Fire Registers', texts[1])
+        self.assertIn('Passive Fire Register', texts[1])
         self.assertFalse(any('Floor plan' in text for text in texts[:-2]))
         self.assertFalse(any('Draft only' in text for text in texts))
         self.assertEqual([text.strip().splitlines() for text in texts[-2:]],
@@ -127,7 +127,7 @@ class InspectionRegisterHTTPTests(unittest.TestCase):
         for edition in ['standard', 'full']:
             rows = document_catalog(edition)
             index = next(i for i, r in enumerate(rows) if r['id'] == 'passive_fire_register.pdf')
-            self.assertEqual(rows[index+1]['label'], 'Passive Fire Registers')
+            self.assertEqual(rows[index+1]['label'], 'Passive Fire Register')
         workspace = self.created_workspace()['workspace_id']
         route = '/api/project/passive-fire-registers.pdf'
         headers = {'X-Estimator-Documentation-Workspace': workspace,

@@ -14,6 +14,7 @@ from .company_settings import company_logo
 from .date_display import display_date
 from .documentation_catalog import register_options
 from .document_theme import THEMES
+from .library_filter_groups import display_category
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED, table_outline
 from .reference_library import INSPECTION_FILTERS, ReferenceNotFound, identifier
@@ -31,6 +32,7 @@ FIELDS = {
     'manufacturer': 'Manufacturer', 'report': 'Report', 'products': 'Products',
 }
 PHASES = {'before': 'Before', 'during': 'During', 'after': 'After', 'label': 'Label'}
+CUSTOM_FIELDS = ('seal_type', 'installation_type', 'service_types', 'products')
 JPEG_PREFIX = 'data:image/jpeg;base64,'
 MAX_PHOTO_BYTES = 1_048_576
 MAX_ENCODED_PHOTOS = 10 * 1_048_576
@@ -64,16 +66,24 @@ def _entry(raw, position, numbered):
     if numbered:
         other.update(('entry_id','number'))
     if isinstance(raw, dict) and 'technical_item_id' in raw:
-        other.add('technical_filters')
+        other.update(('technical_filters', 'custom_entry'))
     _fields(raw, set(FIELDS) | other, 'Register entry')
     identity,number = _entry_number(raw,position,numbered)
     entry = {'entry_id':identity,'number':number}
     if 'technical_item_id' in raw:
         key = raw['technical_item_id']
         entry['technical_item_id'] = '' if key == '' else identifier(key)
+        if type(raw.get('custom_entry', False)) is not bool:
+            raise ValidationError('Custom entry must be a checkbox value.')
+        if raw.get('custom_entry'):
+            if key:
+                raise ValidationError('A custom inspection cannot also reference a Technical Library item.')
+            entry['custom_entry'] = True
         if 'technical_filters' in raw:
             selected = _fields(raw['technical_filters'], set(INSPECTION_FILTERS), 'Technical Library filters')
             entry['technical_filters'] = {facet: _text(value, facet.capitalize(), 1000).strip() for facet, value in selected.items()}
+            if 'category' in selected:
+                entry['technical_filters']['category'] = display_category(entry['technical_filters']['category'])
     for key, label in FIELDS.items():
         if key in ('service_types', 'products'):
             entry[key] = _selection(raw.get(key, []), label)
@@ -218,19 +228,29 @@ def preserve_register_numbers(previous, incoming):
 
 def _ready(entry, number, options):
     uses_library = 'technical_item_id' in entry
+    custom = entry.get('custom_entry', False)
     reports = options['reports'].get(entry['manufacturer'], [])
     if uses_library:
-        required = [label for key, label in [('location', 'Location'), ('technical_item_id', 'Technical Library item')] if not entry[key]]
+        required = [] if entry['location'] else ['Location']
         selected = entry.get('technical_filters', {})
+        if custom:
+            required.extend(FIELDS[key] for key in CUSTOM_FIELDS if not entry[key])
+            known_reports = any(name.casefold() == selected.get('manufacturer', '').casefold() for name in options['reports'])
+            if known_reports and not entry['report']:
+                required.append('Report/Assessment')
+        elif not entry['technical_item_id']:
+            required.append('Technical Library item')
         # Earlier inspections saved at most five facets, even when signed and exported.
-        if 'services' in selected or 'frl' in selected:
+        if custom or 'services' in selected or 'frl' in selected:
             required.extend('FRL' if key == 'frl' else key.capitalize()
                             for key in INSPECTION_FILTERS if not selected.get(key))
     else:
         required = [label for key, label in FIELDS.items()
                     if not entry[key] and (key != 'report' or reports)]
     for key, choices in options.items():
-        if key == 'reports' or (uses_library and key in FIELDS) or (key == 'solution' and entry['access'] != 'NA'):
+        if uses_library and key in FIELDS and not (custom and key in CUSTOM_FIELDS):
+            continue
+        if key == 'reports' or (key == 'solution' and entry['access'] != 'NA'):
             continue
         values = entry[key] if isinstance(entry[key], list) else [entry[key]]
         if any(value and value not in choices for value in values):
@@ -295,6 +315,15 @@ def _inspection_fields(report, entry, item):
         source_code = item['record'].get('source_code')
         if source_code and not any(label == 'System ID' for label, _ in rows):
             rows.append(('System ID', report.p(source_code, 'cell')))
+    elif entry.get('custom_entry'):
+        selected = entry['technical_filters']
+        labels = {'frl': 'FRL', 'services': 'Service'}
+        rows.extend((labels.get(key, key.capitalize()), report.p(selected[key], 'cell')) for key in INSPECTION_FILTERS)
+        for key in (*CUSTOM_FIELDS, 'report'):
+            value = entry[key]
+            if value:
+                label = 'Report Number' if key == 'report' else FIELDS[key]
+                rows.append((label, report.p(', '.join(value) if isinstance(value, list) else value, 'cell')))
     else:
         # Legacy inspections store the installation type and services directly.
         legacy_labels = {'installation_type': 'Type', 'service_types': 'Service', 'report': 'Report Number'}

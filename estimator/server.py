@@ -579,7 +579,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     payload = render_inspection_register(body.get('register'), project_details(body.get('project_details')),
                                                          library=libraries, company=self.pdf_company_details('passive_fire_registers'),
                                                          plan_sessions=body.get('plan_sessions'), takeoffs=takeoffs)
-                    self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Registers.pdf', destination,
+                    self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Register.pdf', destination,
                                        pdf_kind='passive_fire_registers')
                 elif route == '/api/project/passive-fire-register.pdf' and self.command == 'POST':
                     from .passive_fire_register import render_register_pdf

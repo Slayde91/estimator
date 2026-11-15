@@ -28,8 +28,8 @@ class FilterGroupTests(unittest.TestCase):
         groups = list(dict.fromkeys(row['group'] for row in result if 'group' in row))
         self.assertEqual(groups, [name for name, _ in SERVICE_GROUPS])
         by_value = {row['value']: row for row in result}
-        self.assertEqual(by_value['Pair Coils']['group'], 'Mechanical')
-        self.assertEqual(by_value['Fire Dampers']['group'], 'HVAC')
+        self.assertEqual(by_value['Pair Coils']['group'], 'HVAC & Mechanical')
+        self.assertEqual(by_value['Fire Dampers']['group'], 'HVAC & Mechanical')
         self.assertEqual(by_value['Copper Pipes']['label'], 'Copper Pipes')
         self.assertEqual(grouped_filter_options('service_type', source), result)
 

@@ -14,6 +14,7 @@ KINDS = (
     ('firestopping_library_item', 'Firestopping Library item'),
     ('firestopping_schedule', 'Firestopping Schedule'),
     ('passive_fire_register', 'Passive Fire Inspections'),
+    ('passive_fire_registers', 'Passive Fire Registers'),
     ('steel_vermiculite_schedule', 'Steel Schedule | Spray'),
     ('steel_vermiculite_product_summary', 'Steel spray product summary'),
     ('steel_intumescent_schedule', 'Steel Schedule | Paint'),

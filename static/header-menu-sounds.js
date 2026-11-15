@@ -40,8 +40,7 @@
       // rewinding, then start that loaded clip directly in this same event.
       const loaded = audio && !audio.error && audio.readyState >= 2;
       ++generation;
-      // Pause other clips without seeking them. A hover just before a click
-      // must not leave that click's already-decoded clip temporarily unready.
+      // Keep other decoded clips in this group ready for their next interaction.
       for (const player of Object.values(players)) {
         if (player === audio) stopAudio(player);
         else { try { player?.pause(); } catch { /* Feedback must not affect the control. */ } }
@@ -67,22 +66,31 @@
 
   function create(navigation, host = root) {
     if (!navigation || typeof host?.Audio !== "function") return silent;
-    const players = createPlayers(sources, host);
+    // Pointer movement can overlap a confirmed navigation. Keep each clip's
+    // playback and pending play() result independent of the other.
+    const hover = createPlayers({ move: sources.move }, host);
+    const confirmation = createPlayers({ confirm: sources.confirm }, host);
+    function play(kind) {
+      if (kind === "move") hover.play(kind);
+      if (kind === "confirm") confirmation.play(kind);
+    }
+    function stop() { hover.stop(); confirmation.stop(); }
     const bindings = [...navigation.querySelectorAll("button")].map(button => {
-      const enter = event => { if (event.pointerType !== "touch" && !button.disabled) players.play("move"); };
+      const enter = event => { if (event.pointerType !== "touch" && !button.disabled) hover.play("move"); };
       // Direct pointerenter listeners avoid sounds for nested icons or bubbling choices.
       button.addEventListener("pointerenter", enter);
       return { button, enter };
     });
-    host.addEventListener?.("pagehide", players.stop);
+    host.addEventListener?.("pagehide", stop);
     function close() {
-      players.close();
+      hover.close();
+      confirmation.close();
       for (const { button, enter } of bindings) {
         button.removeEventListener("pointerenter", enter);
       }
-      host.removeEventListener?.("pagehide", players.stop);
+      host.removeEventListener?.("pagehide", stop);
     }
-    return Object.freeze({ close, play: players.play, stop: players.stop });
+    return Object.freeze({ close, play, stop });
   }
 
   function createFeedback(document, host = root, menu = silent) {

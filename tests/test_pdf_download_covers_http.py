@@ -63,6 +63,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         body=pdf('BODY CONTENT');session=self.json('POST','/api/takeoffs/sessions',{})['session_id'];covered=set()
         cases=[('estimate','/api/quote-report',{'inputs':{}}),
                ('passive_fire_register','/api/project/passive-fire-register.pdf',{'register':{'entries':[]}}),
+               ('passive_fire_registers','/api/project/passive-fire-registers.pdf',{'register':{'entries':[]}}),
                ('full_schedule','/api/project/full-schedule.pdf',{}),
                ('full_product_summary','/api/project/full-product-summary.pdf',{}),
                ('technical_library_item','/api/technical/item.pdf',{}),
@@ -79,6 +80,7 @@ class PdfDownloadCoversHTTPTests(unittest.TestCase):
         with ExitStack() as stack:
             for target in ('estimator.report.render_quote_pdf','estimator.project_reports.build_project_report',
                     'estimator.passive_fire_register.render_register_pdf',
+                    'estimator.inspection_register_report.render_inspection_register',
                     'estimator.technical_item_exports.render_technical_item_pdf','estimator.penetration_item_exports.render_item_pdf',
                     'estimator.penetration_report.render_penetration_pdf','estimator.calculator_report.build_calculator_report',
                     'estimator.calculator_report.build_calculator_summary_report','estimator.certification_report.render_certificate_pdf'):

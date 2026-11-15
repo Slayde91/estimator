@@ -156,6 +156,18 @@ def _table_branding():
     ]
 
 
+def table_outline(color):
+    # ReportLab carries the render callback to every page fragment. Draw the
+    # rectangle after the cells so repeated headings and split rows stay framed.
+    def draw(table, event, *args):
+        if event == "endTable":
+            canvas = table.canv
+            canvas.setStrokeColor(color)
+            canvas.setLineWidth(1)
+            canvas.rect(0, 0, table._width, table._height)
+    return draw
+
+
 def _styles():
     base = dict(fontName=FONT_REGULAR, textColor=_INK, leading=12, splitLongWords=1)
     return {
@@ -231,7 +243,8 @@ class _Report:
             return _number(value, blank="Blank", **formatting)
         return "Blank" if value is None or value == "" else _text(value)
 
-    def table(self, headings, rows, widths, *, compact=False, total_rows=0, row_header_color=None):
+    def table(self, headings, rows, widths, *, compact=False, total_rows=0, row_header_color=None,
+              outline_color=None):
         """Passing no headings starts with data. Row-header fill applies only to the first body column."""
         # Numeric tokens must not wrap midway through their decimal digits.
         # Most values fit at the normal font size after column allocation; a
@@ -245,7 +258,8 @@ class _Report:
                 fitted.append(cell)
             fitted_rows.append(fitted)
         header = [[self.p(heading, "head") for heading in headings]] if headings else []
-        table = LongTable(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT", splitInRow=1)
+        table = LongTable(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT",
+                          splitInRow=1, renderCB=table_outline(outline_color) if outline_color is not None else None)
         padding = 4 if compact else 6
         branding = _table_branding() if header else [("LINEBELOW", (0, 0), (-1, -1), .35, _INK)]
         if row_header_color is not None and fitted_rows:

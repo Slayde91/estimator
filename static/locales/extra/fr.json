@@ -1,4 +1,8 @@
 {
+  "Uncheck this item to complete the seven filters.": "Décochez cet élément pour renseigner les sept filtres.",
+  "Choose all seven filters to select a Technical Library item.": "Choisissez les sept filtres pour sélectionner un élément de la bibliothèque technique.",
+  "Passive Fire Registers": "Registres de protection passive contre l’incendie",
+  "There are no completed passive fire inspections.": "Aucune inspection de protection passive contre l’incendie n’a été terminée.",
   "Comment": "Commentaire",
   "Require a comment for": "Exiger un commentaire pour",
   "Enter a comment.": "Saisissez un commentaire.",

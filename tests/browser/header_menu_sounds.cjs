@@ -72,7 +72,10 @@ async function noDownloadAudio() {
   await page.addInitScript(() => {
     window.qaMenuAudio = { media: [], calls: [], playing: [], pointers: [], csp: [] };
     document.addEventListener("pointerenter", event => {
-      if (event.target.matches?.(".app-header nav button")) window.qaMenuAudio.pointers.push({ type: event.pointerType, label: event.target.textContent.trim() });
+      if (event.target.matches?.(".app-header nav button")) {
+        const confirm = window.qaMenuAudio.media.find(audio => audio.src.endsWith("/mgs-confirm2.mp3"));
+        window.qaMenuAudio.pointers.push({ type: event.pointerType, label: event.target.textContent.trim(), confirmationPlaying: !!confirm && !confirm.paused && !confirm.ended });
+      }
     }, true);
     document.addEventListener("securitypolicyviolation", event => window.qaMenuAudio.csp.push({ directive: event.effectiveDirective, blocked: event.blockedURI }));
     const nativeLoad = HTMLMediaElement.prototype.load, nativePlay = HTMLMediaElement.prototype.play;
@@ -136,9 +139,12 @@ async function noDownloadAudio() {
   // A real click supplies activation; the native playing event proves decoding/playback, not speaker output.
   if (await home.getAttribute('aria-current') === 'page') await page.locator('.app-header nav [data-view="help"]').click();
   let prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs-confirm2.mp3")).length);
-  await home.click(); await played("/sounds/mgs-confirm2.mp3", prior); await idle();
+  await home.click(); await played("/sounds/mgs-confirm2.mp3", prior);
   prior = await page.evaluate(() => window.qaMenuAudio.playing.filter(row => row.source.endsWith("mgs1-menu-move.mp3")).length);
   await page.locator('.app-header nav [data-view="help"]').hover(); await played("/sounds/mgs1-menu-move.mp3", prior);
+  assert.equal(await page.evaluate(() => window.qaMenuAudio.pointers.at(-1).confirmationPlaying), true, "The mouse entered Help during the Home confirmation");
+  await page.waitForFunction(() => window.qaMenuAudio.media.find(audio => audio.src.endsWith("/mgs-confirm2.mp3")).ended, undefined, { timeout: 10000 });
+  evidence.checks.confirmationFinishedAfterHover = true;
   evidence.checks.postGestureNativePlaying = true;
   const submenu = page.locator("#calculator-navigation-toggle"); await submenu.hover(); await expect(page.locator("#calculator-navigation-menu")).toBeVisible();
   await page.locator("#steel-calculator-navigation-toggle").hover(); await expect(page.locator("#steel-calculator-navigation-menu")).toBeVisible();

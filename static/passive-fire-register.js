@@ -3,11 +3,15 @@
   const root = document.getElementById('passive-register-root');
   const phases = {before:'Before Photo', during:'During Photo', after:'After Photo', label:'Label Photo'};
   let libraryPicker, pickerEntry;
+  const legacyLabels = new Map();
+  let labelRequest;
   let nextNumber = 1;
   const sideId = (number, side) => String(number).padStart(3,'0') + (side === 2 ? '-2' : '');
+  const penetrationIds = entry => entry.side1.id_number + (entry.access === 'Yes' ? ' / ' + entry.side2.id_number : '');
   const newSide = (id) => ({id_number:id, before:[], during:[], after:[], label:[]});
   const newEntry = () => ({entry_id:crypto.randomUUID(),number:nextNumber,
-    location:'', technical_item_id:'', side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
+    location:'', technical_item_id:'', technical_filters:window.ClassifireRegisterLibrary.emptyFilters(),
+    side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
     access:'', photos:[], comments:'', solution:'', signature:null});
   let entries = [], current = 0, placeholder = newEntry(), revision = 0, saved = 0;
   let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect, removeEntry, exportButton;
@@ -43,12 +47,37 @@
     if (!entrySelect) return;
     entrySelect.replaceChildren(...(entries.length ? entries : [placeholder]).map((entry, index) => {
       const option = el('option');
-      if (entry.location.trim()) option.textContent = (index + 1) + ' · ' + entry.location.trim();
-      else window.CeasefireI18n.text(option,'Entry {0}',[index + 1]);
+      const filters = entry.technical_filters || {};
+      const source = legacyLabels.get(entry.technical_item_id) || {};
+      const ids = penetrationIds(entry);
+      const parts = [entry.location, filters.substrate || entry.substrate || source.substrate, filters.category || source.category,
+        filters.services || entry.service_types?.join(', ') || source.services, filters.frl || entry.frl || source.frl];
+      option.textContent = ids + ': ' + parts.map(value => value?.trim() || '—').join('-');
       option.value = String(index);
       return option;
     }));
     entrySelect.value = String(current);
+  }
+  async function loadLegacyLabels() {
+    if (labelRequest) return;
+    const ids = [...new Set(entries.filter(entry => entry.technical_item_id && !entry.technical_filters?.services)
+      .map(entry => entry.technical_item_id).filter(id => !legacyLabels.has(id)))];
+    if (!ids.length) return;
+    const request = new AbortController();
+    labelRequest = request;
+    try {
+      const response = await fetch('/api/libraries/inspection-labels', {method:'POST', signal:request.signal,
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})});
+      if (!response.ok) return;
+      const labels = await response.json();
+      if (request.signal.aborted) return;
+      for (const id of ids) legacyLabels.set(id, labels[id]);
+      refreshEntryList();
+    } catch {
+      // The register remains editable with its saved values when the library is unavailable.
+    } finally {
+      if (labelRequest === request) labelRequest = null;
+    }
   }
   function field(label, control) {
     const wrap = el('label','field');
@@ -222,6 +251,7 @@
     entrySelect = el('select');
     entrySelect.addEventListener('change', () => { current = Number(entrySelect.value); message = ''; render(); });
     refreshEntryList();
+    loadLegacyLabels();
     const {iconButton} = window.ClassifireFormControls;
     const back = iconButton('Back', 'back', () => window.CeasefireProject.openDocumentation());
     const add = iconButton('Add entry', 'add', () => {
@@ -323,11 +353,13 @@
     return {revision, value:hasRegister ? {entries:structuredClone(entries),next_number:nextNumber} : null};
   }
   window.ClassifirePassiveRegister = {
+    penetrationIds,
     setOptions(value) { options = value; },
     open:render, capture, revision:() => revision, busy:() => pending,
     hasProjectChanges:() => saved !== revision,
     markSaved(snapshot) { if (snapshot?.revision === revision) saved = revision; },
     applyProject(snapshot) {
+      labelRequest?.abort(); labelRequest = null; legacyLabels.clear();
       window.ClassifireRegisterPlans?.close();
       libraryPicker?.close(); libraryPicker = null; pickerEntry = null;
       photoPixels.clear();

@@ -475,7 +475,10 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         options = {entry['key']:entry['options'] for entry in technical['filters']}
         self.assertTrue(options['substrate']); self.assertIn('Mechanical', [entry['value'] for entry in options['category']])
         self.assertCountEqual([entry['value'] for entry in options['services']], TECHNICAL_SERVICES)
-        self.assertEqual(library.technical_edit()['filters'], technical['filters'])
+        expected_editor_filters = deepcopy(technical['filters'])
+        frl = next(row for row in expected_editor_filters if row['key'] == 'frl')
+        frl['options'].append({'value': 'Not assessed', 'label': 'Not assessed'})
+        self.assertEqual(library.technical_edit()['filters'], expected_editor_filters)
         body = self.body(); created = library.technical_save(None, body)
         reopened = ManualTechnicalLibrary(absent, store)
         self.assertEqual(reopened.detail('technical', created['id'])['title'], body['title'])

@@ -27,7 +27,7 @@ MANUALS = {
 SOURCE = 'Allproof Australian fire technical manual'
 # Hash of each reviewed UTF-8 manifest and the named original diagram crops.
 REVIEWED_BUNDLES = {
-    'electrical': 'd40c9015cb9a3b7b0af4dd9e585e5f298ca0b355663ff43f8cbf30f29eeb9eb0',
+    'electrical': '14708b2720a9ef97aa01ebe4ee9ee88853ef5247f425b640562469fcf29e14b0',
     'plumbing': '37aeb01e8129b679c2de5528214f21b961c0ae6d1949ca4526032c8dce913480',
 }
 

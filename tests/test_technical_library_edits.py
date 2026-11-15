@@ -501,7 +501,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         context = library.technical_edit(result['id'])
         library.technical_delete(result['id'], {key:context[key] for key in ('revision','source_sha256')})
         schema, rows = snapshot()
-        self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links', 'technical_library_diagrams'})
+        self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links',
+                                                          'technical_library_diagrams', 'technical_library_source_images'})
         for name in old_schema:
             self.assertEqual(schema[name], old_schema[name]); self.assertEqual(rows[name], old_rows[name])
         self.protected()

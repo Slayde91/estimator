@@ -83,6 +83,16 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'unassessed'):
             self.library.technical_save(key, change)
 
+    def test_allproof_services_added_after_catalogue_load_receive_filter_groups(self):
+        key = 'allproof-reviewed-pipe'
+        record = {'id': key, 'title': 'Reviewed pipe', 'source_label': ALLPROOF_MANUAL_SOURCE,
+                  'filter_values': {'manufacturer': ['Allproof'], 'services': ['PE-RT/AL/PE-RT']},
+                  'sources': [], 'fields': [], 'images': []}
+        self.library.technical_edits.save(key, 0, 'b' * 64, record, created=True)
+        technical = next(row for row in self.library.overview()['libraries'] if row['id'] == 'technical')
+        options = next(row['options'] for row in technical['filters'] if row['key'] == 'services')
+        self.assertEqual(next(row['group'] for row in options if row['value'] == 'PE-RT/AL/PE-RT'), 'Plastic pipes')
+
     def test_assessed_manual_ratings_match_and_export_the_exact_table_row(self):
         choices = {'substrate': 'Concrete/masonry wall', 'orientation': 'Vertical', 'manufacturer': 'Allproof',
                    'type': 'Core hole', 'category': 'Electrical & Communications', 'services': 'D1 Power Cables'}

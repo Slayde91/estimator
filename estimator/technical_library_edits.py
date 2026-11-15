@@ -97,6 +97,7 @@ class TechnicalEdits:
                     deleted INTEGER NOT NULL DEFAULT 0, data TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE INDEX IF NOT EXISTS technical_library_item_revisions ON technical_library_items(revision);
                 CREATE TABLE IF NOT EXISTS technical_library_diagrams (
                     id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES technical_library_items(id),
                     image_data BLOB NOT NULL

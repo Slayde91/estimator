@@ -117,9 +117,15 @@ def prepend_cover_pdf(payload, company=None, download_cover=None):
     cover_bytes = [decode_cover_pdf(cover) for cover in covers]
     try:
         writer = PdfWriter()
+        body = _reader(payload, strict=False)
         for data in cover_bytes:
             writer.append(_reader(data), import_outline=False)
-        body = _reader(payload, strict=False)
+        if download_cover and download_cover.get('kind') == 'passive_fire_registers':
+            from .takeoff_pdf_worker import page_geometry
+            from .takeoff_pdf_tools_worker import fit_report_page
+            paper = page_geometry(body.pages[0], 1)
+            for number, page in enumerate(writer.pages, 1):
+                fit_report_page(writer, page, page_geometry(page, number), paper, rotate_to_fit=False)
         writer.append(body)
         if body.metadata:
             writer.add_metadata({key: value for key, value in body.metadata.items() if isinstance(value, str)})

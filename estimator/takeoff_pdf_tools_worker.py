@@ -128,9 +128,22 @@ def _combine_layers(configurations):
     return DictionaryObject({NameObject('/OCGs'): ArrayObject(groups), NameObject('/D'): default})
 
 
+def _content_streams(page):
+    """Keep references to the original encoded streams, including indirect content arrays."""
+    from pypdf.generic import ArrayObject, NullObject
+    content = page.get('/Contents')
+    if content is None:
+        return []
+    resolved = content.get_object()
+    if isinstance(resolved, NullObject):
+        return []
+    return list(resolved) if isinstance(resolved, ArrayObject) else [content]
+
+
 def _draw_pins(page, info, marks, *, turn_clockwise=False):
     """Lay out labels in the source viewer's orientation, then turn the whole overlay with the plan."""
     from pypdf import PdfReader
+    from pypdf.generic import ArrayObject, NameObject
     from reportlab.pdfgen.canvas import Canvas
     x0, y0, x1, y1 = info['view']
     rotation = info['rotation']
@@ -202,7 +215,12 @@ def _draw_pins(page, info, marks, *, turn_clockwise=False):
         canvas.drawString(left + 3 * scale, bottom + (box_h - size) / 2 + size * .16, text)
     canvas.save()
     stream.seek(0)
+    # Merge just the overlay resources and stream. Let the PDF viewer draw it
+    # after the fitted plan without decoding or rewriting the source artwork.
+    original = _content_streams(page)
+    page.pop('/Contents', None)
     page.merge_transformed_page(PdfReader(stream).pages[0], transforms[rotation], expand=False)
+    page[NameObject('/Contents')] = ArrayObject(original + _content_streams(page))
 
 
 def _fit_plan_annotations(writer, page, transform, rotation, scale, view):
@@ -227,7 +245,8 @@ def _fit_plan_annotations(writer, page, transform, rotation, scale, view):
             return writer._add_object(turned)
         return DictionaryObject({key: turned_appearance(value) for key, value in obj.items()})
 
-    for reference in page.get('/Annots', []):
+    annotations = page['/Annots'] if '/Annots' in page else ()
+    for reference in annotations:
         mark = reference.get_object()
         x0, y0, x1, y1 = map(float, mark['/Rect'])
         if x1 < view[0] or y1 < view[1] or x0 > view[2] or y0 > view[3]:
@@ -250,30 +269,38 @@ def _fit_plan_annotations(writer, page, transform, rotation, scale, view):
             mark[NameObject('/Border')] = ArrayObject([*numbers(float(value) * scale for value in border[:3]), *border[3:]])
 
 
-def _fit_register_plan(writer, page, info, paper, pins):
-    """Clip to the visible source sheet and centre its upright portrait view on the register's paper."""
+def fit_report_page(writer, page, info, paper, pins=(), *, rotate_to_fit=True):
+    """Centre the visible source crop on the report paper, optionally turning the drawing and its pins."""
     from pypdf import Transformation
-    from pypdf.generic import FloatObject, NameObject, NumberObject, RectangleObject
+    from pypdf.generic import (ArrayObject, ContentStream, DecodedStreamObject, FloatObject,
+                               NameObject, NumberObject, RectangleObject)
     x0, y0, x1, y1 = info['view']
-    rotation = limits.portrait_plan_rotation(info)
-    quarter_turns = {0: (1, 0, 0, 1, -x0, -y0), 90: (0, -1, 1, 0, -y0, x1),
-                     180: (-1, 0, 0, -1, x1, y1), 270: (0, 1, -1, 0, y1, -x0)}
-    turn = quarter_turns[rotation]
+    l, b, r, t = paper['view']
+    paper_w, paper_h = r - l, t - b
+    rotation = info['rotation']
     width, height = x1 - x0, y1 - y0
     if rotation in (90, 270):
         width, height = height, width
-    l, b, r, t = paper['view']
-    paper_w, paper_h = r - l, t - b
+    turn_clockwise = rotate_to_fit and ((width > height and paper_w < paper_h) or (width < height and paper_w > paper_h))
+    if turn_clockwise:
+        rotation = (rotation + 90) % 360
+        width, height = height, width
+    quarter_turns = {0: (1, 0, 0, 1, -x0, -y0), 90: (0, -1, 1, 0, -y0, x1),
+                     180: (-1, 0, 0, -1, x1, y1), 270: (0, 1, -1, 0, y1, -x0)}
+    turn = quarter_turns[rotation]
     scale = min(paper_w / width, paper_h / height)
     fitted_w, fitted_h = width * scale, height * scale
     dx, dy = (paper_w - fitted_w) / 2, (paper_h - fitted_h) / 2
     transform = Transformation(turn).scale(scale).translate(l + dx, b + dy)
-    contents = page.get_contents()
-    if contents is not None:
-        contents.operations[0:0] = [([FloatObject(v) for v in (x0, y0, x1 - x0, y1 - y0)], b're'),
-                                    ([], b'W'), ([], b'n')]
-        page.replace_contents(contents)
-        page.add_transformation(transform)
+    original = _content_streams(page)
+    if original:
+        start = ContentStream(None, writer)
+        start.operations = [([], b'q'), ([FloatObject(v) for v in transform.ctm], b'cm'),
+                            ([FloatObject(v) for v in (x0, y0, x1 - x0, y1 - y0)], b're'),
+                            ([], b'W'), ([], b'n')]
+        end = DecodedStreamObject()
+        end.set_data(b'\nQ\n')
+        page[NameObject('/Contents')] = ArrayObject([writer._add_object(start), *original, writer._add_object(end)])
     _fit_plan_annotations(writer, page, transform, Transformation((*turn[:4], 0, 0)), scale, info['view'])
     for box in ('/TrimBox', '/ArtBox', '/BleedBox'):
         page.pop(box, None)
@@ -281,9 +308,10 @@ def _fit_register_plan(writer, page, info, paper, pins):
     page[NameObject('/CropBox')] = RectangleObject(paper['crop_box'])
     page[NameObject('/UserUnit')] = FloatObject(paper['user_unit'])
     page[NameObject('/Rotate')] = NumberObject(paper['rotation'])
-    turn_clockwise = rotation != info['rotation']
+    if not pins:
+        return
     if turn_clockwise:
-        # Use the landscape drawing frame for both the anchor and the text.
+        # Position the pins in the source viewer's frame before turning the overlay.
         paper_w, paper_h = paper_h, paper_w
         fitted_w, fitted_h = fitted_h, fitted_w
         dx, dy = dy, dx
@@ -312,13 +340,16 @@ def compose(spec, output):
     # Cloned pages are later assembled in the exact requested order.
     writer = PdfWriter(); cloned = {}; configurations = []; source_bytes = content_bytes = annotation_count = 0
     prefix, prefix_refs, marks = [], [], {}
+    title = 'CEASEFIRE PDF page tools'
     if 'register' in spec:
-        if not isinstance(spec['pins'], list) or len(spec['pins']) != len(order):
+        if (not isinstance(spec['pins'], list) or len(spec['pins']) != len(order)
+                or not all(isinstance(sheet_pins, list) and sheet_pins for sheet_pins in spec['pins'])):
             raise ValueError('Each selected plan page must contain register pins.')
         with Path(spec['register']).open('rb') as stream:
             prefix = limits.parse_pdf_stream(stream)['pages']
             stream.seek(0)
             reader = PdfReader(stream, strict=True)
+            title = (reader.metadata.title if reader.metadata else None) or 'Passive Fire Inspections'
             for page in reader.pages:
                 prefix_refs.append(writer.add_page(page).indirect_reference)
         marks = {(value['source'], value['page']): pins for value, pins in zip(order, spec['pins'])}
@@ -354,7 +385,7 @@ def compose(spec, output):
                 annotation_count += _copy_annotations(writer, original, page, static_plan=bool(prefix))
                 page[NameObject('/Rotate')] = NumberObject(info['rotation'])
                 if (index, number) in marks:
-                    _fit_register_plan(writer, page, info, prefix[0], marks[index, number])
+                    fit_report_page(writer, page, info, prefix[0], marks[index, number])
                 if annotation_count > MAX_ANNOTATIONS:
                     raise ValueError('The selected PDF annotations exceed their bounded copy limit.')
                 cloned[(index, number)] = page
@@ -368,7 +399,7 @@ def compose(spec, output):
     pages_root[NameObject('/Count')] = NumberObject(len(prefix) + len(order))
     layers = _combine_layers(configurations)
     if layers: writer._root_object[NameObject('/OCProperties')] = layers
-    writer.add_metadata({'/Title': 'Passive Fire Inspections' if prefix else 'CEASEFIRE PDF page tools',
+    writer.add_metadata({'/Title': title,
                          '/Creator': 'CLASSIFIRE' if prefix else 'CEASEFIRE ESTIMATOR',
                          '/Subject': 'New PDF derivative; original source documents and Takeoff records retained unchanged'})
     class BoundedOutput:

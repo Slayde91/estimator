@@ -289,12 +289,12 @@ def technical_pdf_rows(report, snapshot):
         yield label, cell
 
 
-def append_technical_tables(report, tables, content, *, row_header_color=None, outline_color=None):
+def append_technical_tables(report, tables, content, *, row_header_color=None, grid_color=None):
     def append_table(columns, records, widths):
         cells = [[report.p(value, 'head' if index == 0 and row_header_color is not None else 'cell')
                   for index, value in enumerate(record)] for record in records]
         report.story.append(report.table(columns, cells, widths, compact=True,
-                                         row_header_color=row_header_color, outline_color=outline_color))
+                                         row_header_color=row_header_color, grid_color=grid_color))
 
     for table in tables:
         report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))

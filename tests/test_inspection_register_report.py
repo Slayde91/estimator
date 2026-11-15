@@ -13,7 +13,9 @@ from estimator.inspection_register_report import render_inspection_register
 from estimator.reference_library import ReferenceLibrary
 from technical_item_fixture_data import technical_library, REPORT_URL
 import test_certification_http as helpers
+import test_takeoff_http as takeoff_http
 from test_passive_fire_register import completed_entry
+from test_takeoff_pdf_tools import drawing
 
 
 class InspectionRegisterReportTests(unittest.TestCase):
@@ -61,9 +63,60 @@ class InspectionRegisterReportTests(unittest.TestCase):
 class InspectionRegisterHTTPTests(unittest.TestCase):
     setUp = helpers.CertificationHTTPTests.setUp
     tearDown = helpers.CertificationHTTPTests.tearDown
-    request = helpers.CertificationHTTPTests.request
+    request = takeoff_http.TakeoffHTTPTests.request
     json = helpers.CertificationHTTPTests.json
     created_workspace = helpers.CertificationHTTPTests.created_workspace
+
+    def test_register_revision_appends_only_sheets_referenced_by_completed_inspections(self):
+        workspace = self.created_workspace()['workspace_id']
+        headers = {'X-Estimator-Documentation-Workspace': workspace,
+                   'X-Estimator-Documentation-Request': str(uuid.uuid4())}
+        route = '/api/project/passive-fire-registers.pdf'
+        self.json('POST', '/api/pdf-covers/passive_fire_registers',
+                  {'cover_pdf': helpers.cover('Register cover'), 'cover_pdf_name': 'Cover.pdf', 'expected_version': 1})
+        # The same drawing is retained in two estimates with independent document and session IDs.
+        source = drawing('Floor plan', pages=4)
+        sessions, pins = {}, []
+        for _ in range(2):
+            state = self.json('POST', '/api/takeoffs/sessions', {})
+            session, project = state['session_id'], state['snapshot']['project_id']
+            uploads = f'/api/takeoffs/sessions/{session}/uploads'
+            upload = self.json('POST', uploads, {'filename': 'Floor plan.pdf', 'size': len(source)})
+            endpoint = uploads + '/' + upload['upload_id']
+            self.assertEqual(self.request('PUT', endpoint + '?offset=0', source,
+                                          {'Content-Type': 'application/octet-stream'})[0], 200)
+            document, = self.json('POST', endpoint + '/complete', {'expected_revision': 0})['snapshot']['documents']
+            sessions[project] = session
+            pins.append({'project_id': project, 'document_id': document['id'], 'sha256': document['sha256'],
+                         'page': 2, 'x': .2, 'y': .3})
+        first, second = pins
+        # A draft also points to an unavailable estimate. It cannot add a callout or block the report.
+        draft_project = str(uuid.uuid4())
+        sessions[draft_project] = str(uuid.uuid4())
+        entries = [
+            {**completed_entry(), 'plan_pins': [first, {**first, 'page': 3}]},
+            {'location': 'Draft only', 'plan_pins': [{**first, 'x': .8}, {**first, 'page': 4, 'project_id': draft_project}]},
+            {**completed_entry(), 'access': 'NA', 'plan_pins': [{**second, 'x': .5}]},
+        ]
+        request = {'register': {'entries': entries}, 'plan_sessions': sessions}
+        missing = {**request, 'plan_sessions': {draft_project: sessions[draft_project]}}
+        self.assertEqual(self.request('POST', route, missing, headers)[0], 400)
+        self.assertEqual(self.json('GET', '/api/documentation?workspace=' + workspace)['items'], [])
+        status, _, payload = self.request('POST', route, request, headers)
+        self.assertEqual(status, 200, payload[:200])
+        pages = PdfReader(BytesIO(payload)).pages
+        texts = [page.extract_text() for page in pages]
+        self.assertEqual(texts[0].strip(), 'Register cover')
+        self.assertIn('Passive Fire Registers', texts[1])
+        self.assertFalse(any('Floor plan' in text for text in texts[:-2]))
+        self.assertFalse(any('Draft only' in text for text in texts))
+        self.assertEqual([text.strip().splitlines() for text in texts[-2:]],
+                         [['Floor plan page 2', '001 / 001-2', '003'], ['Floor plan page 3', '001 / 001-2']])
+        self.assertTrue(all(page.mediabox == pages[1].mediabox for page in pages[-2:]))
+        self.assertEqual(self.request('POST', route, request, headers)[2], payload)
+        item, = self.json('GET', '/api/documentation?workspace=' + workspace)['items']
+        self.assertEqual((item['kind'], item['revision']), ('passive_fire_registers.pdf', 1))
+        self.assertEqual(self.request('GET', item['url'])[2], payload)
 
     def test_documentation_selection_revisions_and_incomplete_rows(self):
         for edition in ['standard', 'full']:

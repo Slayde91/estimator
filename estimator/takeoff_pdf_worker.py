@@ -193,15 +193,6 @@ def restrict_process():
     _JOB = handle  # Keep the limiting job alive until this disposable process exits.
 
 
-def portrait_plan_rotation(page):
-    """Return the portrait print rotation for the source's visible crop."""
-    width, height = page['width'], page['height']
-    rotation = page['rotation']
-    if rotation in (90, 270):
-        width, height = height, width
-    return (rotation + 90) % 360 if width > height else rotation
-
-
 def output_page_geometry(sources, order, register_pages):
     """Geometry expected in the exported register or standalone page operation."""
     pages = list(register_pages)
@@ -209,6 +200,24 @@ def output_page_geometry(sources, order, register_pages):
         page = register_pages[0] if register_pages else sources[selection['source']]['pages'][selection['page'] - 1]
         pages.append({**page, 'page': len(pages) + 1})
     return pages
+
+
+def page_geometry(page, number):
+    """Describe the cropped view, physical bounds and intrinsic rotation of a reader page."""
+    media = [float(value) for value in page.mediabox]
+    crop = [float(value) for value in page.cropbox]
+    view = [max(media[0], crop[0]), max(media[1], crop[1]),
+            min(media[2], crop[2]), min(media[3], crop[3])]
+    user_unit = float(page.get("/UserUnit", 1))
+    rotation_value = float(page.get("/Rotate", 0))
+    values = media + crop + view + [user_unit, rotation_value]
+    if (not all(math.isfinite(value) and abs(value) <= 1e9 for value in values)
+            or not 0 < user_unit <= 75000 or view[2] <= view[0] or view[3] <= view[1]
+            or rotation_value % 90):
+        raise ValueError("The PDF has unsupported page geometry.")
+    return {"page": number, "width": view[2] - view[0], "height": view[3] - view[1],
+            "view": view, "media_box": media, "crop_box": crop,
+            "rotation": int(rotation_value) % 360, "user_unit": user_unit}
 
 
 def parse_pdf_stream(source, scale_page=None):
@@ -225,23 +234,7 @@ def parse_pdf_stream(source, scale_page=None):
         if type(scale_page) is not int or not 1 <= scale_page <= len(reader.pages):
             raise ValueError('Choose an existing source page for automatic calibration.')
         return {'printed_scale': printed_page_scale(reader.pages[scale_page-1])}
-    pages = []
-    for number, page in enumerate(reader.pages, 1):
-        media = [float(value) for value in page.mediabox]
-        crop = [float(value) for value in page.cropbox]
-        view = [max(media[0], crop[0]), max(media[1], crop[1]),
-                min(media[2], crop[2]), min(media[3], crop[3])]
-        user_unit = float(page.get("/UserUnit", 1))
-        rotation_value = float(page.get("/Rotate", 0))
-        values = media + crop + view + [user_unit, rotation_value]
-        if (not all(math.isfinite(value) and abs(value) <= 1e9 for value in values)
-                or not 0 < user_unit <= 75000 or view[2] <= view[0] or view[3] <= view[1]
-                or rotation_value % 90):
-            raise ValueError("The PDF has unsupported page geometry.")
-        pages.append({"page": number, "width": view[2] - view[0], "height": view[3] - view[1],
-                      "view": view, "media_box": media, "crop_box": crop,
-                      "rotation": int(rotation_value) % 360, "user_unit": user_unit})
-    return {"pages": pages}
+    return {"pages": [page_geometry(page, number) for number, page in enumerate(reader.pages, 1)]}
 
 
 def parse_pdf(path, scale_page=None):

@@ -9,10 +9,10 @@ from reportlab.platypus import Image, SimpleDocTemplate, Spacer
 from .catalog import ValidationError
 from .company_settings import company_logo
 from .documentation_catalog import register_options
-from .passive_fire_register import (JPEG_PREFIX, PHASES, _INSPECTION_LABEL_RED, _INSPECTION_OUTLINE,
-                                    _ready, normalize_register)
+from .passive_fire_register import JPEG_PREFIX, PHASES, _INSPECTION_RED, _ready, normalize_register
 from .pdf_fonts import FONT_REGULAR
 from .reference_library import ReferenceNotFound
+from .register_plans import append_plan_pages
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .technical_item_exports import prepare_technical_item, technical_pdf_rows
 
@@ -77,7 +77,7 @@ def _register_rows(report, entries, library, widths):
     return rows
 
 
-def render_inspection_register(register, details, *, library, company):
+def render_inspection_register(register, details, *, library, company, plan_sessions=None, takeoffs=None):
     options = register_options()
     completed = []
     for entry in normalize_register(register)['entries']:
@@ -102,12 +102,12 @@ def render_inspection_register(register, details, *, library, company):
     project_rows = [[report.p(label, 'head'), report.p(details.get(key) or '—', 'cell')]
                     for key, label in [('project_no', 'Project No.'), ('client', 'Client'), ('site_address', 'Site Address')]]
     report.story.append(report.table(None, project_rows, [content * .18, content * .82],
-                                     compact=True, row_header_color=_INSPECTION_LABEL_RED, outline_color=_INSPECTION_OUTLINE))
+                                     compact=True, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
     report.story.append(Spacer(1, 10))
     weights = (72, 67, 84, 61, 69, 71, 70, 48, 70, 49, 49, 49, 49)
     widths = [content * weight / sum(weights) for weight in weights]
     grid = report.table(HEADINGS, _register_rows(report, completed, library, widths), widths,
-                        compact=True, outline_color=_INSPECTION_OUTLINE)
+                        compact=True, grid_color=_INSPECTION_RED)
     grid.setStyle([('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3)])
     report.story.append(grid)
 
@@ -124,4 +124,7 @@ def render_inspection_register(register, details, *, library, company):
         canvas.restoreState()
 
     document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)
+    if any(entry.get('plan_pins') for entry in completed):
+        # The client captures sessions before the server checks which inspections are complete.
+        return append_plan_pages(output.getvalue(), completed, plan_sessions, takeoffs, allow_unused_sessions=True)
     return output.getvalue()

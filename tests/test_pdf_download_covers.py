@@ -12,6 +12,7 @@ import uuid
 
 from PIL import Image
 from pypdf import PdfReader
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
@@ -52,6 +53,33 @@ class PdfDownloadCoverTests(unittest.TestCase):
         self.store=Store(Path(self.temp.name)/'state.sqlite3')
         self.service=CertificationService(self.store,renderer=lambda *a,**k:pdf('BODY'))
         self.covers=self.service.covers
+
+    def test_register_covers_match_landscape_paper_and_keep_upright_artwork_and_links(self):
+        body = BytesIO()
+        drawing = Canvas(body, pagesize=landscape(A4))
+        drawing.drawString(20, 20, 'REGISTER')
+        drawing.save()
+        source = BytesIO()
+        drawing = Canvas(source, pagesize=(900, 1200))
+        drawing.drawString(90, 110, 'COVER')
+        drawing.linkURL('https://example.org/cover', (90, 100, 270, 130))
+        drawing.save()
+        cover_data = 'data:application/pdf;base64,' + base64.b64encode(source.getvalue()).decode()
+        registry = {'kind': 'passive_fire_registers', 'cover_pdf': cover_data}
+        payload = prepend_cover_pdf(body.getvalue(), {'cover_pdf': cover_data}, registry)
+        pages = PdfReader(BytesIO(payload)).pages
+        self.assertEqual([page.extract_text().strip() for page in pages], ['COVER', 'COVER', 'REGISTER'])
+        width, height = map(float, (pages[2].mediabox.width, pages[2].mediabox.height))
+        scale = height / 1200
+        offset = (width - 900 * scale) / 2
+        for page in pages[:2]:
+            self.assertEqual(page.mediabox, pages[2].mediabox)
+            self.assertEqual(page.cropbox, pages[2].cropbox)
+            self.assertEqual(page.rotation, 0)
+            link = page['/Annots'][0].get_object()
+            self.assertEqual(link['/A']['/URI'], 'https://example.org/cover')
+            for actual, expected in zip(link['/Rect'], (offset + 90*scale, 100*scale, offset + 270*scale, 130*scale)):
+                self.assertAlmostEqual(float(actual), expected, places=4)
 
     def test_catalog_is_finite_ordered_persistent_and_defaults_empty(self):
         items=self.covers.list()['items']

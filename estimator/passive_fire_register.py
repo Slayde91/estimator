@@ -268,20 +268,20 @@ def _append_evidence(report, title, groups, width):
             cells.append([report.p(caption, 'photo_caption'), image])
     if cells:
         rows = [cells[index:index + 2] for index in range(0, len(cells), 2)]
-        styles = [('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'CENTER')]
+        styles = [('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                  ('INNERGRID', (0, 0), (-1, -1), .35, _INSPECTION_RED)]
         if len(rows[-1]) == 1:
             rows[-1].append('')
             styles.append(('SPAN', (0, -1), (1, -1)))
         report.story.append(Table(rows, colWidths=[width / 2] * 2,
-                                  style=styles, renderCB=table_outline(_INSPECTION_OUTLINE)))
+                                  style=styles, renderCB=table_outline(_INSPECTION_RED)))
 
 
 _INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufacturer',
                      'Penetration ID', 'System ID', 'Category', 'Service')
 _INSTRUCTION_FIELDS = {'service wrap', 'local protection', 'installation details', 'installation instructions'}
 _OMITTED_INSPECTION_FIELDS = _INSTRUCTION_FIELDS | {'barrier construction'}
-_INSPECTION_LABEL_RED = HexColor(THEMES['ceasefire'])
-_INSPECTION_OUTLINE = HexColor('#FFD700')
+_INSPECTION_RED = HexColor(THEMES['ceasefire'])
 
 
 def _inspection_fields(report, entry, item):
@@ -341,8 +341,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                     if details.get(key)]
     if project_rows:
         report.story.append(report.table(None, project_rows, [content * .3, content * .7],
-                                         compact=True, row_header_color=_INSPECTION_LABEL_RED,
-                                         outline_color=_INSPECTION_OUTLINE))
+                                         compact=True, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
         report.story.append(Spacer(1, 10))
     for number, entry in enumerate(entries, 1):
         if number > 1:
@@ -358,12 +357,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
             append_technical_heading(report, item)
         report.story.append(report.table(None, _inspection_fields(report, entry, item),
-                                         [content * .3, content * .7], compact=True, row_header_color=_INSPECTION_LABEL_RED,
-                                         outline_color=_INSPECTION_OUTLINE))
+                                         [content * .3, content * .7], compact=True,
+                                         row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
         if item:
             append_technical_tables(report, (table for table in item['tables']
                                              if table['label'].casefold() not in _INSTRUCTION_FIELDS),
-                                    content, row_header_color=_INSPECTION_LABEL_RED, outline_color=_INSPECTION_OUTLINE)
+                                    content, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
         if entry['comments'] and entry['access'] == 'No':
             report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):

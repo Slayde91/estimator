@@ -13,6 +13,8 @@ from pypdf import PdfReader
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
 from estimator.documentation_catalog import document_catalog, register_options
+from estimator.document_theme import document_theme
+from estimator.inspection_register_report import render_inspection_register
 from estimator.native_dialogs import SaveSelection
 from estimator.passive_fire_register import normalize_register, preserve_register_numbers, render_register_pdf
 import test_certification_http as helpers
@@ -38,6 +40,65 @@ def completed_entry():
 
 
 class PassiveFireRegisterTests(unittest.TestCase):
+    def assert_red_table_grids(self, page):
+        """Return (column dividers, row rules) for each table fragment on this fixture page."""
+        grids = []
+        dividers = set()
+        horizontal = 0
+        stroke = (0, 0, 0)
+        operations = page.get_contents().operations
+        for index, (values, op) in enumerate(operations):
+            if op == b'RG':
+                stroke = tuple(round(channel * 255) for channel in values)
+            elif op == b'S':
+                end, shape = operations[index - 1]
+                if shape == b're':
+                    self.assertEqual(stroke, (189, 0, 24), 'outer frame')
+                    grids.append((len(dividers), horizontal))
+                    dividers.clear()
+                    horizontal = 0
+                elif shape == b'l':
+                    start, move = operations[index - 2]
+                    # Gridlines are table-local. Page rules start at a margin,
+                    # link underlines start inside a cell and the signature is diagonal.
+                    if move == b'm' and start[0] == end[0]:
+                        self.assertEqual(stroke, (189, 0, 24), 'column divider')
+                        dividers.add(start[0])
+                    elif move == b'm' and start[0] == 0 and start[1] == end[1]:
+                        self.assertEqual(stroke, (189, 0, 24), 'row divider')
+                        horizontal += 1
+        self.assertTrue(grids, 'each page fragment has an outer frame')
+        return grids
+
+    def test_inspection_and_register_pdf_table_strokes_use_classifire_red(self):
+        from tempfile import TemporaryDirectory
+        from estimator.reference_library import ReferenceLibrary
+        from technical_item_fixture_data import technical_library
+
+        entry = {**completed_entry(), 'technical_item_id': 'report-a-v1'}
+        entry['side1']['before'] = entry['side1']['before'] * 15
+        with TemporaryDirectory() as folder, document_theme('ocean'):
+            root = Path(folder) / 'technical'
+            technical_library(root)
+            for render in (render_register_pdf, render_inspection_register):
+                with self.subTest(render=render.__name__):
+                    pdf = render({'entries': [entry]}, {'project_no': 'PX', 'client': 'ACME'},
+                                 library=ReferenceLibrary(root), company=DEFAULTS)
+                    pages = PdfReader(BytesIO(pdf)).pages
+                    self.assertGreater(len(pages), 1)
+                    grids = [grid for page in pages for grid in self.assert_red_table_grids(page)]
+                    columns, row_rules = zip(*grids)
+                    if render is render_register_pdf:
+                        # Project details, inspection fields, two visible source columns and photo grids.
+                        self.assertGreater(len(columns), 3)
+                        self.assertEqual(columns, (1,) * len(columns))
+                        self.assertTrue(all(count > 0 for count in row_rules[:3]))
+                        self.assertGreater(sum(row_rules[3:]), 0)
+                    else:
+                        # Project details plus all thirteen columns on every page.
+                        self.assertEqual(columns, (1,) + (12,) * len(pages))
+                        self.assertTrue(all(count > 0 for count in row_rules))
+
     def test_persistent_numbers_survive_migration_deletion_and_reordering(self):
         old = {'entries':[{}, {'side1':{'id_number':'old-023'},'side2':{'id_number':'old-B'}}]}
         numbered = normalize_register(old)

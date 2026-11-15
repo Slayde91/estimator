@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from pypdf import PdfReader, Transformation
 from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, RectangleObject
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
@@ -81,7 +82,7 @@ class RegisterPlansTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'evidence'):
             append_plan_pages(b'', rows, {self.project:forged['session_id']}, self.service)
 
-    def test_portrait_appendix_keeps_pin_on_source_point_for_every_crop_and_rotation(self):
+    def test_portrait_and_landscape_appendices_keep_pin_on_source_point_for_every_crop_and_rotation(self):
         def oversize_plans(writer):
             for index, page in enumerate(writer.pages):
                 bounds = [12, 7, 75, 140] if index >= 4 else list(page.cropbox)
@@ -107,11 +108,32 @@ class RegisterPlansTests(unittest.TestCase):
         # Older registers may have several pins on one entry.
         self.register['entries'][0]['plan_pins'] = pins
         self.register['entries'][1]['plan_pins'] = []
-        pdf = PdfReader(BytesIO(self.export()))
-        paper = pdf.pages[0]
         sources = PdfReader(BytesIO(source)).pages
+        self.check_fitted_plans(PdfReader(BytesIO(self.export())), sources, landscape_report=False)
+
+        body = BytesIO()
+        canvas = Canvas(body, pagesize=landscape(A4))
+        canvas.setTitle('Passive Fire Registers')
+        canvas.drawString(20, 20, 'Completed inspections')
+        canvas.showPage()
+        canvas.save()
+        rows = self.register['entries']
+        sessions = {**self.sessions, str(uuid4()): str(uuid4())}  # Additional session for a draft.
+        with self.assertRaises(ValidationError):
+            append_plan_pages(body.getvalue(), rows, sessions, self.service)
+        with self.assertRaises(ValidationError):
+            append_plan_pages(body.getvalue(), rows, {}, self.service, allow_unused_sessions=True)
+        result = append_plan_pages(body.getvalue(), rows, sessions, self.service, allow_unused_sessions=True)
+        register = PdfReader(BytesIO(result))
+        self.assertEqual(register.metadata.title, 'Passive Fire Registers')
+        self.check_fitted_plans(register, sources, landscape_report=True)
+        self.assertEqual(documents.document_path(doc).read_bytes(), source)
+
+    def check_fitted_plans(self, pdf, sources, *, landscape_report):
+        paper = pdf.pages[0]
+        self.assertEqual(paper.cropbox.width > paper.cropbox.height, landscape_report)
         for number, page in enumerate(pdf.pages[-8:], 1):
-            with self.subTest(sheet=number):
+            with self.subTest(sheet=number, landscape=landscape_report):
                 self.assertEqual(page.cropbox, paper.cropbox)
                 self.assertEqual(page.mediabox, paper.mediabox)
                 self.assertEqual(page.user_unit, paper.user_unit)
@@ -132,11 +154,20 @@ class RegisterPlansTests(unittest.TestCase):
                 width, height = source_page.cropbox.width, source_page.cropbox.height
                 if source_page.rotation in (90, 270):
                     width, height = height, width
-                self.assertEqual(label_axis, [0, -1] if width > height else [1, 0])
+                turned = (width > height) != landscape_report
+                self.assertEqual(label_axis, [0, -1] if turned else [1, 0])
                 self.assertEqual(len(exported_pin), 2)
                 self.assertEqual(len(source_marker), 2)
                 for actual, expected in zip(exported_pin, source_marker):
                     self.assertAlmostEqual(actual, expected, places=3)
+                if turned:
+                    width, height = height, width
+                scale = min(paper.cropbox.width / width, paper.cropbox.height / height)
+                for coordinate, paper_size, fitted_size, fraction in (
+                    (exported_pin[0], paper.cropbox.width, width * scale, .7 if turned else .2),
+                    (exported_pin[1], paper.cropbox.height, height * scale, .8 if turned else .7),
+                ):
+                    self.assertAlmostEqual(coordinate, (paper_size - fitted_size) / 2 + fraction * fitted_size, places=3)
 
     def test_invalid_coordinates_and_client_supplied_paths_are_rejected(self):
         for change in ({'x':True}, {'x':-0.01}, {'y':1.01}, {'y':float('nan')}, {'path':'plan.pdf'}, {'page':True}):

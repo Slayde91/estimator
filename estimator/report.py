@@ -146,14 +146,19 @@ def _date(value):
         return _text(value)
 
 
-def _table_branding():
+def _table_branding(*, headings=True, grid_color=None):
     """Keep the selected heading accent and high-contrast document rows."""
-    return [
+    styles = [
         ("BACKGROUND", (0, 0), (-1, 0), pdf_accent()),
         ("BACKGROUND", (0, 1), (-1, -1), colors.white),
-        ("LINEBELOW", (0, 0), (-1, 0), .5, _INK),
-        ("LINEBELOW", (0, 1), (-1, -1), .35, _INK),
-    ]
+    ] if headings else []
+    if grid_color is not None:
+        styles.append(("INNERGRID", (0, 0), (-1, -1), .35, grid_color))
+    else:
+        if headings:
+            styles.append(("LINEBELOW", (0, 0), (-1, 0), .5, _INK))
+        styles.append(("LINEBELOW", (0, int(headings)), (-1, -1), .35, _INK))
+    return styles
 
 
 def table_outline(color):
@@ -244,7 +249,7 @@ class _Report:
         return "Blank" if value is None or value == "" else _text(value)
 
     def table(self, headings, rows, widths, *, compact=False, total_rows=0, row_header_color=None,
-              outline_color=None):
+              grid_color=None):
         """Passing no headings starts with data. Row-header fill applies only to the first body column."""
         # Numeric tokens must not wrap midway through their decimal digits.
         # Most values fit at the normal font size after column allocation; a
@@ -259,9 +264,9 @@ class _Report:
             fitted_rows.append(fitted)
         header = [[self.p(heading, "head") for heading in headings]] if headings else []
         table = LongTable(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT",
-                          splitInRow=1, renderCB=table_outline(outline_color) if outline_color is not None else None)
+                          splitInRow=1, renderCB=table_outline(grid_color) if grid_color is not None else None)
         padding = 4 if compact else 6
-        branding = _table_branding() if header else [("LINEBELOW", (0, 0), (-1, -1), .35, _INK)]
+        branding = _table_branding(headings=bool(header), grid_color=grid_color)
         if row_header_color is not None and fitted_rows:
             branding.append(("BACKGROUND", (0, len(header)), (0, -1), row_header_color))
         styles = branding + [
@@ -275,7 +280,7 @@ class _Report:
         if total_rows:
             styles.extend([
                 ("BACKGROUND", (0, -total_rows), (-1, -1), colors.white),
-                ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, pdf_accent()),
+                ("LINEABOVE", (0, -total_rows), (-1, -total_rows), 0.8, grid_color or pdf_accent()),
             ])
         table.setStyle(TableStyle(styles))
         return table

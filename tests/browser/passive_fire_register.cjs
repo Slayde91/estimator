@@ -48,7 +48,24 @@ async function downloadRegister(expectFile) {
     assert.equal(result.status(),200,await result.text());
     const receipt = await result.json();
     assert.equal(receipt.documentation.item.kind,'passive_fire_registers.pdf');
-    assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
+    const saved = fs.readFileSync(receipt.path);
+    const revision = await page.request.get(new URL(receipt.documentation.item.url,page.url()).href);
+    assert.deepEqual(await revision.body(),saved);
+    const plan = await page.evaluate(async url => {
+      const lib = await import('/vendor/pdfjs/build/pdf.mjs');
+      lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/build/pdf.worker.mjs';
+      const loading = lib.getDocument({url});
+      try {
+        const pdf = await loading.promise;
+        const last = await pdf.getPage(pdf.numPages);
+        const {items} = await last.getTextContent();
+        const {width,height} = last.getViewport({scale:1});
+        return {landscape:width > height, text:items.map(item => item.str).join(' ')};
+      } finally { await loading.destroy(); }
+    }, receipt.documentation.item.url);
+    assert.ok(plan.landscape);
+    assert.match(plan.text,/Rotated crop with UserUnit 2/);
+    assert.match(plan.text,/\b001\b/);
   } else {
     assert.equal(result.status(),400);
     await expect(page.locator('#documentation-status')).toContainText('There are no completed passive fire inspections.');

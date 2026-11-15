@@ -36,7 +36,7 @@ def penetration_ids(entry):
     return ' / '.join(entry[side]['id_number'] for side in sides)
 
 
-def append_plan_pages(pdf, entries, sessions, service):
+def append_plan_pages(pdf, entries, sessions, service, *, allow_unused_sessions=False):
     # The register stores stable workspace IDs. Temporary session capabilities
     # come from the currently loaded estimate collection, never from saved pins.
     if service is None or not isinstance(sessions, dict) or len(sessions) > 50:
@@ -46,7 +46,10 @@ def append_plan_pages(pdf, entries, sessions, service):
         label = penetration_ids(entry)
         for pin in entry.get('plan_pins', []):
             groups[pin['project_id']][pin['document_id']].append((pin, label))
-    if set(sessions) != set(groups) or not all(_uuid(value) for value in sessions.values()):
+    # A completed-only register can receive sessions for drawings pinned solely
+    # by unfinished entries. Only the sessions used by the export are opened.
+    if (groups.keys() - sessions.keys() or (not allow_unused_sessions and sessions.keys() - groups.keys())
+            or not all(_uuid(project) and _uuid(session) for project, session in sessions.items())):
         raise ValidationError('A pinned plan is unavailable. Reopen the original project with its evidence folder.')
     # The same PDF may be present in more than one estimate. Emit each original
     # sheet once, while preserving pins from every contributing estimate.

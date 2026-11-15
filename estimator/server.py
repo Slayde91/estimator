@@ -573,11 +573,12 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route == '/api/project/passive-fire-registers.pdf' and self.command == 'POST':
                     from .inspection_register_report import render_inspection_register
                     from .project_file import project_details
-                    if set(body) - {'register', 'project_details', 'download'}:
+                    if set(body) - {'register', 'project_details', 'download', 'plan_sessions'}:
                         raise ValidationError('Include the register and project details only.')
                     destination = self.capture_download(body['download']) if 'download' in body else None
                     payload = render_inspection_register(body.get('register'), project_details(body.get('project_details')),
-                                                         library=libraries, company=self.pdf_company_details('passive_fire_registers'))
+                                                         library=libraries, company=self.pdf_company_details('passive_fire_registers'),
+                                                         plan_sessions=body.get('plan_sessions'), takeoffs=takeoffs)
                     self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Registers.pdf', destination,
                                        pdf_kind='passive_fire_registers')
                 elif route == '/api/project/passive-fire-register.pdf' and self.command == 'POST':

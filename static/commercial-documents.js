@@ -461,11 +461,11 @@
       money
     };
   }
-  function shell(title) {
+  function shell(title, isRegistry = false) {
     const host = root();
     host.replaceChildren();
     const heading = node("div", "page-heading workspace-title-row");
-    heading.append(node("h1", "", title));
+    heading.append(node("h1", isRegistry ? "workspace-title-accent" : "", title));
     host.append(heading);
     const notice = node("p", "commercial-message message");
     notice.setAttribute("role", "status");
@@ -590,7 +590,7 @@
     state.kind = kind;
     if (!root()) return false;
     if (kind === "quote" || kind === "work_order") window.CeasefireButtonSounds?.prepareQuote?.();
-    shell(names[kind] + "s");
+    shell(names[kind] + "s", true);
     try {
       const workspace = currentWorkspace() || (await window.CeasefireCertification.projectWorkspace()).workspace_id;
       if (revision !== state.revision || context !== window.CeasefireProject?.runtimeContext?.() || workspace !== currentWorkspace()) return false;
@@ -620,7 +620,7 @@
     clearPricingPickers();
     state.editor = null;
     state.dirty = false;
-    const host = shell(names[state.kind] + "s"),
+    const host = shell(names[state.kind] + "s", true),
       controls = node("div", "commercial-controls");
     const search = node("input");
     search.type = "search";

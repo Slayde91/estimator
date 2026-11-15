@@ -10,6 +10,8 @@
     remove:    ['secondary trash-button', 'trash-artwork'],
     add:       ['primary add-icon-action', 'button-symbol add-symbol', '+'],
     signature: ['secondary personal-signature-button takeoff-icon-button takeoff-signature-button', 'takeoff-action-icon takeoff-signature-icon'],
+    clear:     ['secondary', 'form-clear-icon'],
+    sketch:    ['secondary', 'form-sketch-icon'],
   };
 
   function iconButton(label, kind, onClick) {

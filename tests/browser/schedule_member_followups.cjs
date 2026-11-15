@@ -135,7 +135,7 @@ async function focusSettled(field){
  const beforeDuct=await snapshot();assert.equal(Object.hasOwn(beforeDuct.ductwork.inputs.CALCULATOR,'CM11'),false);
  const guide=page.locator('[data-calculator-output="AM11"] .calculator-basis-preview');await expect(guide).toBeVisible();
  const guideRow=await guide.locator('xpath=ancestor::tr').boundingBox();assert.ok(guideRow.height<140,`Compact guide row grew to ${guideRow.height}`);
- await guide.click();await expect(page.locator('#calculator-basis-full')).toContainText('Use the pin and mesh details');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();assert.deepEqual(await snapshot(),beforeDuct);
+ await guide.click();await expect(page.locator('#calculator-basis-full')).toHaveText('Two M12 rods; 41 x 41 x 2.5 mm strut; spacing at most 1200 mm.');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();assert.deepEqual(await snapshot(),beforeDuct);
  // Fixing/application notes remain compact for every duct product. The two
  // omitted source columns stay in the worksheet, with AL retained in-dialog.
  const noteProducts=[[11,'CAFCO 300'],[12,'MONOKOTE'],[13,'FyreWrap']],noteProject=structuredClone(beforeDuct),ductNotesLayout=[];

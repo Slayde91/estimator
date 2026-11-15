@@ -37,6 +37,10 @@ const ready=new Promise((resolve,reject)=>{
     await expect(p.locator('#forms-root').getByRole('heading',{name:'Form templates'})).toBeVisible();
   }
   await open(page);
+  for (const icon of ['clear','sketch']) {
+    const response = await admin.request.get(origin+'/icons/'+icon+'.svg');
+    assert.equal(response.status(),200);assert.match(response.headers()['content-type'],/image\/svg\+xml/);
+  }
   const forms=page.locator('#forms-root'), b=(name)=>forms.getByRole('button',{name,exact:true});
   for (const tab of ['Form records','Templates']) {
     await b(tab).click();
@@ -76,8 +80,7 @@ const ready=new Promise((resolve,reject)=>{
   await page.setViewportSize({width:1350,height:850});
   await page.screenshot({path:path.join(output,'form-preview-desktop.png')});
   await preview.getByRole('button',{name:'Close',exact:true}).click();
-  await b('Publish').click();await expect(forms).toContainText('Template published.');
-  await b('Back').click();await expect(b('Site QA inspection')).toBeVisible();
+  await b('Publish').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();await expect(b('Site QA inspection')).toBeVisible();
   await open(view);const viewRoot=view.locator('#forms-root');
   await expect(viewRoot).not.toContainText('Site QA inspection');await expect(viewRoot.getByRole('button',{name:'Create template'})).toHaveCount(0);
   await b('Edit').click();await b('Settings').click();await forms.getByRole('checkbox',{name:'Viewer',exact:true}).check();
@@ -107,7 +110,7 @@ const ready=new Promise((resolve,reject)=>{
     await expect(action(rows.first(),'Move down')).toBeDisabled();
   }
   await forms.locator('.form-builder-print-layout').screenshot({path:path.join(output,'print-layout-icons.png')});
-  await b('Save changes').click();await expect(forms).toContainText('Template published.');await b('Back').click();
+  await b('Save changes').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();
   await b('Fill out').click();await forms.getByLabel('Inspection site',{exact:true}).fill('QA site, bay A');
   await b('Save draft').click();await expect(forms.getByRole('heading',{name:'Form record'})).toBeVisible();
   await forms.getByLabel('Inspection site',{exact:true}).fill('QA site, bay B');await b('Submit form').click();
@@ -123,8 +126,7 @@ const ready=new Promise((resolve,reject)=>{
   for (const title of ['Header elements','Footer elements']) {
     await expect(forms.getByRole('group',{name:title,exact:true}).locator('.forms-layout-row strong')).toHaveText(['Created by']);
   }
-  await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms).toContainText('Template published.');
-  await b('Back').click();await b('Form records').click();await b('Site QA inspection').click();
+  await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();await b('Form records').click();await b('Site QA inspection').click();
   await expect(forms).toContainText('Template version 2');await expect(forms).toContainText('QA site, bay B');
   await open(view);await expect(viewRoot).toContainText('Site QA inspection revised');
   await expect(viewRoot.getByRole('button',{name:'Fill out'})).toHaveCount(0);
@@ -147,8 +149,7 @@ const ready=new Promise((resolve,reject)=>{
   await page.setViewportSize({width:688,height:884});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:path.join(output,'forms-builder.png')});
-  await b('Publish').click();await expect(forms).toContainText('Template published.');
-  await b('Back').click();
+  await b('Publish').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();
   // Exercise the same calculation and stage checks on the HTTP server as in the live application.
   const tid=crypto.randomUUID(), stages=[{id:'prepare',name:'Preparation',roles:['admin'],
     approval_conditions:[{field_id:'ready',value:'Ready'}]},{id:'review',name:'Inspection review',roles:['admin']}];
@@ -206,7 +207,10 @@ const ready=new Promise((resolve,reject)=>{
   const templateName = 'Requested site inspection';
   await post(admin,'/api/forms/template/save',{id:require('node:crypto').randomUUID(),version:0,name:templateName,
     status:'published',roles:['admin','editor'],mode:'timeline',settings:{},
-    fields:[{id:'site',type:'text',label:'Site',required:true}]},me.id);
+    fields:[{id:'site',type:'text',label:'Site',required:true},
+      {id:'signers',type:'group',label:'Staff sign-on table',children:[
+        {id:'person',type:'person',label:'Person'}, {id:'at',type:'datetime',label:'Date and time',timezone:true},
+        {id:'ink',type:'manual_signature',label:'Manual signature'}]}]},me.id);
   await open(page);
   const templateRow = forms.getByRole('row').filter({hasText:templateName});
   await templateRow.getByRole('button',{name:'Assign',exact:true}).click();
@@ -219,6 +223,11 @@ const ready=new Promise((resolve,reject)=>{
   const recipient = await browser.newContext();
   try {
     await post(recipient,'/api/access/login',{email:assigneeLogin.email,password:assigneeLogin.password});
+    const detailsPath = '/api/certifications/defaults';
+    const personal = await (await recipient.request.get(origin+detailsPath)).json();
+    await post(recipient,detailsPath,{expected_version:personal.version,fields:{...personal.fields,name:'Fixture full name'}},assignee.id);
+    const company = await (await admin.request.get(origin+'/api/company-settings')).json();
+    await post(admin,'/api/company-settings',{...company,name:'Fixture company'},me.id);
     const recipientPage = await recipient.newPage();
     await open(recipientPage);
     const records = recipientPage.locator('#forms-root');
@@ -227,10 +236,38 @@ const ready=new Promise((resolve,reject)=>{
     await expect(assignedRow.getByRole('cell',{name:'Requested',exact:true})).toBeVisible();
     await assignedRow.getByRole('button',{name:templateName,exact:true}).click();
     await records.getByLabel('Site',{exact:false}).fill('West wing');
+    const addPerson = records.getByRole('button',{name:'Add group',exact:true});
+    await addPerson.click();await addPerson.click();
+    const firstPerson = records.getByRole('group',{name:'Person 1',exact:true});
+    const secondPerson = records.getByRole('group',{name:'Person 2',exact:true});
+    await expect(secondPerson).toBeVisible();
+    const buttons = firstPerson.locator('.form-drawing-actions button');
+    assert.deepEqual(await buttons.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),['Draw signature','Clear','Remove']);
+    const boxes = await buttons.evaluateAll(nodes=>nodes.map(n=>({top:n.offsetTop,left:n.offsetLeft})));
+    assert.ok(boxes.every(b=>b.top===boxes[0].top) && boxes[0].left<boxes[1].left && boxes[1].left<boxes[2].left);
+    await firstPerson.getByRole('button',{name:'Remove',exact:true}).click();
+    await expect(secondPerson).toHaveCount(0);
+    const draw = firstPerson.getByRole('button',{name:'Draw signature',exact:true});
+    await draw.click();
+    const pad = recipientPage.getByRole('dialog').locator('canvas');
+    await recipientPage.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+    await expect(firstPerson.getByLabel('Full name')).toHaveValue('');
+    await draw.click();
+    const rect = await pad.boundingBox();
+    await recipientPage.mouse.move(rect.x+20,rect.y+20);await recipientPage.mouse.down();
+    await recipientPage.mouse.move(rect.x+80,rect.y+35,{steps:4});await recipientPage.mouse.up();
+    await recipientPage.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true}).click();
+    await expect(firstPerson.getByRole('combobox')).toHaveValue(assignee.id);
+    await expect(firstPerson.getByLabel('Date and time')).not.toHaveValue('');
+    await expect(firstPerson.getByLabel('Full name')).toHaveValue('Fixture full name');
+    await expect(firstPerson.getByLabel('Company')).toHaveValue('Fixture company');
+    await expect(firstPerson.locator('img')).toHaveCSS('background-color','rgb(255, 255, 255)');
     await records.getByRole('button',{name:'Save draft',exact:true}).click();
     await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('draft');
     await records.getByRole('button',{name:'Submit form',exact:true}).click();
     await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('submitted');
+    await expect(firstPerson).toContainText('Fixture full name · Fixture company');
+    await expect(firstPerson.locator('img')).toHaveCSS('background-color','rgb(255, 255, 255)');
   } finally { await recipient.close(); }
   assert.deepEqual(issues,[]);console.log('Forms browser checks passed. '+output);
 })().catch(error=>{console.error(error,stderr);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

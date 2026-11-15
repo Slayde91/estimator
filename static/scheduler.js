@@ -370,7 +370,13 @@
     const heading = el("div", "section-heading");
     const titleNode = el("h2", "", title); titleNode.id = "scheduler-dialog-title";
     modal.setAttribute("aria-labelledby",titleNode.id);
-    heading.append(titleNode,button("Close",closeDialog));
+    const close = button("",closeDialog,"button secondary icon-only");
+    close.title = translated("Close");
+    close.setAttribute("aria-label",close.title);
+    const cross = el("span","button-symbol","×");
+    cross.setAttribute("aria-hidden","true");
+    close.append(cross);
+    heading.append(titleNode,close);
     const content = el("div", "scheduler-form-fields"), error = el("p", "message error"); error.hidden = true; error.setAttribute("role","alert");
     const controls = build(content), actions = el("div", "actions scheduler-dialog-actions");
     const submit = el("button", submitClass, saveLabel); submit.type = "submit";
@@ -718,8 +724,14 @@
       const role = select([["worker","Team member"],["admin","Administrator"]],member?.role || "worker"), active = check("Active",member?.active ?? true);
       host.append(field("Name",name),field("Email / sign-in",email),field(member ? "New password" : "Password",password,member ? "Leave empty to keep the current password." : "At least 12 characters."),field("Base hourly rate (AUD)",rate),field("Role",role),active.label);
       return {name,email,password,rate,role,active};
-    },"Save member",async controls => request("/members/save",{...(member ? {id:member.id,version:member.version} : {}),name:controls.name.value,email:controls.email.value,
-      ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked}));
+    },"Save member",async controls => {
+      const saved = await request("/members/save",{...(member ? {id:member.id,version:member.version} : {}),name:controls.name.value,email:controls.email.value,
+        ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked});
+      if (member && Number(member.base_rate) !== Number(saved.base_rate)) {
+        accountChannel?.postMessage("member-rate-changed");
+        window.dispatchEvent(new Event("classifire:member-rate-changed"));
+      }
+    },"button primary");
   }
   function renderEntries() {
     const controls = weekControls(); if (admin()) controls.append(addIconButton("Add time entry",() => editEntry(),"scheduler-primary-action scheduler-toolbar-add"));
@@ -1259,7 +1271,13 @@
     catch (_) { /* Authentication and connection failures are shown on opening Scheduler. */ }
   }
   document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(); void refresh();void loadOrders();}});
-  accountChannel?.addEventListener("message",() => {resetAccount(); auth(false); void refresh();});
+  accountChannel?.addEventListener("message",event => {
+    if (event.data === "member-rate-changed") {
+      window.dispatchEvent(new Event("classifire:member-rate-changed"));
+    } else if (event.data === "changed") {
+      resetAccount(); auth(false); void refresh();
+    }
+  });
   window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation();});
   window.addEventListener("pagehide",stopLocation);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();

@@ -19,7 +19,10 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
  await expect(pdf).toBeEnabled();
  await expect(host.locator('.commercial-editor-actions select')).toHaveCount(0);
  const actions=host.locator('.commercial-editor-actions');
- const previous=actions.getByRole('button',{name:'Refresh Records',exact:true}).locator('xpath=preceding-sibling::button[1]');
+ const refreshRecords=actions.getByRole('button',{name:'Refresh Records',exact:true});
+ await expect(refreshRecords.locator('svg')).toBeVisible();
+ await expect(refreshRecords).toHaveText('');
+ const previous=refreshRecords.locator('xpath=preceding-sibling::button[1]');
  const previousName={quote:'Create WO',work_order:'Create PO',purchase_order:'Download PDF'}[kind];
  await expect(previous).toHaveAccessibleName(previousName);
  if(kind==='work_order')await expect(previous).toHaveClass(/primary/);

@@ -39,9 +39,11 @@ def _html(item):
         align = {0:'left',1:'center',2:'right'}.get(style.alignment,'left')
         weight = 'bold' if 'Bold' in style.fontName else 'normal'
         colour = (style.textColor.hexval() if style.textColor else '#181818').replace('0x','#')
-        text = getattr(item,'form_text',item.getPlainText())
+        markup = getattr(item, 'form_markup', None)
+        if markup is None:
+            markup = escape(getattr(item,'form_text',item.getPlainText()))
         return (f'<p dir="auto" style="font-size:{style.fontSize}pt;color:{colour};font-weight:{weight};'
-                f'text-align:{align};margin:{style.spaceBefore}pt 0 {style.spaceAfter}pt">{escape(text)}</p>')
+                f'text-align:{align};margin:{style.spaceBefore}pt 0 {style.spaceAfter}pt">{markup}</p>')
     if isinstance(item,Image):
         data = base64.b64encode(item.form_image.getvalue()).decode()
         mime = 'image/png' if data.startswith('iVBOR') else 'image/jpeg'

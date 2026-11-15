@@ -20,7 +20,8 @@ async function test() {
   const {port} = JSON.parse(line), base='http://127.0.0.1:'+port;
   assert.notEqual(port,8765);
   browser=await chromium.launch();
-  page=await browser.newPage({viewport:{width:1600,height:960}});
+  const context=await browser.newContext({viewport:{width:1600,height:960}});
+  page=await context.newPage();
   const errors=[]; page.on('pageerror', error=>errors.push(error.message));
   await page.goto(base);
   await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
@@ -55,21 +56,39 @@ async function test() {
     assert.equal(response.status(),200,await response.text());
     return response.json();
   }
-  const worker=await api('members/save',{name:'Worker',email:'worker@example.test',password:'test worker password',base_rate:'40'});
+  const worker=await api('members/save',{name:'Worker',email:'worker@example.test',password:'test worker password',base_rate:'0'});
   const order=(await api('work-orders')).orders[0];
   await api('entries/save',{member_id:worker.id,start:'2020-11-02T13:00',end:'2020-11-02T14:00',
     work_order:{id:order.id,revision:order.revision}});
   const query = new URLSearchParams({file:order.source_id,project:order.project_id,revision:order.revision,document:order.document_id});
   const costsURL = () => base+'/api/commercial/work-order-labour?'+query;
   // Exercise the saved-file route too. The UI below uses the active workspace route.
-  assert.deepEqual(await (await page.request.get(costsURL())).json(), {amount:'60.00'});
+  assert.equal((await (await page.request.get(costsURL())).json()).amount, '0.00');
   query.set('revision','0'.repeat(64)); assert.ok(!(await page.request.get(costsURL())).ok());
   query.set('revision',order.revision);
   query.set('document','00000000-0000-4000-8000-000000000000'); assert.ok(!(await page.request.get(costsURL())).ok());
   await openProjectSection(page,'work-orders');
   await wo.locator('article.commercial-card .project-title-button').first().click();
   const costs=wo.locator('.commercial-sidebar').last().locator('.work-order-costs');
+  await expect(costs.locator('li')).toHaveText(['Remaining estimate$145.00','Purchase orders$55.00','Time entries$0.00']);
+  await expect(costs.getByText('Some linked time entries have an hourly rate of $0.00.')).toBeVisible();
+  const scheduler = await context.newPage();
+  scheduler.on('pageerror', error=>errors.push(error.message));
+  await scheduler.goto(base);
+  await scheduler.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+  await scheduler.locator('#scheduler-navigation').click();
+  await button(scheduler.locator('.scheduler-tabs'),'Team members').click();
+  await button(scheduler.locator('.scheduler-team .card').filter({hasText:worker.email}),'Edit member').click();
+  const editor = scheduler.getByRole('dialog');
+  await editor.getByLabel('Base hourly rate (AUD)').fill('40');
+  await button(editor,'Save member').click();
+  await expect(editor).toHaveCount(0);
+  query.set('document',order.document_id);
+  assert.deepEqual(await (await page.request.get(costsURL())).json(), {amount:'60.00'});
+  await expect(costs.getByText('Some linked time entries have an hourly rate of $0.00.')).toHaveCount(0);
   await expect(costs.locator('li')).toHaveText(['Remaining estimate$85.00','Purchase orders$55.00','Time entries$60.00']);
+  await scheduler.close();
+  await page.bringToFront();
   const slice=costs.locator('svg .work-cost-orders');
   await slice.scrollIntoViewIfNeeded();
   // Hit the sector interior even if a sector's bounding box includes neighbouring slices.

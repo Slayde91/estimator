@@ -1,6 +1,5 @@
 """White-paper commercial documents with exact Full Schedule PDF appendices."""
 from html import escape, unescape
-from html.parser import HTMLParser
 from io import BytesIO
 from decimal import Decimal
 from hashlib import sha256
@@ -20,58 +19,11 @@ from .commercial_documents import KINDS, format_terms, totals, validate_fields
 from .date_display import display_date
 from .company_settings import company_logo, contact_lines
 from .report import _company_header
+from .rich_paragraphs import RichParagraphs
 from .pdf_fonts import FONT_BOLD, FONT_REGULAR, register_pdf_fonts
 from .swms_pdf import Signature
 
 WIDTH = A4[0] - 72
-
-
-class _Paragraphs(HTMLParser):
-    """Convert validated editor HTML into bounded ReportLab paragraph markup."""
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.paragraphs = []
-        self.current = []
-        self.styles = []
-        self.lists = []
-
-    def flush(self):
-        if self.current:
-            self.paragraphs.append(''.join(self.current) + ''.join('</' + tag + '>' for tag in reversed(self.styles)))
-        self.current = ['<' + tag + '>' for tag in self.styles]
-
-    def handle_starttag(self, tag, attrs):
-        mapped = {'strong': 'b', 'em': 'i'}.get(tag, tag)
-        if mapped in {'b', 'i', 'u'}:
-            self.styles.append(mapped)
-            self.current.append('<' + mapped + '>')
-        elif tag in {'ul', 'ol'}:
-            self.flush()
-            self.lists.append({'tag': tag, 'counter': 0})
-        elif tag in {'p', 'div', 'li'}:
-            self.flush()
-            if tag == 'li':
-                prefix = '&#8226; '
-                if self.lists and self.lists[-1]['tag'] == 'ol':
-                    self.lists[-1]['counter'] += 1
-                    prefix = str(self.lists[-1]['counter']) + '. '
-                self.current.append('&#160;' * max(0, 3 * (len(self.lists) - 1)) + prefix)
-        elif tag == 'br':
-            self.flush()
-
-    def handle_endtag(self, tag):
-        mapped = {'strong': 'b', 'em': 'i'}.get(tag, tag)
-        if mapped in {'b', 'i', 'u'}:
-            self.current.append('</' + mapped + '>')
-            self.styles.pop()
-        elif tag in {'p', 'div', 'li'}:
-            self.flush()
-        elif tag in {'ul', 'ol'}:
-            self.flush()
-            self.lists.pop()
-
-    def handle_data(self, data):
-        self.current.append(escape(data, quote=False))
 
 
 def _styles(*, quote=False, work_order=False, purchase_order=False):
@@ -96,7 +48,7 @@ def _paragraph(text, style):
 
 
 def _rich(text, style, *, keep_headings=False):
-    parser = _Paragraphs()
+    parser = RichParagraphs()
     parser.feed(text)
     parser.flush()
     paragraphs = [Paragraph(item, style) for item in parser.paragraphs if item.strip()]
@@ -241,7 +193,7 @@ def _terms_pdf(text, document, number, company):
     register_pdf_fonts()
     base = ParagraphStyle('TradeTerms', fontName=FONT_REGULAR, bulletFontName=FONT_REGULAR, fontSize=8,
                           leading=10, spaceAfter=4, allowWidows=0, allowOrphans=0)
-    parser = _Paragraphs()
+    parser = RichParagraphs()
     parser.feed(format_terms(text))
     parser.flush()
     story = []

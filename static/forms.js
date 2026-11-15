@@ -384,7 +384,14 @@
       onSave:async value=>{
         const {id,version,name,description,mode,status,roles,settings,fields} = value;
         const saved = await api('template/save',{id,version,name,description,mode,status,roles,settings,fields});
-        ++changeCount; return saved;
+        ++changeCount;
+        if (status === 'published' && host.isConnected) {
+          templates = [saved, ...templates.filter(template => template.id !== saved.id)];
+          panel = 'templates';
+          query = '';
+          libraryView();
+        }
+        return saved;
       },
       onCancel:()=>refresh()
     });
@@ -491,6 +498,7 @@
     window.ClassifireFormsLayout.render(paper,'footer_layout',t,entry,options.printedAt);
     host.append(paper);
     return window.ClassifireFormFields.mount(body,t,{values:entry?.values || {},staff,entries:records,member:window.ClassifireAccess.user,
+      signerProfile:()=>api('signer'),
       calculate:async values=>{
         const tables = t.fields.filter(f=>f.type === 'table');
         const inputs = {};

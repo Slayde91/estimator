@@ -85,7 +85,7 @@ def _source_text(identity, sheet, address, value):
         replacements = (('0.600 m³', '0.60 m³'), ('0.610 m³', '0.61 m³'))
     if identity == 'ductwork' and sheet == 'CALCULATOR' and column in ('AL', 'AM', 'AP'):
         replacements = (
-            ('Use the pin and mesh details in the header comment.', 'Refer to the product report for pin and mesh details.'),
+            (' Use the pin and mesh details in the header comment.', ''),
             ('See the header comment for steel and stress limits.', 'Refer to the product report for steel and stress limits.'),
             ('See the header comment.', 'Refer to the product installation documentation.'),
             ('See the comments on the angle settings.', 'Refer to the product report for the different top and underside angle details.'),

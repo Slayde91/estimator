@@ -111,7 +111,7 @@
     function errorText(node, text) {
       node.textContent = text ? translate(text) : ''; node.hidden = !text;
     }
-    function renderFields(container, fields, dictionary, inheritedLock = false, parentStage = null, parents = [], tableContext = null) {
+    function renderFields(container, fields, dictionary, inheritedLock = false, parentStage = null, parents = [], tableContext = null, signerRow = null) {
       if (!fieldBoxes.has(dictionary)) fieldBoxes.set(dictionary,new Map());
       const siblings=fieldBoxes.get(dictionary);
       for (const field of fields || []) {
@@ -145,7 +145,8 @@
           box.classList.add('form-layout-field');
           if (type === 'page_break') box.classList.add('form-page-break');
           box.append(el(type === 'instruction' ? 'p' : 'h3','',field.label));
-          if (field.help) box.append(el('p','form-field-help',field.help)); continue;
+          if (field.help) box.append(type === 'instruction' ? window.ClassifireFormRichText.content(field.help) : el('p','form-field-help',field.help));
+          continue;
         }
         const title = el('label','form-field-label',field.label || type);
         title.id = 'form-field-label-' + ++sequence;
@@ -173,6 +174,13 @@
           const items = Array.isArray(answer) ? answer : [];
           const content = el('div','form-repeat'); body.append(content);
           const children = type === 'group' ? field.children : field.columns;
+          // Older templates stored sign-on and multiple-signature presets as ordinary groups.
+          const shape = children?.map(child=>child.type).join(',');
+          const personRows = type === 'group' && (field.person_rows ??
+            (shape === 'person,datetime,manual_signature' || shape === 'person,manual_signature'));
+          const rowLabel = number => personRows
+            ? window.CeasefireI18n?.translate('Person {0}',[number]) || 'Person '+number
+            : translate('Group')+' '+number;
           const table = type === 'table' ? el('table','form-repeat-table') : null;
           const canResize = !readOnly && (!table || field.table_mode !== 'fixed');
           const rows = table ? el('tbody') : content;
@@ -194,8 +202,14 @@
                 const cell=el('td',column.hide_in_pdf?'form-hide-in-print':'');rowBox.append(cell);renderFields(cell,[column],item,readOnly,fieldStage,[...parents,box],context);
               }
             } else {
-              rowBox.append(el('legend','',translate('Group')+' '+(items.indexOf(item)+1)));
-              renderFields(rowBox, children, item, readOnly,fieldStage,[...parents,box]);
+              rowBox.append(el('legend','',rowLabel(items.indexOf(item)+1)));
+              const signer = personRows ? {controls:[], lock() {
+                const signed = children.some(child=>child.type==='manual_signature' &&
+                  (isPNG(item[child.id]) || item[child.id]?.at || item[child.id]?.image));
+                for (const control of this.controls) control.disabled = Boolean(signed);
+              }} : null;
+              renderFields(rowBox, children, item, readOnly,fieldStage,[...parents,box],null,signer);
+              signer?.lock();
             }
             if (canResize) {
               const remove = () => {
@@ -203,11 +217,15 @@
                   conditions.delete(node);checks.delete(node);formulaOutputs.delete(node);listProperties.delete(node);
                 }
                 items.splice(items.indexOf(item),1); rowBox.remove();
-                if (!table) [...rows.children].forEach((node,index)=>{node.querySelector('legend').textContent=translate('Group')+' '+(index+1);});
+                if (!table) [...rows.children].forEach((node,index)=>{node.querySelector('legend').textContent=rowLabel(index+1);});
                 set(items);
               };
               const del = window.ClassifireFormControls.iconButton('Remove','remove',remove);
-              if(table){const cell=el('td');cell.append(del);rowBox.append(cell);}else rowBox.append(del);
+              if(table){const cell=el('td');cell.append(del);rowBox.append(cell);}
+              else {
+                const actions = personRows && rowBox.querySelector('[data-field-type="manual_signature"] .form-drawing-actions');
+                (actions || rowBox).append(del);
+              }
             }
           }
           for (const item of items) row(item);
@@ -255,13 +273,16 @@
           control.step=60*(Number(field.interval) || 15);
           body.append(bind(control,'input',node=>node.value));
         } else if (['date','datetime','expiry_date'].includes(type)) {
-          const {control,zone}=dated(type === 'datetime',field.timezone,answer,set);
+          const {control,zone,fillAt}=dated(type === 'datetime',field.timezone,answer,set);
+          if (signerRow && !signerRow.date && (type === 'date' || type === 'datetime')) {
+            signerRow.controls.push(control);signerRow.date = fillAt;
+          }
           body.append(describe(control));if(zone)body.append(zone);
         } else if (type === 'yes_no') {
           const choices=(field.options?.length ? field.options : ['Yes','No','N/A']).map(name=>[name,translate(name)]);
           const control=select(choices,answer?.answer ?? answer);
           const note=el('textarea');note.value=answer?.explanation || '';
-          const reason=labelled('Explanation',note);
+          const reason=labelled('Comment',note);
           const needsNote=()=>field.explanation_on?.includes(control.value);
           reason.hidden=!needsNote(); body.append(describe(control),reason);
           control.addEventListener('change',()=>{
@@ -270,7 +291,7 @@
             set(needsNote()?{answer:control.value,explanation:note.value}:control.value);
           });
           note.addEventListener('input',()=>set({answer:control.value,explanation:note.value}));
-          verify=()=>needsNote()&&!note.value.trim()?'Enter an explanation.':field.required&&!control.value?'Complete this required field.':'';
+          verify=()=>needsNote()&&!note.value.trim()?'Enter a comment.':field.required&&!control.value?'Complete this required field.':'';
         } else if (['choice','multichoice'].includes(type) && field.display === 'inline') {
           const multiple=type==='multichoice', group=el('div','form-inline-choices'), controls=[];
           group.setAttribute('role',multiple?'group':'radiogroup');group.setAttribute('aria-labelledby',title.id);
@@ -292,6 +313,10 @@
             if(answer?.entry_id && !choices.some(([id])=>id===answer.entry_id)) choices.push([answer.entry_id,answer.entry_id]);
           } else choices=(field.options || []).map(name=>[name,name]);
           const control=select(choices,reference ? answer?.entry_id : answer,many);
+          if (signerRow && !signerRow.person && type === 'person') {
+            signerRow.controls.push(control);
+            signerRow.person = memberId => {control.value = memberId;set(many ? [memberId] : memberId);};
+          }
           body.append(bind(control,'change',node=>many ? [...node.selectedOptions].map(option=>option.value) : reference ? (node.value ? {entry_id:node.value} : null) : node.value));
         } else if (['attachment','photo'].includes(type)) {
           const control = input('file'); control.multiple = true;
@@ -326,6 +351,7 @@
           readonlyAnswer(body,field,answer);
         } else if (type === 'manual_signature' || type === 'sketch') {
           const manual = type==='manual_signature';
+          const signerInputs = {};
           function updateSigner(key,text) {
             const next={...value(),[key]:text};
             set(Object.values(next).some(part=>!empty(part)) ? next : null);
@@ -333,6 +359,8 @@
           if (manual) {
             for(const [key,label] of [['name','Full name'],['company','Company']]) {
               const control=input('text',answer?.[key]);control.maxLength=200;
+              signerInputs[key] = control;
+              signerRow?.controls.push(control);
               body.append(labelled(label,control));control.addEventListener('input',()=>updateSigner(key,control.value));
             }
             verify=()=>{
@@ -351,13 +379,30 @@
               if (type === 'sketch') { const data=await sketch(value()); if (data) set(data); }
               else {
                 const signed=await window.ClassifireSignaturePad.choose(null,false,'document');
-                if (signed) updateSigner('image',window.ClassifirePersonalSignature.png(signed));
+                if (signed && root.contains(box)) {
+                  const image = window.ClassifirePersonalSignature.png(signed);
+                  if (signerRow) {
+                    const profile = await options.signerProfile();
+                    if (profile.id !== member.id) throw Error('Your staff profile changed. Reopen the form.');
+                    if (!root.isConnected || !root.contains(box)) return;
+                    signerInputs.name.value = profile.name;
+                    signerInputs.company.value = profile.company;
+                    signerRow.person?.(profile.id);
+                    signerRow.date?.(profile.at);
+                    set({name:profile.name, company:profile.company, image});
+                    signerRow.lock();
+                  } else updateSigner('image',image);
+                }
               }
               refresh();
             } catch(err) {errorText(error,err.message);} finally {pending--; draw.disabled=false;}
           };
-          const draw = manual ? window.ClassifireFormControls.iconButton('Draw signature','signature',capture) : button('Draw sketch',capture);
-          body.append(draw,button('Clear',()=>{if(manual)updateSigner('image','');else set(null);refresh();}));
+          const draw = window.ClassifireFormControls.iconButton(manual?'Draw signature':'Draw sketch',manual?'signature':'sketch',capture);
+          const actions = el('div','form-drawing-actions');
+          actions.append(draw,window.ClassifireFormControls.iconButton('Clear','clear',()=>{
+            if(manual)updateSigner('image','');else set(null);refresh();signerRow?.lock();
+          }));
+          body.append(actions);
         } else if (type === 'location') {
           compound(); const controls = {};
           for (const [key,limit] of [['latitude',90],['longitude',180]]) {
@@ -424,8 +469,13 @@
           verify=()=>field.required && !value()?'Confirm this field.':'';
         } else if (type === 'counter') {
           body.append(el('p','form-field-answer',answer ?? translate('Assigned when saved.')));verify=()=>'';
+        } else if (type === 'textarea') {
+          const rich = window.ClassifireFormRichText.editor(field.label, answer, set);
+          const area = describe(rich.querySelector('[contenteditable]'));
+          if (field.placeholder) area.setAttribute('aria-placeholder',field.placeholder);
+          body.append(rich);
         } else {
-          const control=type==='textarea' ? el('textarea') : input(type==='number'?'number':'text');
+          const control=input(type==='number'?'number':'text');
           control.value=answer ?? '';if(type==='number'){control.step='any';if(field.min!=null)control.min=field.min;if(field.max!=null)control.max=field.max;}
           if(field.placeholder)control.placeholder=field.placeholder;
           body.append(bind(control,'input',node=>type==='number' && node.value!=='' ? node.valueAsNumber : node.value));
@@ -434,12 +484,13 @@
           if (!root.contains(box) || !visible()) return null;
           const invalid=type==='table' || type==='group' ? null : body.querySelector('input:invalid,select:invalid,textarea:invalid');
           const problem=invalid ? invalid.validationMessage : verify();
-          errorText(error,problem);return problem ? (invalid || body.querySelector('input,select,textarea,button') || title) : null;
+          errorText(error,problem);return problem ? (invalid || body.querySelector('[contenteditable]') || body.querySelector('input,select,textarea,button') || title) : null;
         });
       }
     }
     function dated(withTime, includeZone, previous, write) {
-      const raw=String(previous || ''), offset=withTime ? raw.match(/(Z|[+-]\d\d:\d\d)$/)?.[1] : '';
+      const raw=String(previous || '');
+      let offset=withTime ? raw.match(/(Z|[+-]\d\d:\d\d)$/)?.[1] : '';
       const control=input(withTime?'datetime-local':'date',offset ? raw.slice(0,-offset.length) : raw);
       const zone=withTime && (includeZone || offset) ? el('span','form-field-help') : null;
       function zoneSuffix() {
@@ -459,10 +510,19 @@
         showZone();
         write(control.value ? control.value+zoneSuffix() : '');
       });
-      return {control,zone};
+      function fillAt(timestamp) {
+        const instant = new Date(timestamp);
+        const local = new Date(instant.getTime() - instant.getTimezoneOffset() * 60000).toISOString();
+        control.value = local.slice(0,withTime ? 16 : 10);
+        offset = '';
+        showZone();
+        write(control.value + zoneSuffix());
+      }
+      return {control,zone,fillAt};
     }
     function readonlyAnswer(body, field, answer) {
       if(empty(answer)){body.append(el('p','form-field-answer','—'));return;}
+      if(field.type==='textarea'){body.append(window.ClassifireFormRichText.content(answer));return;}
       if(['attachment','photo'].includes(field.type)){const list=el('ul','form-field-files');if(field.type==='photo')body.parentElement.dataset.photoSize=field.photo_size || 'medium';body.append(list);fileList(list,field,answer);return;}
       if(['manual_signature','sketch'].includes(field.type)&&isPNG(answer)){const image=el('img','form-field-image');image.src=answer;image.alt=field.label;body.append(image);return;}
       if(field.type==='manual_signature'&&isPNG(answer.image)){const image=el('img','form-field-image');image.src=answer.image;image.alt=field.label;body.append(image);}

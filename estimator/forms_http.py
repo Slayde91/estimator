@@ -27,6 +27,7 @@ class FormsHTTP:
             'entry': (('id',), lambda q: self.store.entry(user,q.get('id'))),
             'entry/pdf': (('id','version','theme'), lambda q: self.store.entry(user,q.get('id'))),
             'staff': ((), lambda _: {'staff': [{'id':p['id'],'name':p['name']} for p in self.store.staff()]}),
+            'signer': ((), lambda _: self.store.signer_details(user)),
         }
         writes = {
             'template/save': self.store.save_template,

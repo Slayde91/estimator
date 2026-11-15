@@ -1294,14 +1294,19 @@
     if (lockedNumber) fields.details.project_no = lockedNumber;
     const actions = node("div", "commercial-editor-actions");
     const owner = state.editor;
-    const refresh = button("Refresh Records", async () => {
+    const refresh = button("", async () => {
       if (owner !== state.editor || state.busy || refresh.disabled) return;
       refresh.disabled = true;
       try { await owner.refreshRecords(); }
       catch (error) { if (owner === state.editor) message(error.message,true); }
       finally { if (owner === state.editor && !state.busy) refresh.disabled = false; }
     });
-    window.CeasefireI18n?.text(refresh,"Refresh Records");
+    refresh.classList.add("icon-only");
+    refresh.append(window.document.querySelector("#reset-pricing .pricing-reset-symbol").cloneNode(true));
+    for (const attribute of ["aria-label", "title"]) {
+      refresh.setAttribute(attribute, "Refresh Records");
+      window.CeasefireI18n?.attr(refresh, attribute, "Refresh Records");
+    }
     actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
     if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
     if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder(), true));
@@ -3279,6 +3284,9 @@
       if (!captured || JSON.stringify(state.model?.snapshot) === JSON.stringify(captured)) state.changed = false;
     }
   };
+  window.addEventListener("classifire:member-rate-changed", () => {
+    if (state.kind === "work_order") void state.editor?.panels?.refreshCosts?.();
+  });
   window.addEventListener("beforeunload", event => {
     if (rateDefaults.saving || rateDefaults.pending.size) { event.preventDefault(); event.returnValue = ""; }
   });

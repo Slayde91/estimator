@@ -469,15 +469,17 @@ class SchedulerStore:
         return normalize_settings(json.loads(db.execute('SELECT data FROM scheduler_settings WHERE id=1').fetchone()[0]))
 
     def work_order_labour(self, identities):
-        """Cost completed entries using their saved rates, with other work counting towards thresholds."""
+        """Cost completed work at current member rates while retaining the entries' payroll snapshots."""
         if not identities:
             return {'amount': '0.00'}
         placeholders = ','.join('?' for _ in identities)
         with self.connect() as db:
             db.execute('BEGIN')
             settings = self._read_settings(db)
-            matched = db.execute(f"""SELECT id,member_id,start,end,json_extract(data,'$.base_rate') AS rate FROM scheduler_records
-                WHERE kind='entry' AND end IS NOT NULL AND json_extract(data,'$.work_order.id') IN ({placeholders})""", identities)
+            matched = db.execute(f"""SELECT r.id,r.member_id,r.start,r.end,
+                    coalesce(m.base_rate,json_extract(r.data,'$.base_rate')) AS rate
+                FROM scheduler_records r LEFT JOIN scheduler_members m ON m.id=r.member_id
+                WHERE r.kind='entry' AND r.end IS NOT NULL AND json_extract(r.data,'$.work_order.id') IN ({placeholders})""", identities)
             by_member = defaultdict(list)
             zero_rates = False
             for row in matched:
@@ -499,12 +501,16 @@ class SchedulerStore:
                 end = _timestamp(max(row['end'] for row in rows)) + margin
                 context = db.execute("""SELECT data FROM scheduler_records WHERE kind='entry' AND member_id=?
                     AND end IS NOT NULL AND end>? AND start<? ORDER BY start,id""", (member, _iso(start), _iso(end)))
-                payroll = calculate_payroll([json.loads(row[0]) for row in context], settings,
-                                            entry_ids={row['id'] for row in rows})
+                rates = {row['id']: row['rate'] for row in rows}
+                entries = [json.loads(row['data']) for row in context]
+                for entry in entries:
+                    if entry['id'] in rates:
+                        entry['base_rate'] = rates[entry['id']]
+                payroll = calculate_payroll(entries, settings, entry_ids=set(rates))
                 total += sum((Decimal(row['gross']) for row in payroll['rows']), Decimal(0))
         result = {'amount': str(total)}
         if zero_rates:
-            result['message'] = 'Some linked time entries have a recorded hourly rate of $0.00.'
+            result['message'] = 'Some linked time entries have an hourly rate of $0.00.'
         return result
 
     @staticmethod

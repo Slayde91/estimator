@@ -1,8 +1,8 @@
 """Install reviewed Allproof table rows and their original diagram crops in one transaction.
 
-The manuals, extracted rows and drawings stay in the external library bundle.
-Re-running a bundle verifies existing records. A modified or deleted record
-requires reconciliation before a different version can be installed.
+The original reviewed bundle supplies the manuals, the first 686 configurations
+and their drawings. Eight user-corrected rows and the additional electrical
+drawing ship with this importer. Re-running verifies existing records.
 """
 import argparse
 import base64
@@ -21,6 +21,7 @@ from estimator.storage import Store
 from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE, LEGACY_ALLPROOF_TYPE
 from estimator.library_opening_types import OPENING_TYPES
 from estimator.technical_library_edits import FIELD_FACETS, TechnicalEdits, uploaded_diagram_id
+from scripts.allproof_confirmed_rows import confirmed_rows
 
 MANUALS = {
     'electrical': ('electrical.pdf', '0b3562ef2123d1fce6d531adefcbdce5f7fe9bb73c3ca8bc0f85e0aba6ba1b50'),
@@ -31,6 +32,10 @@ REVIEWED_BUNDLES = {
     'electrical': '14708b2720a9ef97aa01ebe4ee9ee88853ef5247f425b640562469fcf29e14b0',
     'plumbing': '37aeb01e8129b679c2de5528214f21b961c0ae6d1949ca4526032c8dce913480',
 }
+# Electrical manual PDF p. 12, bottom left. Top-left crop in PDF points:
+# (34, 559, 287, 787), rendered at 2.5 pixels per point.
+ELECTRICAL_DRAWINGS = Path(__file__).resolve().parent / 'allproof_reviewed'
+DOG_SCREW_DRAWING_SHA256 = '6f533c057df4c4cbc16a4d87419e96e5f2be01c930bcddd59115b8f80cfe6909'
 
 
 @lru_cache(maxsize=256)
@@ -133,11 +138,20 @@ def install(bundle, library, database, apply):
             digest.update(name.encode('utf-8') + b'\0' + hashlib.sha256(path.read_bytes()).digest())
         if digest.hexdigest() != REVIEWED_BUNDLES[family]:
             raise ValueError(f'{family} entries or diagrams differ from the reviewed bundle')
-        totals[family] = len(rows)
         if not rows:
             raise ValueError(f'The {family} review contains no systems')
-        for row in rows:
-            record, blobs = build_record(row, family, directory, labels | FIELD_FACETS.keys())
+        additions = confirmed_rows(family, rows[0]['source_url'])
+        addition_directory = directory
+        if family == 'electrical':
+            addition_directory = ELECTRICAL_DRAWINGS
+            diagram = addition_directory / 'diagrams/p12-dog.png'
+            if hashlib.sha256(diagram.read_bytes()).hexdigest() != DOG_SCREW_DRAWING_SHA256:
+                raise ValueError('Electrical dog screw diagram differs from the reviewed crop')
+        row_sources = [(row, directory) for row in rows]
+        row_sources.extend((row, addition_directory) for row in additions)
+        totals[family] = len(row_sources)
+        for row, diagram_directory in row_sources:
+            record, blobs = build_record(row, family, diagram_directory, labels | FIELD_FACETS.keys())
             if record['id'] in keys:
                 raise ValueError(f'Duplicate row ID at {record["subtitle"]}')
             keys.add(record['id'])

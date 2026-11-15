@@ -301,7 +301,7 @@ let currentScope = 'defect_reports';
     const barrier = await create('barrier', { 'Barrier type': 'Core hole', Substrate: 'Concrete/masonry wall', 'Substrate orientation': 'Vertical', ...(scope === 'service_plans' ? { Location: 'North plant room', FRL: '-/90/90' } : {}) }, () => scope === 'service_plans' ? page.getByRole('button', { name: 'Add substrate', exact: true }).click() : clickInspectorAdd(details(), 'Add barrier in Item Details'));
     if (defect) assert.equal(entity(scope, barrier).defect_id, defect, 'Add Barrier keeps the inspected Defect parent');
     await compareAddServiceStyle(scope);
-    const service = await create('service', { Category: 'Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => clickInspectorAdd(details(), 'Add service in Item Details'));
+    const service = await create('service', { Category: 'HVAC & Mechanical', 'Explicit service quantity': 2, 'Service Size (mm)': '100' }, () => clickInspectorAdd(details(), 'Add service in Item Details'));
     if (defect && !layoutReview) await reviewDefectSource(defect, barrier, service);
     await selectBarrier(barrier);
     if (layoutReview) {

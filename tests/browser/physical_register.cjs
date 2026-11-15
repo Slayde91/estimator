@@ -68,7 +68,7 @@ async function restore(id,kind){await select(id);await page.getByRole('button',{
  await startDefect(page);await chooseNewDefect(page);await expect(page.getByRole('heading',{name:'Add Defect',exact:true})).toBeVisible();await expect(page.getByRole('dialog').getByLabel('Defect label',{exact:true})).toHaveCount(0);await choices(page.getByRole('dialog').getByLabel('FRL',{exact:true}),frls);
  const created=await response(()=>dialog('Add Defect',{'Defect Ref.':'REFERENCE-1','FRL':'-/120/120'},'Preview new draft'),'/physical/preview');await apply('Create one draft defect?');const defect=created.changed_ids[0];assert.equal(record(defect).fields.label,'REFERENCE-1');await choices(inspector().getByLabel('FRL',{exact:true}),frls);await choices(page.getByLabel('FRL for REFERENCE-1',{exact:true}),frls);
  const barrier=await create('barrier',{'Barrier type':'Core hole'},'Add barrier to D-0001');
- const service=await create('service',{'Category':'Mechanical','Service type':definition.row_fields.find(field=>field.column==='K').options[0],'Explicit service quantity':2,'Service Size (mm)':'100 x 75'},'Add service to B-0001');
+ const service=await create('service',{'Category':'HVAC & Mechanical','Service type':definition.row_fields.find(field=>field.column==='K').options[0],'Explicit service quantity':2,'Service Size (mm)':'100 x 75'},'Add service to B-0001');
  // Row deletion uses the same server preview, recoverable tombstones and Undo
  // as existing physical edits; cancelling the dialog never submits apply.
  await expect(register.locator('table[aria-label="Draft penetration hierarchy register"] thead th').last()).toHaveText('Delete');

@@ -163,9 +163,9 @@ async function physicalThemeLabels(kind) {
   const barrier = await response(() => dialog('Create draft barrier', { Substrate: 'Concrete/masonry wall' }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft barrier?', {}, 'Apply draft change'), '/physical/apply');
   await clickInspectorAdd(details(), 'Add service in Item Details');
-  const service = await response(() => dialog('Create draft service', { Category: 'Mechanical', 'Service type': 'Copper Pipes', 'Explicit service quantity': 2 }, 'Preview new draft'), '/physical/preview');
+  const service = await response(() => dialog('Create draft service', { Category: 'HVAC & Mechanical', 'Service type': 'Pair Coils', 'Explicit service quantity': 2 }, 'Preview new draft'), '/physical/preview');
   await response(() => dialog('Create one draft service?', {}, 'Apply draft change'), '/physical/apply');
-  await snapshot(); for (const value of ['B-0001 · Concrete/masonry wall', 'S-0001 · 2 × · Mechanical · Copper Pipes']) await expect(callout()).toContainText(value);
+  await snapshot(); for (const value of ['B-0001 · Concrete/masonry wall', 'S-0001 · 2 × · HVAC & Mechanical · Pair Coils']) await expect(callout()).toContainText(value);
   assert.equal(current.physical.barriers.find(value => value.id === barrier.changed_ids[0]).defect_id, id);
   assert.equal(current.physical.services.find(value => value.id === service.changed_ids[0]).barrier_id, barrier.changed_ids[0]);
   assert.equal(current.physical.services[0].quantity, 2); assert.deepEqual(current.physical.defects[0].annotation, annotationBeforeLinks);
@@ -188,7 +188,7 @@ async function physicalThemeLabels(kind) {
   await snapshot(); const copiedDefect = current.physical.defects.find(value => value.id !== id), copiedBarrier = current.physical.barriers.find(value => value.defect_id === copiedDefect.id), copiedService = current.physical.services.find(value => value.barrier_id === copiedBarrier.id);
   assert.equal(copiedDefect.display_id, 'D-0002'); assert.equal(copiedBarrier.display_id, 'B-0002'); assert.equal(copiedService.display_id, 'S-0002'); assert.equal(copiedService.quantity, 2); assert.equal(copiedDefect.copied_from.entity_id, id);
   assert.notEqual(copiedDefect.id, id); assert.notEqual(copiedBarrier.id, barrier.changed_ids[0]); assert.notEqual(copiedService.id, service.changed_ids[0]);
-  const copiedCallout = page.locator(`.takeoff-physical-callout[data-physical-id="${copiedDefect.id}"]`); await expect(copiedCallout).toContainText('S-0002 · 2 × · Mechanical · Copper Pipes');
+  const copiedCallout = page.locator(`.takeoff-physical-callout[data-physical-id="${copiedDefect.id}"]`); await expect(copiedCallout).toContainText('S-0002 · 2 × · HVAC & Mechanical · Pair Coils');
   await copiedCallout.click({ button: 'right' }); await expect(page.getByRole('menuitem', { name: 'Delete', exact: true })).toBeVisible();
   await response(() => page.getByRole('menuitem', { name: 'Delete', exact: true }).click(), '/physical/preview');
   await response(() => dialog('Delete this record and its linked barriers/services?', {}, 'Apply draft change'), '/physical/apply');

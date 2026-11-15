@@ -233,6 +233,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 download_progress.update(token, 100, 'saved')
 
         def capture_download(self, request):
+            if self._documentation_context and urlsplit(self.path).path == '/api/project/passive-fire-registers.pdf':
+                workspace, _ = self._documentation_context
+                return projects.capture_download(request, project_id=certification_projects.project_id(workspace))
             return projects.capture_download(request)
 
         def capture_reference_workbook(self, request):
@@ -567,6 +570,16 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if body:
                         raise ValidationError('Document progress does not accept extra options.')
                     self.send_payload(200, download_progress.begin())
+                elif route == '/api/project/passive-fire-registers.pdf' and self.command == 'POST':
+                    from .inspection_register_report import render_inspection_register
+                    from .project_file import project_details
+                    if set(body) - {'register', 'project_details', 'download'}:
+                        raise ValidationError('Include the register and project details only.')
+                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    payload = render_inspection_register(body.get('register'), project_details(body.get('project_details')),
+                                                         library=libraries, company=self.pdf_company_details('passive_fire_registers'))
+                    self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Registers.pdf', destination,
+                                       pdf_kind='passive_fire_registers')
                 elif route == '/api/project/passive-fire-register.pdf' and self.command == 'POST':
                     from .passive_fire_register import render_register_pdf
                     from .project_file import project_details
@@ -671,6 +684,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     options = {'options': body['options']} if 'options' in body else {}
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.save(route.rsplit('/', 1)[1], body['fields'], body['expected_version'], **options)))
+                elif route == '/api/libraries/inspection-labels' and self.command == 'POST':
+                    if set(body) != {'ids'}:
+                        raise ValidationError('Include only the Technical Library item IDs.')
+                    self.send_payload(200, libraries.inspection_labels(body['ids']))
                 elif route == '/api/libraries/penetration':
                     if self.command != 'POST':
                         self.send_payload(405, {'error': 'Method not allowed.'})

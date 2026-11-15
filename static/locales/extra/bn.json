@@ -1,4 +1,8 @@
 {
+  "Uncheck this item to complete the seven filters.": "সাতটি ফিল্টার পূরণ করতে এই আইটেমের টিক সরান।",
+  "Choose all seven filters to select a Technical Library item.": "প্রযুক্তিগত লাইব্রেরির একটি আইটেম বেছে নিতে সাতটি ফিল্টারই নির্বাচন করুন।",
+  "Passive Fire Registers": "নিষ্ক্রিয় অগ্নি সুরক্ষা রেজিস্টার",
+  "There are no completed passive fire inspections.": "নিষ্ক্রিয় অগ্নি সুরক্ষার কোনো পরিদর্শন সম্পন্ন হয়নি।",
   "Comment": "মন্তব্য",
   "Require a comment for": "যেসব উত্তরের জন্য মন্তব্য আবশ্যক",
   "Enter a comment.": "একটি মন্তব্য লিখুন।",

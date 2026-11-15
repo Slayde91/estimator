@@ -24,7 +24,7 @@ ADMIN_WRITES = frozenset((
 READ_POSTS = frozenset(('/api/calculate', '/api/calculators/calculate',
     '/api/penetration/calculate', '/api/penetration/definition', '/api/configuration/preview',
     '/api/projects/load', '/api/projects/details', '/api/projects/files',
-    '/api/project/open', '/api/project/library-drafts/prepare', '/api/certifications/workspaces'))
+    '/api/project/open', '/api/project/library-drafts/prepare', '/api/libraries/inspection-labels', '/api/certifications/workspaces'))
 EDIT_GETS = frozenset(('/api/libraries/technical/new',))
 ADMIN_READS = frozenset(('/api/certifications/defaults/legacy',))
 IDENTITY_READS = frozenset(('/api/commercial/work-order-labour','/api/record-resources','/api/record-resources/file','/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap'))
@@ -49,6 +49,7 @@ def download_route(route):
     frozen_id=r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
     if route in {'/api/quote-report','/api/pricing/export','/api/project/export',
             '/api/project/full-schedule.pdf','/api/project/full-product-summary.pdf','/api/project/passive-fire-register.pdf',
+            '/api/project/passive-fire-registers.pdf',
             '/api/technical/item.pdf','/api/technical/item.xlsx','/api/penetration/item.pdf','/api/penetration/item.xlsx',
             '/api/penetration/report.pdf','/api/penetration/register.xlsx','/api/commercial/issue','/api/commercial/saved-issue','/api/swms/issue'}:
         return True

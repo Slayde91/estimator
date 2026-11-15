@@ -1,6 +1,9 @@
 (() => {
   'use strict';
 
+  const facets = ['substrate', 'orientation', 'manufacturer', 'type', 'category', 'services', 'frl'];
+  const emptyFilters = () => Object.fromEntries(facets.map(key => [key, '']));
+
   function picker(entry, onSelect) {
     const section = document.createElement('section');
     section.className = 'card register-library-picker';
@@ -24,7 +27,7 @@
     pager.className = 'library-pagination';
     section.append(element('h2', 'Technical Library'), filters, status, results, pager);
     const limit = 20;
-    const values = {...entry.technical_filters};
+    const values = {...emptyFilters(), ...entry.technical_filters};
     let offset = 0, controller, definitions, selectedItem;
 
     function clear() {
@@ -37,18 +40,14 @@
       const tr = element('tr'), check = element('input'), preview = element('td');
       check.type = 'checkbox';
       check.checked = selected;
+      check.disabled = !selected && facets.some(key => !values[key]);
       const title = window.LibraryDetailText.displayTitle(item);
       check.setAttribute('aria-label', title);
       check.dataset.technicalItemId = item.id;
       check.addEventListener('change', () => {
         selectedItem = check.checked ? item : null;
         entry.technical_item_id = check.checked ? item.id : '';
-        entry.technical_filters = {};
-        if (check.checked) {
-          for (const key of ['substrate', 'type', 'orientation', 'manufacturer', 'category']) {
-            if (values[key]) entry.technical_filters[key] = values[key];
-          }
-        }
+        entry.technical_filters = {...values};
         onSelect();
         load().then(() => (results.querySelector('input') || filters.querySelector('select'))?.focus({preventScroll:true}));
       });
@@ -91,23 +90,39 @@
             if (request.signal.aborted) return;
             selectedItem = item;
           }
-          if (!request.signal.aborted) table([selectedItem], true);
+          if (!request.signal.aborted) {
+            table([selectedItem], true);
+            if ('services' in (entry.technical_filters || {}) && facets.some(key => !values[key])) {
+              window.CeasefireI18n.text(status, 'Uncheck this item to complete the seven filters.');
+            }
+          }
           return;
         }
         const query = new URLSearchParams(Object.entries(values).filter(([, value]) => value));
         const searching = query.size > 0;
         if (!definitions || searching) {
+          query.set('inspection', '1');
           query.set('limit', String(searching ? limit : 1));
           query.set('offset', String(offset));
           window.CeasefireI18n.text(status, 'Searching…');
           const data = await get('/api/libraries/technical?' + query, request.signal);
           if (request.signal.aborted) return;
-          definitions = data.filters;
-          window.CeasefireLibraries.renderFilterControls(filters, definitions, values, () => { offset = 0; load(); });
+          definitions = data.filters.filter(filter => facets.includes(filter.key));
+          window.CeasefireLibraries.renderFilterControls(filters, definitions, values, () => {
+            if ('technical_item_id' in entry) {
+              entry.technical_filters = {...values};
+              onSelect();
+            }
+            offset = 0;
+            load();
+          });
+          for (const control of filters.querySelectorAll('select')) control.required = true;
           if (searching) {
             if (!data.items.length) { window.CeasefireI18n.text(status, 'No matching records.'); return; }
             table(data.items);
-            window.CeasefireI18n.text(status, 'Showing {0}–{1} of {2} records', [offset + 1, offset + data.items.length, data.total]);
+            if (facets.every(key => values[key])) {
+              window.CeasefireI18n.text(status, 'Showing {0}–{1} of {2} records', [offset + 1, offset + data.items.length, data.total]);
+            } else window.CeasefireI18n.text(status, 'Choose all seven filters to select a Technical Library item.');
             if (data.total > limit) {
               const previous = button('Previous', () => { offset -= limit; load(); });
               const next = button('Next', () => { offset += limit; load(); });
@@ -118,7 +133,7 @@
             return;
           }
         }
-        window.CeasefireI18n.text(status, definitions.length ? 'Select a filter to find a Technical Library item.' : 'Library unavailable.');
+        window.CeasefireI18n.text(status, definitions.length ? 'Choose all seven filters to select a Technical Library item.' : 'Library unavailable.');
       } catch (error) {
         if (request.signal.aborted) return;
         if (selectedId) table([{id: selectedId}], true);
@@ -135,5 +150,5 @@
     load();
     return {element: section, close: () => controller?.abort()};
   }
-  window.ClassifireRegisterLibrary = {picker};
+  window.ClassifireRegisterLibrary = {picker, emptyFilters};
 })();

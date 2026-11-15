@@ -48,7 +48,7 @@ from .technical_variants import (REVIEW_KEY as VARIANT_REVIEW_KEY,
 from .technical_variant_presentation import build_variant_displays, variant_display
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
-INSPECTION_FILTERS = ('substrate', 'type', 'orientation', 'manufacturer', 'category')
+INSPECTION_FILTERS = ('substrate', 'type', 'orientation', 'manufacturer', 'category', 'services', 'frl')
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
 # The BOSS matrix leaves the reviewed index within 3 KiB of the old 64 MiB limit.
 # Keep a bounded file size and the existing record/field/asset limits.
@@ -570,6 +570,9 @@ class ReferenceLibrary:
                 raise ReferenceNotFound()
             data = self._load()
             filter_keys = {entry['key'] for entry in data['_filters'][kind]} if data else set()
+            inspection = query.pop('inspection', '') if kind == 'technical' else ''
+            if inspection not in ('', '1'):
+                raise ValidationError('Invalid inspection filter.')
             if set(query) - {'search', 'offset', 'limit', *({'technical_reference'} if kind == 'penetration' else set())} - filter_keys:
                 raise ValidationError('Unknown library search option.')
             reference = query.get('technical_reference', 'any')
@@ -589,7 +592,8 @@ class ReferenceLibrary:
                 chosen['substrate'] = canonical_substrate(chosen['substrate'])
             if kind == 'technical' and chosen.get('services') == 'Junction Box':
                 chosen['services'] = 'Conduits'
-            browse_service = chosen.pop('services', None) if kind == 'technical' else None
+            # Browsing may cross-list related products. An inspection requires the recorded service.
+            browse_service = chosen.pop('services', None) if kind == 'technical' and not inspection else None
             tokens = search.split()
             shown = []
             total = 0
@@ -644,6 +648,29 @@ class ReferenceLibrary:
         with self._lock:
             return library_batch(self, contexts, offset=offset, limit=limit,
                                  report_offset=report_offset, expected_revision=expected_revision, excel=excel)
+
+    def inspection_labels(self, item_ids):
+        """Resolve unambiguous display values for inspections saved before all seven choices were recorded."""
+        if not isinstance(item_ids, list) or len(item_ids) > 200:
+            raise ValidationError('Include up to 200 Technical Library item IDs.')
+        keys = set(map(identifier, item_ids))
+        with self._lock:
+            data = self._load()
+            result = {}
+            for key in keys:
+                if not data or key not in data['_technical_public_records']:
+                    continue
+                facets = data['_technical_discovery'][key]
+                values = {name: facets[name][0] for name in ('substrate', 'category', 'services', 'frl')
+                          if len(facets.get(name, ())) == 1}
+                fields = data['_technical_public_records'][key].get('fields', [])
+                for facet, label in (('services', 'Service'), ('frl', 'FRL')):
+                    source = {field['value'].strip() for field in fields if field['label'] == label and field.get('value')}
+                    if facet not in values and len(source) == 1:
+                        value = source.pop()
+                        values[facet] = present_frl_text(value, rating=True) if facet == 'frl' else value
+                result[key] = values
+            return result
 
     def detail(self, kind, key):
         with self._lock:

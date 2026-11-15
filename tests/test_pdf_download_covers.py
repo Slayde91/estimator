@@ -55,8 +55,8 @@ class PdfDownloadCoverTests(unittest.TestCase):
 
     def test_catalog_is_finite_ordered_persistent_and_defaults_empty(self):
         items=self.covers.list()['items']
-        self.assertEqual(len(items),19)
-        self.assertIn('passive_fire_register', {row['kind'] for row in items})
+        self.assertEqual(len(items),20)
+        self.assertTrue({'passive_fire_register', 'passive_fire_registers'} <= {row['kind'] for row in items})
         self.assertEqual([(row['kind'],row['label']) for row in items],list(SETTINGS_KINDS))
         self.assertNotIn('pdf_tools', {row['kind'] for row in items})
         self.assertIsNone(self.covers.get('pdf_tools')['cover_pdf'])

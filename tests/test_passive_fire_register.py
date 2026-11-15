@@ -116,12 +116,12 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 self.assertGreaterEqual(len(pages), 2)
                 self.assertEqual(content.count('PN-TEST'), 1)
                 self.assertNotIn('Project details', content)
-                self.assertIn('Entry 1 of 2', pages[0].extract_text())
+                self.assertNotRegex(content, r'Entry \d+ of \d+')
                 ids = '001 / 001-2' if access == 'Yes' else '001'
                 lines = ' '.join(content.split())
                 self.assertIn(f'Penetration ID {ids} ', lines)
                 self.assertIn('Name Inspector <A> & Brown Date 15/11/2026 Signature', lines)
-                for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Entry 2 of 2', 'Basement west',
+                for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Basement west',
                               'Side 1 - 001','Side 1 - 002',
                               'SIDE-A', 'Before', 'During', 'After', 'Label', included,
                               entry['report'], entry['products'][0]):
@@ -172,6 +172,21 @@ class PassiveFireRegisterTests(unittest.TestCase):
             stale = {**entry, 'technical_filters': {'orientation': 'Horizontal'}}
             with self.assertRaisesRegex(ValidationError, 'no longer matches'):
                 render_register_pdf({'entries': [stale]}, {}, library=library, company=DEFAULTS)
+            choices = {**entry['technical_filters'], 'services': 'Copper Pipes', 'frl': '-/90/90'}
+            old_unsigned = normalize_register({'entries': [{**entry, 'signature': None}]})
+            self.assertEqual(old_unsigned['entries'][0]['technical_filters'],
+                             {**entry['technical_filters'], 'services': '', 'frl': ''})
+            for facet in choices:
+                with self.subTest(missing=facet):
+                    partial = {**entry, 'technical_filters': {**choices, facet: ''}}
+                    saved = normalize_register({'entries': [partial]})
+                    self.assertEqual(saved['entries'][0]['technical_filters'][facet], '')
+                    with self.assertRaisesRegex(ValidationError, 'Complete register entry'):
+                        render_register_pdf(saved, {}, library=library, company=DEFAULTS)
+            for facet in ('services', 'frl'):
+                with self.subTest(stale=facet), self.assertRaisesRegex(ValidationError, 'no longer matches'):
+                    render_register_pdf({'entries': [{**entry, 'technical_filters': {**choices, facet: 'Unrelated'}}]},
+                                        {}, library=library, company=DEFAULTS)
             older = {k: value for k, value in entry.items() if k != 'technical_filters'}
             old_pdf = PdfReader(BytesIO(render_register_pdf({'entries': [older]}, {}, library=library, company=DEFAULTS)))
             old_text = ' '.join(' '.join(page.extract_text().split()) for page in old_pdf.pages)

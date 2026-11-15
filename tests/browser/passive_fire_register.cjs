@@ -35,6 +35,26 @@ async function register() {
   await expect(page.locator('#view-passive-fire-register')).toBeVisible();
   await idle();
 }
+async function downloadRegister(expectFile) {
+  await openProjectSection(page,'documentation');
+  const row = page.locator('tr[data-document-kind="passive_fire_registers.pdf"]');
+  await row.waitFor({state:'attached'});
+  if (!await row.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
+  assert.equal(await row.locator('xpath=preceding-sibling::tr[1]').getAttribute('data-document-kind'),'passive_fire_register.pdf');
+  const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-registers.pdf');
+  await row.getByRole('button',{name:'Download Passive Fire Registers'}).click();
+  const result = await response;
+  if (expectFile) {
+    assert.equal(result.status(),200,await result.text());
+    const receipt = await result.json();
+    assert.equal(receipt.documentation.item.kind,'passive_fire_registers.pdf');
+    assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
+  } else {
+    assert.equal(result.status(),400);
+    await expect(page.locator('#documentation-status')).toContainText('There are no completed passive fire inspections.');
+  }
+  await idle();
+}
 async function run() {
   const info = await ready;
   assert.notEqual(info.port,8765);
@@ -69,6 +89,14 @@ async function run() {
   await expect(toolbar.getByRole('button',{name:'Add entry'})).toHaveClass(/add-icon-action/);
   await expect(toolbar.getByRole('button',{name:'Remove entry'}).locator('.trash-artwork')).toHaveCount(1);
   await expect(toolbar.getByRole('button',{name:'Download PDF'}).locator('.download-format')).toHaveText('PDF');
+  for (const width of [1915, 1160, 390]) {
+    await page.setViewportSize({width, height:884});
+    const buttons = await toolbar.locator('button').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
+    assert.ok(buttons.every(box => box.width === 42 && box.height === 42 && box.y === buttons[0].y));
+    const icon = await toolbar.locator('.download-format-icon').boundingBox(), pdf = buttons[3];
+    assert.ok(icon.x > pdf.x && icon.x + icon.width < pdf.right && icon.y > pdf.top && icon.y + icon.height < pdf.bottom);
+  }
+  await page.setViewportSize({width:1280,height:900});
   await toolbar.getByRole('button',{name:'Back',exact:true}).click();
   await expect(page.locator('#view-documentation')).toBeVisible();
   await register();
@@ -76,23 +104,27 @@ async function run() {
   const picker = form.locator('.register-library-picker');
   const library = await page.request.get(new URL('/api/libraries/technical?limit=1', page.url()).href);
   const {filters} = await library.json();
-  await expect(picker.locator('select')).toHaveCount(filters.length);
-  for (const filter of filters) {
+  const labels = await page.request.post(new URL('/api/libraries/inspection-labels', page.url()).href,
+    {data:{ids:['report-a-v1','missing-item']}});
+  assert.equal(labels.status(), 200);
+  assert.deepEqual(await labels.json(), {'report-a-v1':{category:'Plumbing & Hydraulic', substrate:'Concrete/masonry wall', services:'Copper pipe'}});
+  await expect(picker.locator('select:required')).toHaveCount(7);
+  await expect(picker.locator('[data-library-filter="report"]')).toHaveCount(0);
+  for (const filter of filters.filter(f => f.key !== 'report')) {
     const actual = await picker.locator('[data-library-filter="' + filter.key + '"] option').evaluateAll(options => options.map(o => o.value));
     assert.deepEqual(actual, ['', ...filter.options.map(o => o.value)]);
   }
-  const report = picker.locator('[data-library-filter="report"]');
-  await report.selectOption('Sample report');
   const chosen = picker.locator('[data-technical-item-id="report-a-v1"]');
-  await expect(picker.getByRole('checkbox')).toHaveCount(2);
+  const choices = {substrate:'Concrete/masonry wall', orientation:'Vertical', manufacturer:'Synthetic manufacturer',
+    type:'Core hole', category:'Plumbing & Hydraulic', services:'Copper Pipes', frl:'-/90/90'};
+  for (const [key, value] of Object.entries(choices)) {
+    await picker.locator('[data-library-filter="' + key + '"]').selectOption(value);
+    if (key !== 'frl') await expect(chosen).toBeDisabled();
+  }
   await chosen.check();
-  await expect(picker.getByRole('checkbox')).toHaveCount(1);
   await expect(picker.getByRole('img')).toHaveJSProperty('naturalWidth', 240);
   await chosen.uncheck();
-  await expect(picker.getByRole('checkbox')).toHaveCount(2);
-  await picker.locator('[data-library-filter="manufacturer"]').selectOption('Synthetic manufacturer');
-  await picker.locator('[data-library-filter="type"]').selectOption('Core hole');
-  await picker.locator('[data-library-filter="category"]').selectOption('Plumbing & Hydraulic');
+  await expect(picker.locator('select:required:visible')).toHaveCount(7);
   await chosen.check();
   await expect(form.getByLabel('ID Number')).toHaveValue('001');
   await expect(form.getByLabel('ID Number')).toHaveJSProperty('readOnly', true);
@@ -102,12 +134,15 @@ async function run() {
   await idle();
   const entry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
   assert.equal(entry.location,'North wall, Level 2');
-  assert.deepEqual(entry.technical_filters,{manufacturer:'Synthetic manufacturer',type:'Core hole',category:'Plumbing & Hydraulic'});
+  assert.deepEqual(entry.technical_filters, choices);
+  const label = 'North wall, Level 2-Concrete/masonry wall-Plumbing & Hydraulic-Copper Pipes--/90/90';
+  await expect(toolbar.locator('option:checked')).toHaveText('001: ' + label);
   await require('./register_plan_location.cjs').pinDrawing(page, register, info.directory);
   const access = form.getByLabel('Is the other side accessible?');
   await access.selectOption('No');
   await expect(form.getByLabel('Comments')).toBeVisible();
   await access.selectOption('Yes');
+  await expect(toolbar.locator('option:checked')).toHaveText('001 / 001-2: ' + label);
   await expect(form.getByRole('heading',{name:'Side 2'})).toBeVisible();
   await expect(form.getByLabel('ID Number').nth(1)).toHaveValue('001-2');
   await expect(form.getByLabel('ID Number').nth(1)).toHaveJSProperty('readOnly', true);
@@ -177,10 +212,12 @@ async function run() {
   assert.equal(receipt.documentation.item.kind,'passive_fire_register.pdf');
   assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
   await idle();
+  await downloadRegister(true);
+  await register();
   const savedFinal = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
   await page.locator('#save-current-project').click();
   assert.equal((await savedFinal).status(),200);
-  assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,1);
+  assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,2);
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].signature_details,
     {member_id:await page.evaluate(() => window.ClassifireAccess.user.id),name:'Inspection signer',date:'2026-01-02'});
   const pins = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].plan_pins;
@@ -245,6 +282,7 @@ async function run() {
   await page.screenshot({path:path.join(output,'register-desktop.png')});
   await form.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('003');
+  await downloadRegister(false);
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,pdf:receipt.path,project:info.project},null,2));
   console.log('PASS: portable draft, conditional evidence, signed PDF revision and project isolation. ' + output);

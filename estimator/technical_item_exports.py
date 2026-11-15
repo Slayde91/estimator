@@ -82,12 +82,14 @@ def prepare_technical_item(body, *, library, include_diagrams=True, inspection_f
     inspection_rows = set()
     if inspection_filters is not None:
         for facet in INSPECTION_FILTERS:
-            label = facet.capitalize()
+            label = {'services': 'Service', 'frl': 'FRL'}.get(facet, facet.capitalize())
             choices = record['inspection_options'][facet]
             selected = inspection_filters.get(facet)
             if selected and selected not in choices:
                 raise ValidationError(f'The selected {label} no longer matches this Technical Library item. Select the item again before downloading.')
-            source_values = [f['value'] for f in record.get('fields', []) if f['label'].casefold() == facet and f.get('value')]
+            source_values = [f['value'] for f in record.get('fields', []) if f['label'].casefold() == label.casefold() and f.get('value')]
+            if facet in ('services', 'frl') and (source_values or len(choices) != 1):
+                continue  # Keep full source descriptions; only fill genuinely missing, unambiguous values.
             if selected:
                 value = selected
             elif len(choices) == 1:
@@ -287,11 +289,12 @@ def technical_pdf_rows(report, snapshot):
         yield label, cell
 
 
-def append_technical_tables(report, tables, content, *, row_header_color=None):
+def append_technical_tables(report, tables, content, *, row_header_color=None, outline_color=None):
     def append_table(columns, records, widths):
         cells = [[report.p(value, 'head' if index == 0 and row_header_color is not None else 'cell')
                   for index, value in enumerate(record)] for record in records]
-        report.story.append(report.table(columns, cells, widths, compact=True, row_header_color=row_header_color))
+        report.story.append(report.table(columns, cells, widths, compact=True,
+                                         row_header_color=row_header_color, outline_color=outline_color))
 
     for table in tables:
         report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))

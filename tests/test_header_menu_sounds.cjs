@@ -101,12 +101,15 @@ test("native seeking readiness changes do not suppress a loaded clip's immediate
   assert.deepEqual(h.plays(), [["play", sources.move, 0]], "Readiness is established before seeking and play remains in the current event");
   assert.equal(h.players[1].readyState, 4, "An unused clip already at zero is not needlessly sought");
 });
-test("hover pauses the previous confirmation without seeking away its readiness for the next click", () => {
+test("hover plays independently while the confirmation continues; a new confirmation can restart it", () => {
   const h = harness(), confirm = h.players[1]; let time = 0;
   Object.defineProperty(confirm, "currentTime", { get() { return time; }, set(value) { time = value; confirm.readyState = 1; } });
   h.controller.play("confirm"); time = 0.5;
   h.buttons[1].emit("pointerenter", { pointerType: "mouse" });
-  assert.equal(confirm.paused, true); assert.equal(confirm.currentTime, 0.5); assert.equal(confirm.readyState, 4, "An unrelated hover does not start a seek on confirmation audio");
+  assert.equal(confirm.paused, false);
+  assert.equal(confirm.currentTime, 0.5);
+  assert.equal(confirm.readyState, 4);
+  assert.equal(h.players[0].paused, false, "The hover clip plays alongside the confirmation");
   h.controller.play("confirm");
   assert.deepEqual(h.plays().map(([, source]) => source), [sources.confirm, sources.move, sources.confirm]);
   assert.equal(h.plays().at(-1)[2], 0, "The next confirmation restarts synchronously in its own click");

@@ -5,6 +5,7 @@ from io import BytesIO
 
 from PIL import Image as PillowImage, UnidentifiedImageError
 from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import Image, PageBreak, SimpleDocTemplate, Spacer, Table
 
@@ -14,7 +15,7 @@ from .date_display import display_date
 from .documentation_catalog import register_options
 from .document_theme import THEMES
 from .pdf_fonts import FONT_REGULAR
-from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
+from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED, table_outline
 from .reference_library import INSPECTION_FILTERS, ReferenceNotFound, identifier
 from .technical_item_exports import (append_technical_heading, append_technical_tables,
                                      prepare_technical_item, technical_pdf_rows)
@@ -90,6 +91,9 @@ def _entry(raw, position, numbered):
     entry['photos'] = _photos(raw.get('photos', []))
     entry['comments'] = _text(raw.get('comments', ''), 'Comments', 4000).strip()
     entry['signature'] = validate_signature(raw.get('signature'))
+    if 'technical_item_id' in entry and not entry['signature']:
+        selected = entry.get('technical_filters', {})
+        entry['technical_filters'] = {facet: selected.get(facet, '') for facet in INSPECTION_FILTERS}
     if 'signature_details' in raw:
         details = _fields(raw['signature_details'], {'member_id', 'name', 'date'}, 'Signature details')
         name = _text(details.get('name'), 'Signer name', 8000).strip()
@@ -217,6 +221,11 @@ def _ready(entry, number, options):
     reports = options['reports'].get(entry['manufacturer'], [])
     if uses_library:
         required = [label for key, label in [('location', 'Location'), ('technical_item_id', 'Technical Library item')] if not entry[key]]
+        selected = entry.get('technical_filters', {})
+        # Earlier inspections saved at most five facets, even when signed and exported.
+        if 'services' in selected or 'frl' in selected:
+            required.extend('FRL' if key == 'frl' else key.capitalize()
+                            for key in INSPECTION_FILTERS if not selected.get(key))
     else:
         required = [label for key, label in FIELDS.items()
                     if not entry[key] and (key != 'report' or reports)]
@@ -253,15 +262,18 @@ def _append_evidence(report, title, groups, width):
         for index, photo in enumerate(photos, 1):
             image = Image(BytesIO(base64.b64decode(photo[len(JPEG_PREFIX):])))
             image._restrictSize(width / 2 - 12, 124)
-            image.hAlign = 'LEFT'
             caption = f'{title} - {label}'
             if len(photos) > 1:
                 caption += f' ({index}/{len(photos)})'
-            cells.append([report.p(caption, 'subheading'), image])
+            cells.append([report.p(caption, 'photo_caption'), image])
     if cells:
         rows = [cells[index:index + 2] for index in range(0, len(cells), 2)]
+        styles = [('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'CENTER')]
+        if len(rows[-1]) == 1:
+            rows[-1].append('')
+            styles.append(('SPAN', (0, -1), (1, -1)))
         report.story.append(Table(rows, colWidths=[width / 2] * 2,
-                                  style=[('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+                                  style=styles, renderCB=table_outline(_INSPECTION_OUTLINE)))
 
 
 _INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufacturer',
@@ -269,6 +281,7 @@ _INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufactur
 _INSTRUCTION_FIELDS = {'service wrap', 'local protection', 'installation details', 'installation instructions'}
 _OMITTED_INSPECTION_FIELDS = _INSTRUCTION_FIELDS | {'barrier construction'}
 _INSPECTION_LABEL_RED = HexColor(THEMES['ceasefire'])
+_INSPECTION_OUTLINE = HexColor('#FFD700')
 
 
 def _inspection_fields(report, entry, item):
@@ -312,6 +325,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
         _ready(entry, index, options)
     _register_fonts()
     report = _Report({})
+    report.styles['photo_caption'] = report.styles['subheading'].clone('InspectionPhotoCaption', alignment=TA_CENTER)
     logo = company_logo(company)
     output = BytesIO()
     margin = 36
@@ -327,12 +341,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                     if details.get(key)]
     if project_rows:
         report.story.append(report.table(None, project_rows, [content * .3, content * .7],
-                                         compact=True, row_header_color=_INSPECTION_LABEL_RED))
+                                         compact=True, row_header_color=_INSPECTION_LABEL_RED,
+                                         outline_color=_INSPECTION_OUTLINE))
         report.story.append(Spacer(1, 10))
     for number, entry in enumerate(entries, 1):
         if number > 1:
             report.story.append(PageBreak())
-        report.story.append(report.p(f'Entry {number} of {len(entries)}', 'small'))
         item = None
         if key := entry.get('technical_item_id'):
             try:
@@ -344,11 +358,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
             append_technical_heading(report, item)
         report.story.append(report.table(None, _inspection_fields(report, entry, item),
-                                         [content * .3, content * .7], compact=True, row_header_color=_INSPECTION_LABEL_RED))
+                                         [content * .3, content * .7], compact=True, row_header_color=_INSPECTION_LABEL_RED,
+                                         outline_color=_INSPECTION_OUTLINE))
         if item:
             append_technical_tables(report, (table for table in item['tables']
                                              if table['label'].casefold() not in _INSTRUCTION_FIELDS),
-                                    content, row_header_color=_INSPECTION_LABEL_RED)
+                                    content, row_header_color=_INSPECTION_LABEL_RED, outline_color=_INSPECTION_OUTLINE)
         if entry['comments'] and entry['access'] == 'No':
             report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):

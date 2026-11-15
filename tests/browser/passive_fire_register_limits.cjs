@@ -50,12 +50,15 @@ async function checkRegisterLimits(browser) {
 
     // A removed reference remains visible and clearable on reopening. A missing
     // thumbnail must never prevent an otherwise valid reference being selected.
+    await page.route('**/api/libraries/inspection-labels', route => route.fulfill({json:
+      {'available-item':{category:'Electrical',services:'Cables',frl:'-/60/60'}}}));
     await page.route('**/api/libraries/technical/removed-item', route => route.fulfill({status:404,json:{error:'Library reference not found.'}}));
     await page.route('**/api/libraries/technical/available-item', route => route.fulfill({json:{id:'available-item',title:'Available system',thumbnail_url:'/api/libraries/images/missing/thumbnail'}}));
     await page.route('**/api/libraries/images/missing/thumbnail', route => route.fulfill({status:404,body:''}));
     const reopen = id => page.evaluate(key => {
       const state = window.ClassifirePassiveRegister.capture().value;
       state.entries[0].technical_item_id = key;
+      delete state.entries[0].technical_filters; // Saved before the picker recorded all seven choices.
       window.ClassifirePassiveRegister.applyProject(state);
     },id);
     const picker = page.locator('.register-library-picker');
@@ -67,6 +70,8 @@ async function checkRegisterLimits(browser) {
     assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_item_id),'');
     await reopen('available-item');
     await expect(picker.getByRole('checkbox', {name:'Available system'})).toBeChecked();
+    await expect(page.locator('.register-toolbar option:checked')).toHaveText('001: Register limits test-—-Electrical-Cables--/60/60');
+    assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.hasProjectChanges()), false);
     await expect(picker.getByRole('img')).toHaveCount(0);
     assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_item_id),'available-item');
   } finally {

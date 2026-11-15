@@ -1,4 +1,8 @@
 {
+  "Uncheck this item to complete the seven filters.": ["일곱 가지 필터를 모두 지정하려면 이 항목의 선택을 해제하세요.", "Alisin ang tsek sa item na ito upang makumpleto ang pitong filter.", "Bỏ chọn mục này để điền đủ bảy bộ lọc."],
+  "Choose all seven filters to select a Technical Library item.": ["기술 라이브러리 항목을 선택하려면 일곱 가지 필터를 모두 선택하세요.", "Piliin ang lahat ng pitong filter upang makapili ng item sa Teknikal na Aklatan.", "Chọn đủ bảy bộ lọc để chọn một mục trong thư viện kỹ thuật."],
+  "Passive Fire Registers": ["수동 방화 등록부", "Mga rehistro ng pasibong proteksiyon sa sunog", "Sổ theo dõi phòng cháy thụ động"],
+  "There are no completed passive fire inspections.": ["완료된 수동 방화 점검이 없습니다.", "Walang natapos na inspeksiyon ng pasibong proteksiyon sa sunog.", "Chưa có cuộc kiểm tra phòng cháy thụ động nào hoàn tất."],
   "Select a filter to find a Technical Library item.": ["필터를 선택하여 기술 라이브러리 항목을 찾으세요.", "Pumili ng filter upang maghanap ng item sa Teknikal na Aklatan.", "Chọn bộ lọc để tìm một mục trong thư viện kỹ thuật."],
   "Previous ID": ["이전 ID", "Dating ID", "Mã trước đây"],
   "Passive Fire Register": [

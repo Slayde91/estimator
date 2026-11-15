@@ -49,6 +49,7 @@ def document_catalog(edition='full'):
             if scope == 'schedule' and format == 'pdf':
                 add('passive_fire_register.pdf', 'Passive Fire Inspections', 'pdf', 'passive_fire_register',
                     options=register_options())
+                add('passive_fire_registers.pdf', 'Passive Fire Registers', 'pdf', 'passive_fire_register', action='register')
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
     add('swms', 'Safe Work Method Statement', 'pdf', 'swms')
@@ -77,6 +78,7 @@ def export_identity(route, body):
              '/api/project/full-schedule.pdf':'project.full_schedule.pdf',
              '/api/project/full-product-summary.pdf':'project.full_product_summary.pdf',
              '/api/project/passive-fire-register.pdf':'passive_fire_register.pdf',
+             '/api/project/passive-fire-registers.pdf':'passive_fire_registers.pdf',
              '/api/penetration/report.pdf':'firestopping.schedule.pdf',
              '/api/penetration/register.xlsx':'firestopping.schedule.xlsx'}
     if route in fixed:

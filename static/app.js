@@ -3516,6 +3516,12 @@
       if (isCurrentDownloadTarget(target)) message(uiCopy("File saved to {0}, but the project was not saved. {1}", [result.path, error.message]), true);
     } };
   window.CeasefireDocumentationApp = { async run(adapter, spec, button) {
+    if (adapter === "passive_fire_register" && spec.action === "register") {
+      const register = window.ClassifirePassiveRegister.capture().value;
+      if (!register?.entries.length) throw new Error("There are no completed passive fire inspections.");
+      return window.CeasefireDownloads.save('/api/project/passive-fire-registers.pdf',
+        {register, project_details:window.CeasefireProject.details()}, {button});
+    }
     if (adapter === "passive_fire_register") { window.ClassifirePassiveRegister.setOptions(spec.options); await requestViewNavigation("passive-fire-register"); return {selectionRequired:true}; }
     if (adapter === "swms") { await requestViewNavigation("swms"); return {selectionRequired:true}; }
     if (adapter === "commercial") {

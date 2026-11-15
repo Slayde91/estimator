@@ -3,7 +3,7 @@
   let dispose, remembered = new WeakMap();
   const sources = () => window.CeasefireEstimates.planSources();
   const key = source => source.project_id + '/' + source.document_id;
-  const label = entry => entry.side1.id_number + (entry.access === 'Yes' ? ' / ' + entry.side2.id_number : '');
+  const label = window.ClassifirePassiveRegister.penetrationIds;
   const translate = (source, args = []) => window.CeasefireI18n.translate(source, args);
   const clamp = value => Math.max(0, Math.min(1, value));
   const moves = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};

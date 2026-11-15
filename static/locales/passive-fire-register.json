@@ -1,4 +1,8 @@
 {
+  "Uncheck this item to complete the seven filters.": ["请取消勾选此条目，以便填写全部七个筛选条件。", "सभी सात फ़िल्टर भरने के लिए इस आइटम का चयन हटाएँ।", "Desmarque este elemento para completar los siete filtros.", "ألغِ تحديد هذا العنصر لإكمال المرشحات السبعة.", "ยกเลิกการเลือกรายการนี้เพื่อระบุตัวกรองให้ครบทั้งเจ็ดรายการ"],
+  "Choose all seven filters to select a Technical Library item.": ["请选择全部七个筛选条件，然后选择技术库条目。", "तकनीकी लाइब्रेरी का आइटम चुनने के लिए सभी सात फ़िल्टर चुनें।", "Elija los siete filtros para seleccionar un elemento de la biblioteca técnica.", "اختر المرشحات السبعة جميعها لتحديد عنصر من المكتبة الفنية.", "เลือกตัวกรองทั้งเจ็ดรายการเพื่อเลือกรายการจากคลังข้อมูลทางเทคนิค"],
+  "Passive Fire Registers": ["被动防火登记册", "निष्क्रिय अग्नि सुरक्षा रजिस्टर", "Registros de protección pasiva contra incendios", "سجلات الحماية السلبية من الحريق", "ทะเบียนระบบป้องกันอัคคีภัยเชิงรับ"],
+  "There are no completed passive fire inspections.": ["尚无已完成的被动防火检查。", "निष्क्रिय अग्नि सुरक्षा का कोई निरीक्षण पूरा नहीं हुआ है।", "No hay inspecciones de protección pasiva contra incendios completadas.", "لا توجد فحوصات مكتملة للحماية السلبية من الحريق.", "ยังไม่มีการตรวจสอบระบบป้องกันอัคคีภัยเชิงรับที่เสร็จสิ้น"],
   "Select a filter to find a Technical Library item.": ["选择筛选条件以查找技术库条目。", "तकनीकी लाइब्रेरी में कोई आइटम खोजने के लिए फ़िल्टर चुनें।", "Seleccione un filtro para buscar un elemento de la biblioteca técnica.", "اختر عامل تصفية للعثور على عنصر في المكتبة الفنية.", "เลือกตัวกรองเพื่อค้นหารายการในคลังข้อมูลทางเทคนิค"],
   "Previous ID": ["之前的编号", "पिछली आईडी", "ID anterior", "المعرّف السابق", "รหัสเดิม"],
   "Passive Fire Register": [

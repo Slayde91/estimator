@@ -9,7 +9,7 @@ for (const entry of require("./fixtures/technical-reading-display.json")) {
   assert.deepEqual(entry.source.match(/\d+/g), entry.display.match(/\d+/g));
 }
 const sourceReference = "With FyreFLEX per Table 15 (see Figure 6).";
-for (const label of ["Installation Details", "Seal Depth / Fillet Size"]) {
+for (const label of ["Installation Details", "Seal Depth / Fillet Size", "Barrier Construction", "Separating Element"]) {
   assert.equal(detail.fieldText(label, sourceReference), sourceReference);
 }
 assert.equal(detail.fieldText("Service Wrap", sourceReference), detail.compact(sourceReference));

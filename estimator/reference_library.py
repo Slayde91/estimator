@@ -21,7 +21,9 @@ from .library_substrates import canonical_substrate, classify_substrates, substr
 from .technical_record_corrections import correct_report_captions
 from .library_opening_types import opening_type
 from .library_display import display_subtitle, remove_resolved_source_notices
+from .technical_barrier_text import present_barrier_text
 from .technical_brand_presentation import present_manufacturer_fields
+from .technical_table_presentation import present_redundant_tables
 from .technical_installation_text import present_installation_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
@@ -696,7 +698,10 @@ class ReferenceLibrary:
                 item = present_technical(item)
                 if key not in data.get('_manual_technical_sources', {}):
                     item = present_reviewed_table_captions(item, data.get('_technical_variant_table_scopes', {}).get(key, {}))
-                present_installation_fields(item.get('fields', []))
+                fields = item.get('fields', [])
+                present_redundant_tables(fields)
+                present_installation_fields(fields)
+                present_barrier_text(fields)
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])
             if kind == 'technical' and key in data['_technical_related_records']:

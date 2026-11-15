@@ -451,9 +451,9 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.equal(tables.length,1);assert.equal(tables[0].getAttribute('aria-label'),'Barrier Construction table');
     assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),['Max Aperture Size','Separating Element','FRL']);
     assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),[
-      '600 × 600 mm','Min. 100 mm concrete or masonry wall.','-/60/60',
+      '600 × 600 mm','Minimum 100 mm concrete or masonry wall.','-/60/60',
       '800 × 600 mm','Two layers of 13 mm fire-rated plasterboard to each wall face.','-/90/90',
-      '1000 × 600 mm','Min. 130 mm CLT wall.','-/120/120']);
+      '1000 × 600 mm','Minimum 130 mm CLT wall.','-/120/120']);
     assert.deepEqual(nodes.filter(n=>n.classList.contains('library-frl-value')&&['th','td'].includes(n.tagName)).map(n=>n.textContent),['FRL','-/60/60','-/90/90','-/120/120']);
     for(const [label,summary] of [['Blank Seal FRL','-/60/60 to -/120/120'],['Max. Opening Size','1000 × 600 mm']]) {
       const pair=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent===label),value=pair.children[1],links=walk(value).filter(n=>n.className==='library-configuration-link');
@@ -463,18 +463,18 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     assert.doesNotMatch(text(panel),/Source option|Source Configuration|private-option|retained for audit/);
     assertSourceHtmlSafe(nodes);assert.deepEqual(source,before);
   });
-  await check('Repeated single-condition barrier summaries keep construction text without the duplicate table',async h=>{
+  await check('Projected single-condition barrier fields render without a table or navigation link',async h=>{
     const fields=[
-      {label:'Barrier Construction',value:'',table:{columns:['Max Aperture Size','Separating Element','FRL'],rows:[['600 mm high × 1200 mm wide','Min. 51 mm thick Speedpanel wall','-/60/60']]}},
-      {label:'Blank Seal FRL',value:'-/60/60',table_links:[{field:'Barrier Construction',table_index:0}]},
-      {label:'Maximum Opening Size',value:'600 mm high × 1200 mm wide',table_links:[{field:'Barrier Construction',table_index:0}]}
+      {label:'Barrier Construction',value:'Min. 51 mm thick Speedpanel wall'},
+      {label:'Blank Seal FRL',value:'-/60/60'},
+      {label:'Maximum Opening Size',value:'600 mm high × 1200 mm wide'}
     ],source={...detail('technical','single-barrier'),images:[],fields},before=copy(source);
     h.setRoute(path=>path==='/api/libraries'?meta():source);await h.api.open('technical',source.id);
     const nodes=walk(h.pane('technical').detailPanel),barrier=nodes.find(n=>n.className==='library-record-field'&&n.children[0].textContent==='Barrier Construction');
     assert.equal(barrier.children[1].textContent,'Min. 51 mm thick Speedpanel wall');
     assert.equal(nodes.filter(n=>n.tagName==='table').length,0);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,0);
     assert.match(text(h.pane('technical').detailPanel),/600 mm high × 1200 mm wide/);assert.match(text(h.pane('technical').detailPanel),/-\/60\/60/);
-    assert.deepEqual(source,before,'Presentation keeps the retained source table unchanged.');
+    assert.deepEqual(source,before);
   });
   await check('Barrier conditions stay tabular unless both exact scalar summaries retain the complete single row',async h=>{
     const original=[{label:'Barrier Construction',value:'',table:{columns:['Max Aperture Size','Separating Element','FRL'],rows:[['600 × 600 mm','Speedpanel wall','-/60/60']]}},{label:'Blank Seal FRL',value:'-/60/60'},{label:'Maximum Opening Size',value:'600 × 600 mm'}];
@@ -623,13 +623,13 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     const cases=[
       {suffix:'source substrate alternatives (Barrier Construction table 1; FRL Without Wrap). The entry selection remains separate.',columns:['Substrate','FRL Without Wrap','FRL With Wrap'],displayColumns:['Substrate','FRL Without Wrap','FRL w/ Wrap'],rows:[['Wall','-/90/60','-/120/120']],rating:'-/90/60'},
       {suffix:'observed source service ratings (Barrier Construction table 1 (FRL With Wrap)).',columns:['FRL With Wrap','FRL Without Wrap'],displayColumns:['FRL w/ Wrap','FRL Without Wrap'],rows:[['-/120/120','-/90/60']],rating:'-/120/120'},
-      {suffix:'matched source barrier row (Barrier Construction table 1; Wall Thickness: 2 x 15mm board).',columns:['Wall Thickness','FRL'],rows:[['2 x 15mm board','-/120/120'],['2 x 10mm board','-/60/60']],rating:'-/120/120'},
+      {suffix:'matched source barrier row (Barrier Construction table 1; Wall Thickness: 2 x 15mm board).',columns:['Wall Thickness','FRL'],rows:[['2 x 15mm board','-/120/120'],['2 x 10mm board','-/60/60']],displayRows:[['2 × 15 mm board','-/120/120'],['2 × 10 mm board','-/60/60']],rating:'-/120/120'},
       {suffix:'observed source service ratings (Barrier Construction table 1).',columns:['Service','Source FRL'],rows:[['Pipe','-/120/120']],rating:'-/120/120'}
     ];
     for(const [index,item] of cases.entries()) {
       const fields=[{label:'FRL',value:`${item.rating} — ${item.suffix}`,table_links:[{field:'Barrier Construction',table_index:0}]},{label:'Barrier Construction',value:'',table:{columns:item.columns,rows:item.rows}}],before=copy(fields);
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','qualified-'+index),fields,images:[]}));await h.api.open('technical','qualified-'+index);const nodes=walk(h.pane('technical').detailPanel);
-      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,item.rows.length>1?1:0);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.displayColumns||item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),item.rows.flat());assert.deepEqual(fields,before);
+      assert.equal(nodes.find(n=>n.tagName==='dd').textContent,item.rating);assert.equal(nodes.filter(n=>n.className==='library-configuration-link').length,item.rows.length>1?1:0);assert.deepEqual(nodes.filter(n=>n.tagName==='th').map(n=>n.textContent),item.displayColumns||item.columns);assert.deepEqual(nodes.filter(n=>n.tagName==='td').map(n=>n.textContent),(item.displayRows||item.rows).flat());assert.deepEqual(fields,before);
     }
   });
   await check('FRL never invents extrema for incomparable components or different dash masks',async h=>{

@@ -1,6 +1,7 @@
 """Compact Technical Library display text without changing retained evidence."""
 import re
 from .date_display import display_date, display_source_dates
+from .technical_barrier_text import BARRIER_LABELS
 
 _PROTECTED = re.compile(
     r'https?://[^\s<>]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}'
@@ -173,13 +174,18 @@ _RULES = tuple((re.compile(expression, re.I), replacement) for expression, repla
 ))
 
 
+def without_page_labels(value):
+    """Remove extraction headings at line and sentence starts, preserving source step numbers."""
+    return _PAGE_PREFIX.sub(r'\1', value)
+
+
 def compact_technical_text(value):
     """Shorten display prose; retain original evidence and technical qualifiers."""
     if not isinstance(value, str):
         return value
     # Remove only editorial page labels and content-free pointers. Requirements
     # and conditional alternatives remain intact; original evidence is retained.
-    value = _PAGE_PREFIX.sub(r'\1', value)
+    value = without_page_labels(value)
 
     def compact(text):
         text = _PAGE_POINTER.sub('', text)
@@ -310,4 +316,5 @@ def technical_field_text(label, value):
     components = (label == 'Service Size / Configuration' and isinstance(value, str)
                   and (re.search(r'^• \d+[ \t]*[×xX][ \t]', value, re.M)
                        or value.startswith('Fix a single layer of waterproofing panel')))
-    return _reading_text(value, always=components or label in {'Installation Details', 'Seal Depth / Fillet Size'})
+    full_text = label in {'Installation Details', 'Seal Depth / Fillet Size'} or str(label).strip().casefold() in BARRIER_LABELS
+    return _reading_text(value, always=components or full_text)

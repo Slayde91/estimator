@@ -5,6 +5,8 @@ paragraphs are reworded; unfamiliar instructions and qualifications pass through
 """
 import re
 
+from .technical_display import without_page_labels
+
 
 _RYANFIRE = (
     'Apply Ryanfire Brush Grade Mastic to exposed board edges and mating surfaces. '
@@ -155,7 +157,7 @@ def _service_configuration(value):
 
 def _installation(value, siblings):
     paragraphs = []
-    source = re.split(r'\r?\n[ \t]*\r?\n', value)
+    source = re.split(r'\r?\n[ \t]*\r?\n', without_page_labels(value))
     generated = source[0] in _PROCEDURES
     for index, paragraph in enumerate(source):
         if paragraph in _PROCEDURES:
@@ -191,6 +193,8 @@ def present_installation_fields(fields):
         value = field.get('value')
         if field['label'] == 'Installation Details' and isinstance(value, str):
             field['value'] = _installation(value, siblings)
+        elif field['label'] == 'Service' and value == 'fibre optic cables':
+            field['value'] = 'Fibre Optic Cables'
         elif field['label'] == 'Service Size / Configuration' and isinstance(value, str):
             field['value'] = _service_configuration(value)
         elif field['label'] == _SEAL_LABEL and isinstance(value, str) and value in _SEALS:

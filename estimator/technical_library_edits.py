@@ -15,7 +15,7 @@ from .firestopping_library import (FirestoppingLibrary, LibraryConflict, MAX_DIA
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
-from .technical_discovery import ALLPROOF_MANUAL_SOURCE
+from .technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
@@ -31,6 +31,13 @@ NEW_FIELDS = ('Manufacturer', 'System Products', 'Installation Type', 'Barrier T
               'Installation Details')
 UNASSESSED_FRL = 'Not assessed'
 MAX_UPLOADED_DIAGRAMS = 16
+SOURCE_IMAGE_PREFIX = 'technical-source-'
+
+# A supplier drawing can appear in thousands of records. Its identity and
+# lifetime are independent of any one editable record.
+SOURCE_IMAGE_TABLE = '''CREATE TABLE IF NOT EXISTS technical_library_source_images (
+    id TEXT PRIMARY KEY, image_data BLOB NOT NULL
+)'''
 
 
 def text(value, maximum, *, blank=True):
@@ -105,6 +112,7 @@ class TechnicalEdits:
             ''')
             if 'revision' not in {row[1] for row in db.execute('PRAGMA table_info(technical_library_links)')}:
                 db.execute('ALTER TABLE technical_library_links ADD COLUMN revision INTEGER NOT NULL DEFAULT 0')
+            db.execute(SOURCE_IMAGE_TABLE)
 
     def read(self):
         with self.store.connect() as db:
@@ -216,7 +224,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 data['_visible']['technical'] = [value for value in data['_visible']['technical'] if value not in members]
                 continue
             record = deepcopy(edit['record'])
-            data['_manual_technical_images'].update(image['id'] for image in record.get('images', []) if image.get('user_uploaded'))
+            data['_manual_technical_images'].update(image['id'] for image in record.get('images', [])
+                if image.get('user_uploaded') or image.get('id', '').startswith(SOURCE_IMAGE_PREFIX))
             data['_manual_technical_sources'][key] = edit['source_sha256']
             data['_technical_public_records'][key] = record
             data['_records']['technical'][key] = record
@@ -267,9 +276,10 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             known = {option['value'] for option in definition['options']}
             for key in data['_manual_technical_sources']:
                 record = data['_technical_public_records'][key]
-                # Imported assessments can have specific tested FRLs and substrates
-                # outside the installed catalogue. Only this reviewed source adds them.
-                if facet not in ('report', 'manufacturer') and record.get('source_label') != ALLPROOF_MANUAL_SOURCE:
+                # These suppliers publish assessed values outside the original catalogue.
+                source = record.get('source_label')
+                if (facet not in ('report', 'manufacturer') and source != ALLPROOF_MANUAL_SOURCE
+                        and not (source == SNAP_FILTER_SOURCE and facet in ('substrate', 'frl'))):
                     continue
                 for value in data['_technical_discovery'][key].get(facet, []):
                     if value not in known and value != UNASSESSED_FRL:
@@ -354,6 +364,15 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             return result
 
     def asset(self, key, pdf=True):
+        if not pdf and identifier(key).startswith(SOURCE_IMAGE_PREFIX):
+            with self._lock:
+                if key not in self._load().get('_manual_technical_images', ()):
+                    raise ReferenceNotFound()
+                with self.technical_edits.store.connect() as db:
+                    row = db.execute('SELECT image_data FROM technical_library_source_images WHERE id=?', (key,)).fetchone()
+                if row is None or SOURCE_IMAGE_PREFIX + hashlib.sha256(row[0]).hexdigest() != key:
+                    raise ValidationError('The saved Technical Library source drawing could not be verified.')
+                return row[0], 'image/png', key + '.png'
         if not pdf and identifier(key).startswith('technical-upload-'):
             with self._lock:
                 data = self._load()

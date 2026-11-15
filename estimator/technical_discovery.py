@@ -13,6 +13,7 @@ from .library_substrates import canonical_substrate
 
 
 ALLPROOF_MANUAL_SOURCE = 'Allproof Australian fire technical manual'
+LEGACY_ALLPROOF_TYPE = 'Refer to installation details'
 FRL_ALIASES = {
     '-/45/45': '-/30/30', '-/45/30': '-/30/30',
     '-/120/15': '-/120/-', '-/120/45': '-/120/30',

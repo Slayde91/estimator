@@ -18,7 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from estimator.firestopping_library import diagram_upload
 from estimator.library_report_links import validate_report_links
 from estimator.storage import Store
-from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE
+from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE, LEGACY_ALLPROOF_TYPE
+from estimator.library_opening_types import OPENING_TYPES
 from estimator.technical_library_edits import FIELD_FACETS, TechnicalEdits, uploaded_diagram_id
 
 MANUALS = {
@@ -77,10 +78,12 @@ def build_record(row, family, directory, allowed_fields):
     if set(facets) != set(FIELD_FACETS.values()):
         raise ValueError(f'Incomplete filter metadata at {locator}')
     fields = [{'label': k, 'value': v} for k, v in facts.items()]
-    # The inspections picker requires a choice in every filter. A generic
-    # opening dimension does not establish whether a core drill was used.
+    # Type is a discovery label. The reviewed plumbing rows on pp. 22 and 28
+    # require a separate board patch. Stud-wall linings and timber floor infill
+    # are the supporting substrate, not an added firestop board.
     if not facets['type']:
-        facets['type'] = ['Refer to installation details']
+        board_patch = 'board patch' in facts['Barrier Construction'].casefold()
+        facets['type'] = [OPENING_TYPES[1] if board_patch else OPENING_TYPES[0]]
     for label, facet in FIELD_FACETS.items():
         facets[facet] = string_list(facets[facet], f'{locator} {facet}')
         field = {'label': label, 'value': '\n'.join(facets[facet])}
@@ -138,31 +141,45 @@ def install(bundle, library, database, apply):
             if record['id'] in keys:
                 raise ValueError(f'Duplicate row ID at {record["subtitle"]}')
             keys.add(record['id'])
-            batches.append((record, blobs))
+            batches.append((record, blobs, not row['facets']['type']))
     if not database.is_file():
         raise ValueError('Choose an existing CLASSIFIRE database')
     edits = TechnicalEdits(Store(database))
     installed = 0
+    reclassified = 0
     with edits.store.connect() as db:
         db.execute('BEGIN IMMEDIATE' if apply else 'BEGIN')
-        for record, blobs in batches:
+        for record, blobs, previously_unclassified in batches:
             key = record['id']
-            prior = db.execute('SELECT data, deleted FROM technical_library_items WHERE id=?', (key,)).fetchone()
+            prior = db.execute('SELECT data, deleted, revision, source_sha256 FROM technical_library_items WHERE id=?', (key,)).fetchone()
             if prior:
-                if prior[1] or json.loads(prior[0]) != record:
+                saved = json.loads(prior[0])
+                migrate = (not prior[1] and previously_unclassified
+                           and saved.get('filter_values', {}).get('type') == [LEGACY_ALLPROOF_TYPE])
+                if migrate:
+                    saved['filter_values']['type'] = record['filter_values']['type']
+                    for field in saved['fields']:
+                        if field['label'] == 'Type' and field['value'] == LEGACY_ALLPROOF_TYPE:
+                            field['value'] = record['filter_values']['type'][0]
+                if prior[1] or saved != record:
                     raise ValueError(f'Existing item differs from reviewed row {key}. Review before updating.')
                 for image_id, expected in blobs.items():
                     image = db.execute('SELECT image_data FROM technical_library_diagrams WHERE item_id=? AND id=?',
                                        (key, image_id)).fetchone()
                     if not image or image[0] != expected:
                         raise ValueError(f'Existing diagram differs from the reviewed crop: {image_id}')
+                if migrate:
+                    if apply:
+                        edits.save_transaction(db, key, prior[2], prior[3], record)
+                    reclassified += 1
             else:
                 if apply:
                     edits.save_transaction(db, key, 0, hashlib.sha256(key.encode()).hexdigest(),
                                            record, created=True, diagrams=blobs)
                 installed += 1
     return {'systems': totals, 'unique_diagram_files': prepare_crop.cache_info().currsize,
-            'new' if apply else 'planned': installed, 'already_verified': len(keys) - installed}
+            'new' if apply else 'planned': installed, 'reclassified' if apply else 'to_reclassify': reclassified,
+            'already_verified': len(keys) - installed - reclassified}
 
 
 if __name__ == '__main__':

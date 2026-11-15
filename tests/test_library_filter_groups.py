@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from estimator.library_facets import SERVICES
-from estimator.library_filter_groups import SERVICE_GROUPS, grouped_filter_options
+from estimator.library_filter_groups import SERVICE_GROUPS, discovery_categories, grouped_filter_options
 from estimator.reference_library import ReferenceLibrary
 from tests.test_reference_library import sample_library
 
@@ -17,7 +17,7 @@ def options(values):
 
 class FilterGroupTests(unittest.TestCase):
     def test_all_services_appear_once_and_unknown_or_mixed_choices_stay_standalone(self):
-        source = options([*SERVICES, 'Saved custom service'])
+        source = options([*SERVICES, 'PE-RT/AL/PE-RT', 'Saved custom service'])
         original = deepcopy(source)
         result = grouped_filter_options('services', source)
         self.assertEqual(source, original)
@@ -30,6 +30,8 @@ class FilterGroupTests(unittest.TestCase):
         by_value = {row['value']: row for row in result}
         self.assertEqual(by_value['Pair Coils']['group'], 'HVAC & Mechanical')
         self.assertEqual(by_value['Fire Dampers']['group'], 'HVAC & Mechanical')
+        self.assertEqual(by_value['PE-RT/AL/PE-RT']['group'], 'Plastic pipes')
+        self.assertEqual(discovery_categories([], ['PE-RT/AL/PE-RT']), ['Plumbing & Hydraulic'])
         self.assertEqual(by_value['Copper Pipes']['label'], 'Copper Pipes')
         self.assertEqual(grouped_filter_options('service_type', source), result)
 

@@ -165,15 +165,32 @@ async function selectDrawingBehavior(scope, barrier, defect) {
   // The existing post-drag guard ignores pointer-release echo clicks for500ms;
   // keyboard actions above are intentionally exercised inside that interval.
   await page.waitForTimeout(550);
-  await page.mouse.click(...await drawingPoint(scope === 'service_plans' ? [80, 470] : [550, 500], scope === 'service_plans' ? 3 : 1));
+  const blankPoint = await page.locator('.takeoff-page').evaluate(sheet => {
+    const box = sheet.getBoundingClientRect();
+    for (const y of [.5, .25, .75, .1, .9]) {
+      for (const x of [.5, .25, .75, .1, .9]) {
+        const point = [box.left + box.width * x, box.top + box.height * y];
+        const hit = document.elementFromPoint(...point);
+        if (hit && sheet.contains(hit) && hit.matches('.takeoff-page, .takeoff-overlay, canvas')) return point;
+      }
+    }
+    throw Error('No unobstructed blank page area is available to clear the selection');
+  });
+  await page.mouse.click(...blankPoint);
   await expect(details()).not.toBeVisible(); await expect(marker(barrier)).toHaveAttribute('aria-pressed', 'false');
   (evidence.selection ||= []).push({ scope, calloutPointerAndKeyboardPreservePane: true, calloutModifierDeselectionPreservesOpenPane: true, resizeHandleClickPreservesClosedPane: true, markerSingleSelectsDoubleOpens: true, selectedMarkerHalo: true, keyboardOpensModifierDeselects: true, blankPageClearsSelection: true });
 }
 async function compareAddServiceStyle(scope) {
   const controls = await assertParentControls(page, details());
-  const substrate = page.locator('.takeoff-physical-add-row .takeoff-physical-add-defect');
-  if (scope === 'service_plans') { const box=await substrate.boundingBox(); assert.equal(box.width,38);assert.equal(box.height,38);await expect(substrate).toHaveText('+'); }
-  else await expect(page.locator('.takeoff-physical-add-row')).toBeHidden();
+  const addRow = page.locator('.takeoff-physical-add-row');
+  if (scope === 'service_plans') {
+    const substrate = addRow.getByRole('button', { name: 'Add substrate', exact: true });
+    await expect(substrate).toHaveText('+');
+    await expect(substrate).toHaveCSS('width', '42px');
+    await expect(substrate).toHaveCSS('height', '42px');
+  } else {
+    await expect(addRow).toBeHidden();
+  }
   (evidence.addServiceStyle ||= []).push({ scope, ...controls });
 }
 async function reviewAutosaveDrag(scope, barrier, service, pageNumber) {

@@ -961,14 +961,14 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
   await check('Service, centre-FRL and manufacturer groups retain exact values in main filters and the document-key link picker',async h=>{
     const definitions=[
       {key:'document',label:'Report',options:[{value:'Shared report',label:'Shared report'},{value:'Report & / A',label:'Report & / A',group:'Promat'}]},
-      {key:'services',label:'Services',options:[{value:'N/A',label:'N/A'},{value:'Mixed Services',label:'Mixed Services'},{value:'Power Cables',label:'Power Cables',group:'Electrical & communications'},{value:'Pair Coils',label:'Pair Coils',group:'Mechanical'},{value:'Copper Pipes',label:'Copper Pipes',group:'Unlagged metal pipes'}]},
+      {key:'services',label:'Services',options:[{value:'N/A',label:'N/A'},{value:'Mixed Services',label:'Mixed Services'},{value:'Power Cables',label:'Power Cables',group:'Electrical & communications'},{value:'Pair Coils',label:'Pair Coils',group:'HVAC & Mechanical'},{value:'Copper Pipes',label:'Copper Pipes',group:'Unlagged metal pipes'}]},
       {key:'frl',label:'FRL',options:[{value:'-/90/60',label:'-/90/60',group:'90'},{value:'240/120/30',label:'240/120/30',group:'120'},{value:'-/300/180',label:'-/300/180',group:'300'}]},
     ],original=copy(definitions);
     h.setRoute(path=>path==='/api/libraries'?meta():({...records(path.includes('technical')?'technical':'penetration'),filters:definitions}));
     await h.api.open('technical');const main=h.pane('technical'),control=(root,key,attr)=>walk(root).find(n=>n.dataset[attr]===key);
     const report=control(main.filterControls,'document','libraryFilter'),services=control(main.filterControls,'services','libraryFilter'),frl=control(main.filterControls,'frl','libraryFilter');
     assert.deepEqual(report.children.map(n=>n.tagName),['option','option','optgroup']);assert.equal(report.children[2].getAttribute('label'),'Promat');
-    assert.deepEqual(services.children.filter(n=>n.tagName==='optgroup').map(n=>n.getAttribute('label')),['Electrical & communications','Mechanical','Unlagged metal pipes']);
+    assert.deepEqual(services.children.filter(n=>n.tagName==='optgroup').map(n=>n.getAttribute('label')),['Electrical & communications','HVAC & Mechanical','Unlagged metal pipes']);
     assert.deepEqual(frl.children.slice(1).map(n=>n.getAttribute('label')),['90 minutes','120 minutes','300 minutes']);
     for(const[key,value]of[['document','Report & / A'],['services','Pair Coils'],['frl','240/120/30']]){const select=control(main.filterControls,key,'libraryFilter');select.value=value;await select.emit('change');await flush();}
     const query=new URL('http://local'+h.calls.at(-1).path).searchParams;assert.equal(query.get('document'),'Report & / A');assert.equal(query.get('services'),'Pair Coils');assert.equal(query.get('frl'),'240/120/30');

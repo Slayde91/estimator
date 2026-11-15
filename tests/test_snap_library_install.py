@@ -44,7 +44,7 @@ class SnapLibraryInstallTests(unittest.TestCase):
                                  {'label': 'System Products', 'value': 'Example collar'},
                                  {'label': 'Installation Details', 'value': 'Install as shown in the drawing.'},
                                  {'label': 'FRL', 'value': '-/120/90'}],
-                      'filter_values': {'manufacturer': ['Snap'], 'frl': ['-/120/90']}}
+                      'filter_values': {'manufacturer': ['Snap'], 'frl': ['-/120/90'], 'services': ['PEX-AL-PEX']}}
             self.systems.append({'record': record, 'drawings': [
                 {'path': 'drawing.png', 'sha256': self.digest, 'caption': 'Drawing page 1'}]})
 
@@ -62,6 +62,8 @@ class SnapLibraryInstallTests(unittest.TestCase):
         ids = [system['record']['id'] for system in self.systems]
         found = self.library.listing('technical', manufacturer='Snap', frl='-/120/90', inspection='1')
         self.assertEqual({row['id'] for row in found['items']}, set(ids))
+        services = next(f['options'] for f in found['filters'] if f['key'] == 'services')
+        self.assertEqual(next(s['group'] for s in services if s['value'] == 'PEX-AL-PEX'), 'Plastic pipes')
         self.assertEqual(self.library.detail('technical', ids[0])['images'][0]['id'], self.image_id)
         self.assertEqual(self.library.asset(self.image_id, pdf=False), (self.png, 'image/png', self.image_id + '.png'))
         self.assertTrue(self.library.image_thumbnail(self.image_id).startswith(b'\xff\xd8'))

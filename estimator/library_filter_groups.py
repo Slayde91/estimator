@@ -15,7 +15,8 @@ SERVICE_GROUPS = (
     ('Plastic pipes', frozenset({'uPVC pipe', 'uPVC floorwaste', 'PEX pipe', 'HDPE pipe',
                                'PP pipe', 'CPVC pipe', 'Raupiano Plus pipe', 'dBlue pipe',
                                'PU air line', 'Concentric plastic pipe', 'ABS pipe', 'PB pipe',
-                               'Kelox / KeKilit pipe', 'PE-RT/AL/PE-RT'})),
+                               'Kelox / KeKilit pipe', 'PE-RT/AL/PE-RT', 'PE-AL-PE',
+                               'PEX-AL-PE', 'PEX-AL-PEX', 'Raupiano', 'WAVIN Astolan'})),
     ('Lagged metal pipes', frozenset({'Lagged Copper Pipes', 'Lagged Steel Pipes', 'Lagged Iron Pipes'})),
     ('Unlagged metal pipes', frozenset({'Copper Pipes', 'Steel Pipes', 'Unlagged Iron Pipes', 'Unlagged Brass Pipes'})),
 )

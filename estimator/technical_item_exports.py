@@ -30,6 +30,8 @@ from .reference_library import INSPECTION_FILTERS, identifier
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
+from .technical_discovery import ALLPROOF_MANUAL_SOURCE, LEGACY_ALLPROOF_TYPE
+from .library_opening_types import OPENING_TYPES
 from .technical_display import compact_technical_text, display_technical_title, technical_field_text
 
 _NOTE = 'Technical Library item details.'
@@ -85,6 +87,9 @@ def prepare_technical_item(body, *, library, include_diagrams=True, inspection_f
             label = {'services': 'Service', 'frl': 'FRL'}.get(facet, facet.capitalize())
             choices = record['inspection_options'][facet]
             selected = inspection_filters.get(facet)
+            if (facet == 'type' and selected == LEGACY_ALLPROOF_TYPE and record.get('source_label') == ALLPROOF_MANUAL_SOURCE
+                    and len(choices) == 1 and choices[0] in OPENING_TYPES):
+                selected = choices[0]
             if selected and selected not in choices:
                 raise ValidationError(f'The selected {label} no longer matches this Technical Library item. Select the item again before downloading.')
             source_values = [f['value'] for f in record.get('fields', []) if f['label'].casefold() == label.casefold() and f.get('value')]

@@ -20,7 +20,7 @@ from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
 from .library_classifications import FACETS, classification_filters
-from .library_filter_groups import discovery_categories, display_category
+from .library_filter_groups import discovery_categories, display_category, grouped_filter_options
 
 PENETRATION_KEYS = {'type': 'penetration_type', 'services': 'service_type'}
 FIELD_FACETS = {'Manufacturer': 'manufacturer', 'Substrate': 'substrate',
@@ -275,6 +275,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     if value not in known and value != UNASSESSED_FRL:
                         definition['options'].append({'value': value, 'label': value})
                         known.add(value)
+            if facet == 'services':
+                definition['options'] = grouped_filter_options(facet, definition['options'])
         data['_canonical_library_filters'] = canonical
         data['_filters']['technical'] = deepcopy(canonical)
         data['_filters']['penetration'] = [{**deepcopy(entry), 'key': PENETRATION_KEYS.get(entry['key'], entry['key'])} for entry in canonical]

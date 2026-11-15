@@ -226,8 +226,14 @@
   }
 
   const readable = value => readingText(value, true);
+  // Construction details keep their full wording and item references, as in the document export.
+  const barrierLabels = new Set(["barrier construction", "separating element", "support construction", "barrier",
+    "substrate", "substrate to substrate", "substrate to substate", "type of wall", "approved wall systems",
+    "ceiling construction", "supporting floor construction", "supporting wall construction", "reviewed wall construction",
+    "floor scope", "wall thickness", "minimum wall thickness"]);
   const componentList = (label, value) => label === "Service Size / Configuration" && /^• \d+[ \t]*[×xX][ \t]/m.test(value);
   const fieldText = (label, value) => readingText(value, label === "Installation Details" || label === "Seal Depth / Fillet Size"
+    || barrierLabels.has(String(label).trim().toLowerCase())
     || componentList(label, value) || label === "Service Size / Configuration" && String(value).startsWith("Fix a single layer of waterproofing panel"));
 
   const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));

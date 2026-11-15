@@ -18,7 +18,7 @@ class TechnicalDisplayTests(unittest.TestCase):
 
     def test_reading_mode_depends_on_field_label_or_identifiable_spacing_error(self):
         source = 'With FyreFLEX per Table 15 (see Figure 6).'
-        for label in ('Installation Details', 'Seal Depth / Fillet Size'):
+        for label in ('Installation Details', 'Seal Depth / Fillet Size', 'Barrier Construction', 'Separating Element'):
             self.assertEqual(technical_field_text(label, source), source)
         self.assertEqual(technical_field_text('Service Wrap', source), compact_technical_text(source))
         self.assertEqual(technical_field_text('Service Wrap', 'No wrap;one Unicorn collar layer'),

@@ -53,6 +53,24 @@ CONDITION = ('FAS200363Table30;CLT independently rated60min;full timber/friction
 
 
 class TechnicalInstallationTextTests(unittest.TestCase):
+    def test_extracted_page_labels_leave_source_steps_and_page_conditions_intact(self):
+        source = ('Page 1, 2: 1. Cut the opening.\n2. Apply sealant to 20 mm depth. Page 1: Keep both faces sealed.\n'
+                  '4. Where specified on page 2, wrap for 300 mm. See page 3 for approved services.')
+        expected = ('1. Cut the opening.\n2. Apply sealant to 20 mm depth. Keep both faces sealed.\n'
+                    '4. Where specified on page 2, wrap for 300 mm. See page 3 for approved services.')
+        self.assertEqual(self.present(source)['Installation Details'], expected)
+        self.assertEqual(self.present('Page 1, 2: Fit the collar. Page 1: Secure with ties.')['Installation Details'],
+                         'Fit the collar. Secure with ties.')
+
+    def test_only_the_exact_service_field_receives_the_reviewed_capitalisation(self):
+        fields = [{'label': 'Service', 'value': 'fibre optic cables'},
+                  {'label': 'Service Size / Configuration', 'value': 'Empty or containing fibre optic cables.'},
+                  {'label': 'Service', 'value': 'uPVC pipe with fibre optic cables'}]
+        expected = deepcopy(fields)
+        expected[0]['value'] = 'Fibre Optic Cables'
+        present_installation_fields(fields)
+        self.assertEqual(fields, expected)
+
     def present(self, text, opening='1000mm×1000mm', seal=SEAL):
         fields = [{'label': k, 'value': v} for k, v in (
             ('Service', 'uPVC pipe'), ('Seal Depth / Fillet Size', seal),

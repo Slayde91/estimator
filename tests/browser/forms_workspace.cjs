@@ -277,7 +277,7 @@ const ready=new Promise((resolve,reject)=>{
     await recipientPage.mouse.move(rect.x+80,rect.y+35,{steps:4});await recipientPage.mouse.up();
     await recipientPage.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true}).click();
     await expect(firstPerson.getByRole('combobox')).toHaveValue(assignee.id);
-    await expect(firstPerson.getByLabel('Date and time')).not.toHaveValue('');
+    await expect(firstPerson.getByLabel('Date and time',{exact:true})).not.toHaveValue('');
     await expect(firstPerson.getByLabel('Full name')).toHaveValue('Fixture full name');
     await expect(firstPerson.getByLabel('Company')).toHaveValue('Fixture company');
     await expect(firstPerson.locator('img')).toHaveCSS('background-color','rgb(255, 255, 255)');

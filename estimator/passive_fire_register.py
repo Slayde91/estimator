@@ -2,22 +2,24 @@
 import base64
 import binascii
 from io import BytesIO
-from uuid import UUID
 
 from PIL import Image as PillowImage, UnidentifiedImageError
+from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import Image, PageBreak, SimpleDocTemplate, Spacer, Table
 
 from .catalog import ValidationError
 from .company_settings import company_logo
+from .date_display import display_date
 from .documentation_catalog import register_options
+from .document_theme import THEMES
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .reference_library import INSPECTION_FILTERS, ReferenceNotFound, identifier
 from .technical_item_exports import (append_technical_heading, append_technical_tables,
                                      prepare_technical_item, technical_pdf_rows)
-from .register_plans import penetration_ids
-from .swms import _text, validate_signature
+from .register_plans import _uuid, penetration_ids
+from .swms import _date, _text, validate_signature
 from .swms_pdf import Signature
 
 
@@ -56,7 +58,8 @@ def _photos(value):
 
 
 def _entry(raw, position, numbered):
-    other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature', 'technical_item_id', 'plan_pins'}
+    other = {'side1', 'side2', 'access', 'photos', 'comments', 'solution', 'signature',
+             'signature_details', 'technical_item_id', 'plan_pins'}
     if numbered:
         other.update(('entry_id','number'))
     if isinstance(raw, dict) and 'technical_item_id' in raw:
@@ -87,6 +90,13 @@ def _entry(raw, position, numbered):
     entry['photos'] = _photos(raw.get('photos', []))
     entry['comments'] = _text(raw.get('comments', ''), 'Comments', 4000).strip()
     entry['signature'] = validate_signature(raw.get('signature'))
+    if 'signature_details' in raw:
+        details = _fields(raw['signature_details'], {'member_id', 'name', 'date'}, 'Signature details')
+        name = _text(details.get('name'), 'Signer name', 8000).strip()
+        day = _date(details.get('date'), 'Signing date')
+        if not entry['signature'] or not _uuid(details.get('member_id')) or not name or not day:
+            raise ValidationError('Signature details require a signature, staff member, name and signing date.')
+        entry['signature_details'] = {'member_id': details['member_id'], 'name': name, 'date': day}
     if 'plan_pins' in raw:
         from .register_plans import normalize_pins
         entry['plan_pins'] = normalize_pins(raw['plan_pins'])
@@ -99,11 +109,7 @@ def _entry_number(raw, position, numbered):
         raise ValidationError('The register entry number is invalid.')
     if numbered:
         identity = raw.get('entry_id')
-        try:
-            valid = isinstance(identity,str) and str(UUID(identity))==identity
-        except ValueError:
-            valid = False
-        if not valid:
+        if not _uuid(identity):
             raise ValidationError('The register entry identity is invalid.')
     else:
         # The register is local to one project. Reopening the same old file in a
@@ -259,20 +265,23 @@ def _append_evidence(report, title, groups, width):
 
 
 _INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufacturer',
-                     'Penetration IDs', 'ID', 'Category', 'Service')
+                     'Penetration ID', 'System ID', 'Category', 'Service')
 _INSTRUCTION_FIELDS = {'service wrap', 'local protection', 'installation details', 'installation instructions'}
+_OMITTED_INSPECTION_FIELDS = _INSTRUCTION_FIELDS | {'barrier construction'}
+_INSPECTION_LABEL_RED = HexColor(THEMES['ceasefire'])
 
 
 def _inspection_fields(report, entry, item):
     """Combine recorded site details and source fields in one printable table."""
     rows = [('Location', report.p(entry['location'], 'cell')),
-            ('Penetration IDs', report.p(penetration_ids(entry), 'cell'))]
+            ('Penetration ID', report.p(penetration_ids(entry), 'cell'))]
     if item:
-        rows.extend((label, cell) for label, cell in technical_pdf_rows(report, item)
-                    if label.casefold() not in _INSTRUCTION_FIELDS)
+        rows.extend(('System ID' if label.casefold() == 'id' else label, cell)
+                    for label, cell in technical_pdf_rows(report, item)
+                    if label.casefold() not in _OMITTED_INSPECTION_FIELDS)
         source_code = item['record'].get('source_code')
-        if source_code and not any(label == 'ID' for label, _ in rows):
-            rows.append(('ID', report.p(source_code, 'cell')))
+        if source_code and not any(label == 'System ID' for label, _ in rows):
+            rows.append(('System ID', report.p(source_code, 'cell')))
     else:
         # Legacy inspections store the installation type and services directly.
         legacy_labels = {'installation_type': 'Type', 'service_types': 'Service', 'report': 'Report Number'}
@@ -287,8 +296,11 @@ def _inspection_fields(report, entry, item):
     rows.append(('Access to the other side', report.p(entry['access'], 'cell')))
     if entry['access'] == 'NA':
         rows.append(('Solution', report.p(entry['solution'], 'cell')))
-    rows.append(('Signature', Signature(entry['signature'], 144, 36)))
-    return [[report.p(label, 'cell'), cell] for label, cell in rows]
+    signer = entry.get('signature_details') or {}
+    rows.extend([('Name', report.p(signer.get('name') or '—', 'cell')),
+                 ('Date', report.p(display_date(signer.get('date')) or '—', 'cell')),
+                 ('Signature', Signature(entry['signature'], 144, 36))])
+    return [[report.p(label, 'head'), cell] for label, cell in rows]
 
 
 def render_register_pdf(register, details, *, library=None, company, plan_append=None):
@@ -310,12 +322,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                                  author=company.get('name') or 'CLASSIFIRE')
 
     report.story.append(report.p('Passive Fire Inspections', 'title'))
-    project_rows = [[report.p(label, 'cell'), report.p(details[key], 'cell')]
+    project_rows = [[report.p(label, 'head'), report.p(details[key], 'cell')]
                     for key, label in [('project_no', 'Project number'), ('client', 'Client'), ('site_address', 'Site address')]
                     if details.get(key)]
     if project_rows:
-        report.story.append(report.table(['Project details', 'Value'], project_rows,
-                                         [content * .3, content * .7], compact=True))
+        report.story.append(report.table(None, project_rows, [content * .3, content * .7],
+                                         compact=True, row_header_color=_INSPECTION_LABEL_RED))
         report.story.append(Spacer(1, 10))
     for number, entry in enumerate(entries, 1):
         if number > 1:
@@ -331,11 +343,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             except ReferenceNotFound as err:
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
             append_technical_heading(report, item)
-        report.story.append(report.table(['Field', 'Value'], _inspection_fields(report, entry, item),
-                                         [content * .3, content * .7], compact=True))
+        report.story.append(report.table(None, _inspection_fields(report, entry, item),
+                                         [content * .3, content * .7], compact=True, row_header_color=_INSPECTION_LABEL_RED))
         if item:
             append_technical_tables(report, (table for table in item['tables']
-                                             if table['label'].casefold() not in _INSTRUCTION_FIELDS), content)
+                                             if table['label'].casefold() not in _INSTRUCTION_FIELDS),
+                                    content, row_header_color=_INSPECTION_LABEL_RED)
         if entry['comments'] and entry['access'] == 'No':
             report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):

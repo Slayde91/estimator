@@ -231,7 +231,8 @@ class _Report:
             return _number(value, blank="Blank", **formatting)
         return "Blank" if value is None or value == "" else _text(value)
 
-    def table(self, headings, rows, widths, *, compact=False, total_rows=0):
+    def table(self, headings, rows, widths, *, compact=False, total_rows=0, row_header_color=None):
+        """Passing no headings starts with data. Row-header fill applies only to the first body column."""
         # Numeric tokens must not wrap midway through their decimal digits.
         # Most values fit at the normal font size after column allocation; a
         # modest font reduction handles longer quantities without losing digits.
@@ -243,10 +244,13 @@ class _Report:
                     cell = self.fit_numeric(cell, widths[index] - 12)
                 fitted.append(cell)
             fitted_rows.append(fitted)
-        data = [[self.p(heading, "head") for heading in headings]] + fitted_rows
-        table = LongTable(data, colWidths=widths, repeatRows=1, hAlign="LEFT", splitInRow=1)
+        header = [[self.p(heading, "head") for heading in headings]] if headings else []
+        table = LongTable(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT", splitInRow=1)
         padding = 4 if compact else 6
-        styles = _table_branding() + [
+        branding = _table_branding() if header else [("LINEBELOW", (0, 0), (-1, -1), .35, _INK)]
+        if row_header_color is not None and fitted_rows:
+            branding.append(("BACKGROUND", (0, len(header)), (0, -1), row_header_color))
+        styles = branding + [
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),

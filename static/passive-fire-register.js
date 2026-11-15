@@ -58,6 +58,20 @@
     wrap.append(caption, control);
     return wrap;
   }
+  async function signatureDetails(memberId) {
+    const [profileResponse, sessionResponse] = await Promise.all([
+      fetch('/api/forms/signer', {cache:'no-store'}),
+      fetch('/api/scheduler/bootstrap', {cache:'no-store'})
+    ]);
+    if (!profileResponse.ok || !sessionResponse.ok) throw new Error('Personal details could not be loaded. Try again.');
+    const [profile, session] = await Promise.all([profileResponse.json(), sessionResponse.json()]);
+    if (!memberId || profile.id !== memberId || session.user?.id !== memberId || window.ClassifireAccess.user?.id !== memberId)
+      throw new Error('Your signature profile changed. Reopen the signature pad.');
+    if (!profile.name?.trim() || !profile.at || !session.timezone) throw new Error('Personal details could not be loaded. Try again.');
+    const date = window.ClassifireDates.parseDate(window.ClassifireDates.date(profile.at, {timeZone:session.timezone}));
+    if (!date) throw new Error('Personal details could not be loaded. Try again.');
+    return {member_id:memberId, name:profile.name, date};
+  }
   function editor(record, key, label, values, rerender = false) {
 
     const control = el(values ? 'select' : key === 'comments' ? 'textarea' : 'input');
@@ -249,20 +263,48 @@
     }
     const sign = el('section','card');
     sign.append(el('h2','','Signature'));
+    const signer = el('div','register-grid');
+    const details = entry.signature_details;
+    for (const [label, value] of [['Name', details?.name || ''], ['Date', details ? window.ClassifireDates.date(details.date) : '']]) {
+      const input = el('input');
+      input.readOnly = true;
+      input.value = value;
+      signer.append(field(label, input));
+    }
+    sign.append(signer);
     if (entry.signature) {
       const img = el('img','register-signature'); img.alt = 'Signature';
       img.src = window.ClassifirePersonalSignature.png(entry.signature);
       sign.append(img);
     }
     const buttons = el('div','register-signature-actions');
-    buttons.append(window.ClassifireFormControls.iconButton('Insert signature', 'signature', async () => {
+    buttons.append(window.ClassifireFormControls.iconButton('Insert signature', 'signature', async event => {
+      const button = event.currentTarget;
+      const memberId = window.ClassifireAccess.user?.id;
+      button.disabled = true;
       try {
         const value = await window.ClassifirePersonalSignature.choose(entry.signature);
-        if (value && editedEntry() === entry) { entry.signature = value; changed(); render(); }
-      } catch(error) { setStatus(error.message); }
+        if (!value) return;
+        const details = await signatureDetails(memberId);
+        if (button.isConnected && !root.closest('.view')?.hidden && editedEntry() === entry) {
+          entry.signature = value;
+          entry.signature_details = details;
+          changed();
+          render();
+        }
+      } catch(error) {
+        if (button.isConnected) setStatus(error.message);
+      } finally {
+        button.disabled = false;
+      }
     }));
     if (entry.signature) {
-      const clear = action('', () => { entry.signature = null; changed(); render(); });
+      const clear = action('', () => {
+        entry.signature = null;
+        delete entry.signature_details;
+        changed();
+        render();
+      });
       clear.classList.add('icon-only','form-control-icon');
       for (const attr of ['title', 'aria-label']) window.CeasefireI18n.attr(clear, attr, 'Clear signature');
       const artwork = document.querySelector('#penetration-clear svg').cloneNode(true);

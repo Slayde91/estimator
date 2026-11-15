@@ -287,20 +287,26 @@ def technical_pdf_rows(report, snapshot):
         yield label, cell
 
 
-def append_technical_tables(report, tables, content):
+def append_technical_tables(report, tables, content, *, row_header_color=None):
+    def append_table(columns, records, widths):
+        cells = [[report.p(value, 'head' if index == 0 and row_header_color is not None else 'cell')
+                  for index, value in enumerate(record)] for record in records]
+        report.story.append(report.table(columns, cells, widths, compact=True, row_header_color=row_header_color))
+
     for table in tables:
         report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))
         display_rows = _display_rows(table)
         if len(table['columns']) <= 4:
-            report.story.append(report.table([compact_technical_text(value) for value in table['columns']], [[report.p(value, 'cell') for value in row] for row in display_rows], [content / len(table['columns'])] * len(table['columns']), compact=True))
+            columns = [compact_technical_text(value) for value in table['columns']]
+            append_table(columns, display_rows, [content / len(columns)] * len(columns))
         else:
             # Keep source columns readable rather than shrinking 20 columns into
             # an A4 page. The explicit source row links each horizontal part.
             for start in range(0, len(table['columns']), 3):
                 columns = [compact_technical_text(value) for value in table['columns'][start:start + 3]]
                 report.story.append(report.p(f'Columns {start + 1}-{start + len(columns)} of {len(table["columns"])}; row numbers align these parts.', 'small'))
-                values = [[report.p(str(index), 'cell')] + [report.p(value, 'cell') for value in row[start:start + 3]] for index, row in enumerate(display_rows, 1)]
-                report.story.append(report.table(['Row', *columns], values, [55] + [(content - 55) / len(columns)] * len(columns), compact=True))
+                values = [[str(index), *row[start:start + 3]] for index, row in enumerate(display_rows, 1)]
+                append_table(['Row', *columns], values, [55] + [(content - 55) / len(columns)] * len(columns))
 
 
 def render_technical_item_pdf(snapshot, *, company=None):

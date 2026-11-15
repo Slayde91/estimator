@@ -49,6 +49,19 @@ async function run() {
   await createNewProject(page,{client:'Synthetic fire register'});
   await register();
   const form = page.locator('#passive-register-root');
+  const signerName = form.getByRole('textbox',{name:'Name',exact:true});
+  const signingDate = form.getByRole('textbox',{name:'Date',exact:true});
+  const setSignerName = name => page.evaluate(async name => {
+    const url = '/api/certifications/defaults';
+    const settings = await (await fetch(url)).json();
+    const response = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({fields:{...settings.fields,name},expected_version:settings.version})});
+    if (!response.ok) throw Error('Could not set the fixture signer name.');
+  }, name);
+  await expect(signerName).toHaveValue('');
+  await expect(signingDate).toHaveValue('');
+  await expect(signerName).toHaveJSProperty('readOnly',true);
+  await expect(signingDate).toHaveJSProperty('readOnly',true);
   await form.getByLabel('Level/Location').fill('North wall, Level 2');
   const toolbar = form.locator('.register-toolbar');
   assert.deepEqual(await toolbar.locator('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))),
@@ -111,13 +124,35 @@ async function run() {
     await form.getByLabel(phase,{exact:true}).setInputFiles({name:'evidence.png',mimeType:'image/png',buffer:Buffer.from(pixels,'base64')});
     await expect(form.getByRole('img',{name:phase + ' 1',exact:true})).toBeVisible();
   }
-  await form.getByRole('button',{name:'Insert signature'}).click();
-  const pad = page.getByLabel('Signature drawing pad');
-  const box = await pad.boundingBox();
-  await page.mouse.move(box.x+10,box.y+30);
-  await page.mouse.down(); await page.mouse.move(box.x+70,box.y+45,{steps:6}); await page.mouse.up();
-  await page.getByRole('dialog').getByRole('button',{name:'Insert signature'}).click();
+  await setSignerName('Inspection signer');
+  let staleSigner = false;
+  await page.route('**/api/forms/signer',async route => {
+    const response = await route.fetch();
+    const profile = await response.json();
+    // In Sydney this instant is on the following calendar day.
+    await route.fulfill({response,json:{...profile,at:'2026-01-01T15:10:00Z',
+      id:staleSigner ? 'other-member' : profile.id}});
+  });
+  async function drawSignature() {
+    await form.getByRole('button',{name:'Insert signature'}).click();
+    const box = await page.getByLabel('Signature drawing pad').boundingBox();
+    await page.mouse.move(box.x+10,box.y+30);
+    await page.mouse.down(); await page.mouse.move(box.x+70,box.y+45,{steps:6}); await page.mouse.up();
+    await page.getByRole('dialog').getByRole('button',{name:'Insert signature'}).click();
+  }
+  await drawSignature();
   await expect(form.getByRole('img',{name:'Signature',exact:true})).toBeVisible();
+  await expect(signerName).toHaveValue('Inspection signer');
+  await expect(signingDate).toHaveValue('02/01/2026');
+  await setSignerName('Updated inspector');
+  await form.getByRole('button',{name:'Insert signature'}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Cancel'}).click();
+  await expect(signerName).toHaveValue('Inspection signer');
+  staleSigner = true;
+  await drawSignature();
+  await expect(form.getByRole('status')).toHaveText('Your signature profile changed. Reopen the signature pad.');
+  await expect(signerName).toHaveValue('Inspection signer');
+  staleSigner = false;
   const pdfRoute = '**/api/project/passive-fire-register.pdf';
   let releaseExport, exportStarted;
   const hold = new Promise(resolve => { releaseExport = resolve; });
@@ -146,12 +181,26 @@ async function run() {
   await page.locator('#save-current-project').click();
   assert.equal((await savedFinal).status(),200);
   assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].signature_details,
+    {member_id:await page.evaluate(() => window.ClassifireAccess.user.id),name:'Inspection signer',date:'2026-01-02'});
   const pins = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].plan_pins;
   assert.deepEqual(pins.map(pin => pin.page),[3]);
   assert.ok(Math.abs(pins[0].x - .42)<.02 && Math.abs(pins[0].y - .45)<.02);
   await idle();
   await page.setViewportSize({width:390,height:884});
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  for (const width of [390, 1160]) {
+    await page.setViewportSize({width, height:884});
+    const photos = form.locator('.register-photo-field figure');
+    assert.equal(await photos.count(), 4);
+    for (const photo of await photos.all()) {
+      const image = await photo.locator('img').boundingBox();
+      const remove = await photo.getByRole('button',{name:'Remove photo'}).boundingBox();
+      assert.ok(remove.x > image.x + image.width);
+      assert.ok(Math.abs((image.y + image.height / 2) - (remove.y + remove.height / 2)) < 1);
+    }
+  }
+  await page.setViewportSize({width:390,height:884});
   await page.screenshot({path:path.join(output,'register-mobile.png')});
   await page.setViewportSize({width:1280,height:900});
   fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.stringify({file:'project-b.cf.json'}));
@@ -167,6 +216,10 @@ async function run() {
   await idle(); await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   await expect(form.getByRole('img')).toHaveCount(6);
+  await expect(signerName).toHaveValue('Inspection signer');
+  await expect(signingDate).toHaveValue('02/01/2026');
+  await drawSignature();
+  await expect(signerName).toHaveValue('Updated inspector');
   await expect(chosen).toBeChecked();
   await expect(form.locator('.register-plan-mark').first()).toHaveText('001');
   const clear = form.getByRole('button',{name:'Clear signature'});
@@ -176,6 +229,9 @@ async function run() {
   assert.ok(Math.abs(insertBox.y - clearBox.y) < 1 && clearBox.x > insertBox.x + insertBox.width);
   await clear.click();
   await expect(form.getByRole('img',{name:'Signature',exact:true})).toHaveCount(0);
+  await expect(signerName).toHaveValue('');
+  await expect(signingDate).toHaveValue('');
+  assert.equal(await page.evaluate(() => 'signature_details' in window.ClassifirePassiveRegister.capture().value.entries[0]),false);
   const removePhoto = form.getByRole('button',{name:'Remove photo'}).first();
   await expect(removePhoto.locator('.trash-artwork')).toHaveCount(1);
   await removePhoto.click();

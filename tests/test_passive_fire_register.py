@@ -70,6 +70,25 @@ class PassiveFireRegisterTests(unittest.TestCase):
         imported = {'entries':[],'next_number':1_000_001}
         preserve_register_numbers(imported,{'entries':[],'next_number':1_000_002})
 
+    def test_signing_details_round_trip_without_inventing_metadata_for_older_entries(self):
+        signed = {'signature': completed_entry()['signature']}
+        details = {'member_id': str(uuid.uuid4()), 'name': 'Inspector A', 'date': '2026-10-04'}
+        draft = normalize_register({'entries': [{**signed, 'signature_details': details}, signed, {}]})
+        self.assertEqual(draft['entries'][0]['signature_details'], details)
+        for entry in draft['entries'][1:]:
+            self.assertNotIn('signature_details', entry)
+        self.assertEqual(normalize_register(draft), draft)
+        for invalid in (
+            {'signature_details': details},
+            {**signed, 'signature_details': {**details, 'name': ' '}},
+            {**signed, 'signature_details': {**details, 'member_id': 'not-a-member-id'}},
+            {**signed, 'signature_details': {**details, 'date': '2026-02-30'}},
+            {**signed, 'signature_details': {**details, 'date': ''}},
+            {**signed, 'signature_details': {**details, 'company': 'Unknown key'}},
+        ):
+            with self.subTest(entry=invalid), self.assertRaises(ValidationError):
+                normalize_register({'entries': [invalid]})
+
     def test_incomplete_drafts_round_trip_and_only_complete_entries_export(self):
         draft = normalize_register({'entries': [{}, {'location': 'First floor'}]})
         self.assertEqual(normalize_register(draft), draft)
@@ -82,6 +101,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
 
     def test_all_access_branches_render_entered_evidence_and_project_identity(self):
         entry = completed_entry()
+        entry['signature_details'] = {'member_id': str(uuid.uuid4()), 'name': 'Inspector <A> & Brown', 'date': '2026-11-15'}
         for access, included, excluded in [
             ('Yes', 'SIDE-B', 'Access blocked by wall'),
             ('No', 'Access blocked by wall', 'SIDE-B'),
@@ -95,9 +115,12 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 content = '\n'.join(page.extract_text() for page in pages)
                 self.assertGreaterEqual(len(pages), 2)
                 self.assertEqual(content.count('PN-TEST'), 1)
+                self.assertNotIn('Project details', content)
                 self.assertIn('Entry 1 of 2', pages[0].extract_text())
                 ids = '001 / 001-2' if access == 'Yes' else '001'
-                self.assertIn(f'Penetration IDs {ids} ', ' '.join(content.split()))
+                lines = ' '.join(content.split())
+                self.assertIn(f'Penetration ID {ids} ', lines)
+                self.assertIn('Name Inspector <A> & Brown Date 15/11/2026 Signature', lines)
                 for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Entry 2 of 2', 'Basement west',
                               'Side 1 - 001','Side 1 - 002',
                               'SIDE-A', 'Before', 'During', 'After', 'Label', included,
@@ -139,10 +162,11 @@ class PassiveFireRegisterTests(unittest.TestCase):
             with patch.object(library, 'asset', side_effect=AssertionError('Technical images are never read for the register')):
                 pdf = PdfReader(BytesIO(render_register_pdf(draft, {}, library=library, company=DEFAULTS)))
             text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
-            self.assertIn('Field Value Location Riser <01> & plant Substrate Concrete/masonry wall Type Core hole', text)
-            self.assertIn('Penetration IDs 001 / 001-2 ID V2 Category Plumbing & Hydraulic Service Copper pipe', text)
-            self.assertIn('Report Number Unlinked source report Access to the other side Yes Signature', text)
-            for omitted in ('Service Wrap', 'Local Protection', 'Installation Details', 'Retain original conditions.'):
+            self.assertIn('Location Riser <01> & plant Substrate Concrete/masonry wall Type Core hole', text)
+            self.assertIn('Penetration ID 001 / 001-2 System ID V2 Category Plumbing & Hydraulic Service Copper pipe', text)
+            self.assertIn('Report Number Unlinked source report Access to the other side Yes Name — Date — Signature', text)
+            for omitted in ('Field Value', 'Barrier Construction', 'Service Wrap', 'Local Protection',
+                            'Installation Details', 'Retain original conditions.'):
                 self.assertNotIn(omitted, text)
             self.assertEqual(pdf.metadata.title, 'Passive Fire Inspections')
             stale = {**entry, 'technical_filters': {'orientation': 'Horizontal'}}

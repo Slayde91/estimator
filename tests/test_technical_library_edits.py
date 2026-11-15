@@ -11,6 +11,8 @@ from uuid import uuid4
 from unittest.mock import patch
 
 from PIL import Image
+from openpyxl import load_workbook
+from pypdf import PdfReader
 
 from feature_client import StaffConnection
 from estimator.catalog import ValidationError
@@ -18,7 +20,8 @@ from estimator.firestopping_library import FirestoppingLibrary, LibraryConflict
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.storage import Store
 from estimator.technical_library_edits import ManualTechnicalLibrary, FACETS
-from estimator.technical_item_exports import prepare_technical_item
+from estimator.technical_item_exports import prepare_technical_item, build_technical_item_xlsx, render_technical_item_pdf
+from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE
 from estimator.server import create_server
 from estimator.library_classifications import classification_filters
 from estimator.technical_service_options import TECHNICAL_SERVICES
@@ -79,6 +82,40 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         change['facets']['frl'].append('-/120/120')
         with self.assertRaisesRegex(ValidationError, 'unassessed'):
             self.library.technical_save(key, change)
+
+    def test_assessed_manual_ratings_match_and_export_the_exact_table_row(self):
+        choices = {'substrate': 'Concrete/masonry wall', 'orientation': 'Vertical', 'manufacturer': 'Allproof',
+                   'type': 'Core hole', 'category': 'Electrical & Communications', 'services': 'D1 Power Cables'}
+        for minutes in (30, 45):
+            rating = f'-/60/{minutes}'
+            key = f'allproof-exact-{minutes}'
+            record = {'id': key, 'title': f'ALLFC25 1 × TPS {rating}', 'source_label': ALLPROOF_MANUAL_SOURCE,
+                      'fields': [{'label': 'FRL', 'value': rating},
+                                 {'label': 'Installation Details', 'value': f'Assessed to FRL {rating}.'}],
+                      'filter_values': {**{k: [v] for k, v in choices.items()}, 'report': ['Manual'], 'frl': [rating]},
+                      'sources': [], 'images': []}
+            self.library.technical_edits.save(key, 0, 'a' * 64, record, created=True)
+        for inspection in ('', '1'):
+            for minutes in (30, 45):
+                with self.subTest(inspection=inspection, minutes=minutes):
+                    result = self.library.listing('technical', inspection=inspection, **choices, frl=f'-/60/{minutes}')
+                    self.assertEqual([item['id'] for item in result['items']], [f'allproof-exact-{minutes}'])
+                    self.assertIn(f'-/60/{minutes}', result['items'][0]['title'])
+        key = 'allproof-exact-45'
+        self.assertEqual(self.library.inspection_labels([key])[key]['frl'], '-/60/45')
+        self.assertEqual(self.library.detail('technical', key)['inspection_options']['frl'], ['-/60/45'])
+        self.assertEqual(self.library.technical_edit(key)['record']['filter_values']['frl'], ['-/60/45'])
+        filters = {**choices, 'frl': '-/60/45'}
+        snapshot = prepare_technical_item({'id': key}, library=self.library, inspection_filters=filters)
+        self.assertEqual(next(f['value'] for f in snapshot['fields'] if f['label'] == 'FRL'), '-/60/45')
+        pdf_text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        self.assertIn('-/60/45', pdf_text)
+        self.assertNotIn('-/60/30', pdf_text)
+        workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), read_only=True)
+        try:
+            self.assertIn(('FRL', '-/60/45'), list(workbook['Item Details'].values))
+        finally:
+            workbook.close()
 
     def protected(self):
         self.assertEqual(self.source.read_bytes(), self.original_source)

@@ -18,13 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from estimator.firestopping_library import diagram_upload
 from estimator.library_report_links import validate_report_links
 from estimator.storage import Store
+from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE
 from estimator.technical_library_edits import FIELD_FACETS, TechnicalEdits, uploaded_diagram_id
 
 MANUALS = {
     'electrical': ('electrical.pdf', '0b3562ef2123d1fce6d531adefcbdce5f7fe9bb73c3ca8bc0f85e0aba6ba1b50'),
     'plumbing': ('manual.pdf', '1612953f82825fa011406d9dcdbb21a4493ff38ec70d86b985fa61b5a72c8b99'),
 }
-SOURCE = 'Allproof Australian fire technical manual'
 # Hash of each reviewed UTF-8 manifest and the named original diagram crops.
 REVIEWED_BUNDLES = {
     'electrical': '14708b2720a9ef97aa01ebe4ee9ee88853ef5247f425b640562469fcf29e14b0',
@@ -102,7 +102,7 @@ def build_record(row, family, directory, allowed_fields):
             images.append({'id': image_id, 'caption': f'Allproof {family} manual, {locator} — {path.stem}',
                            'user_uploaded': True})
             blobs[image_id] = rendered['image_data']
-    record = {'id': key, 'title': row['title'], 'source_label': SOURCE, 'subtitle': locator,
+    record = {'id': key, 'title': row['title'], 'source_label': ALLPROOF_MANUAL_SOURCE, 'subtitle': locator,
               'summary': '', 'sources': sources,
               'fields': fields, 'filter_values': facets, 'images': images, 'editable': True}
     return record, blobs

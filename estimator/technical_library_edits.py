@@ -15,6 +15,7 @@ from .firestopping_library import (FirestoppingLibrary, LibraryConflict, MAX_DIA
 from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
+from .technical_discovery import ALLPROOF_MANUAL_SOURCE
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
@@ -268,7 +269,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 record = data['_technical_public_records'][key]
                 # Imported assessments can have specific tested FRLs and substrates
                 # outside the installed catalogue. Only this reviewed source adds them.
-                if facet not in ('report', 'manufacturer') and record.get('source_label') != 'Allproof Australian fire technical manual':
+                if facet not in ('report', 'manufacturer') and record.get('source_label') != ALLPROOF_MANUAL_SOURCE:
                     continue
                 for value in data['_technical_discovery'][key].get(facet, []):
                     if value not in known and value != UNASSESSED_FRL:

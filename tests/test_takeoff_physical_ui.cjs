@@ -14,7 +14,7 @@ const legacyGraph = () => ({version:1,id:uuid(99),project_id:uuid(98),revision:1
 const graph = () => ({version:2,id:uuid(99),project_id:uuid(98),revision:1,state:'draft',defects:[make(2,{label:'Defect 01',frl:'-/120/120'},{display_id:'D-0001'})],barriers:[make(1,{label:'Wall A',substrate:'Concrete'},{display_id:'B-0001',defect_id:uuid(2)}),make(4,{label:'Empty barrier'},{display_id:'B-0002',defect_id:uuid(2)})],services:[make(5,{label:'Pipe',service:'Copper pipe',size:'25 mm'},{display_id:'S-0001',barrier_id:uuid(1),quantity:1}),make(6,{label:'Cable',service:'Cable bundle'},{display_id:'S-0002',barrier_id:uuid(1),quantity:3})]});
 const servicePlanGraph = () => { const value=graph();value.version=3;value.id=uuid(97);delete value.defects;for(const barrier of value.barriers){delete barrier.defect_id;barrier.fields.frl='-/90/90';}return value; };
 const snapshot = value => ({version:1,project_id:uuid(98),revision:1,documents:[{id:uuid(80),sha256:'d'.repeat(64),name:'Inspection.pdf',pages:[{page:1},{page:2}]}],physical:value,image_extractions:[{id:uuid(90),document_id:uuid(80),pages:[1]}]});
-const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service'],frl:['N/A','-/60/60','-/90/90','-/120/120','-/180/180','-/240/240']};
+const fieldChoices = {substrate:['Concrete','Masonry','Custom library substrate'],orientation:['Horizontal','Vertical'],service:['HVAC & Mechanical','Electrical & Communications'],service_type:['Copper pipe','Cable bundle','Custom library service'],frl:['N/A','-/60/60','-/90/90','-/120/120','-/180/180','-/240/240']};
 const optionsOf = control => control.children.flatMap(child=>child.tagName==='OPTGROUP'?child.children:[child]).filter(child=>child.tagName==='OPTION').map(child=>child.value).filter(value=>value!=='');
 const definitionOptions = definition => definition[2].map(option=>Array.isArray(option)?option[0]:option);
 function documentHarness(){
@@ -85,7 +85,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Visual Search creates checked service callouts through one guarded preview and explicit quantity form',async()=>{
     const h=component(servicePlanGraph(),{scope:()=> 'service_plans'});await flush();await h.controller.select(uuid(1),false,false);
     const hits=[40,120].map(x=>({document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[x,60],region:[[x-8,52],[x+8,52],[x+8,68],[x-8,68]],score:.98,rotation:0}));
-    h.answers.push({service:'Mechanical',service_type:'Copper pipe',size:'25 mm',quantity:'2'});
+    h.answers.push({service:'HVAC & Mechanical',service_type:'Copper pipe',size:'25 mm',quantity:'2'});
     const ids=await h.controller.createFromVisualSearch('service',hits);assert.equal(ids.length,2);assert.equal(h.calls.previews.length,1);assert.equal(h.calls.applied.length,1);assert.equal(h.calls.confirmations.length,1);
     const commands=h.calls.previews[0];assert.ok(commands.every(c=>c.kind==='service'&&c.entity.barrier_id===uuid(1)&&c.entity.quantity===2&&c.entity.uncertainty.state==='not_assessed'&&!('confirmation' in c.entity)));
     assert.deepEqual(commands.map(c=>c.entity.annotation.point),hits.map(h=>h.point));assert.deepEqual(commands.map(c=>c.entity.evidence[0].region),hits.map(h=>h.region));
@@ -303,7 +303,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     for(const label of ['Width x Height (mm)','Overall Diameter (mm)','Insulation (mm)'])assert.ok(!h.all().some(node=>node.attributes['aria-label']===label));
     h.editInput().value='New note';h.editInput().emit('input');await h.controller.completePendingEdits();
     for(const key of ['width_mm','height_mm','diameter_mm','insulation_mm'])assert.deepEqual(h.current.physical.services[0].fields[key],before.fields[key]);
-    h.answers.push({service:'Mechanical',service_type:'Copper pipe',size:'25',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service to B-0001');
+    h.answers.push({service:'HVAC & Mechanical',service_type:'Copper pipe',size:'25',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service to B-0001');
     const fields=h.calls.asks.at(-1).definitions;assert.ok(fields.some(([key])=>key==='size'));
     assert.ok(!fields.some(([key])=>['width_height_mm','width_mm','height_mm','diameter_mm','insulation_mm'].includes(key)));
     assert.equal(h.calls.previews.at(-1)[0].entity.fields.size,'25');h.controller.destroy();
@@ -471,7 +471,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
     await assert.rejects(saving,/draft changed/);assert.equal(h.calls.previews.length,0);assert.equal(h.calls.applied.length,0);assert.ok(!h.all().some(control=>control.tagName!=='OPTION'&&control.dataset.physicalField==='barrier_type'&&control.value==='Oversized'));h.controller.destroy();
   });
   await check('Barrier and service forms share catalogue dropdowns in creation, inspector and register',async()=>{
-    const value=graph();Object.assign(value.barriers[0].fields,{barrier_type:'Core hole',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'Mechanical',service_type:'Copper pipe'});
+    const value=graph();Object.assign(value.barriers[0].fields,{barrier_type:'Core hole',orientation:'Vertical'});Object.assign(value.services[0].fields,{service:'HVAC & Mechanical',service_type:'Copper pipe'});
     const h=component(value);await flush();
     await h.click('Add barrier to D-0001');const barrier=h.calls.asks.at(-1).definitions;
     assert.ok(!barrier.some(([key])=>['label','thickness_mm'].includes(key)));
@@ -701,7 +701,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Item Details creates children under its selected parent after flushing its fields',async()=>{
     const h=component(servicePlanGraph(),{scope:()=> 'service_plans',inspectorContainer:true});await flush();await h.controller.select(uuid(1));assert.equal(h.button('Add service in Item Details').title,'Add service to B-0001');
     const notes=h.editInput();notes.value='Pending barrier details';notes.emit('input');await h.click('Add service in Item Details');assert.equal(h.calls.asks.length,1);assert.equal(h.current.physical.barriers[0].fields[h.bridge.scope?.()==='service_plans'?'location':'barrier_type'],'Pending barrier details');assert.equal(h.button('Add service in Item Details').children[0].src,'/icons/takeoff-add-service.png');
-    await h.controller.completePendingEdits();h.answers.push({service:'Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields[h.bridge.scope?.()==='service_plans'?'location':'barrier_type'],'Pending barrier details');h.controller.destroy();
+    await h.controller.completePendingEdits();h.answers.push({service:'HVAC & Mechanical',service_type:'Copper pipe',quantity:2,uncertainty_state:'not_assessed'});await h.click('Add service in Item Details');const command=h.calls.previews.at(-1)[0];assert.equal(command.kind,'service');assert.equal(command.entity.barrier_id,uuid(1));assert.equal(command.entity.quantity,2);assert.equal(h.current.physical.barriers[0].fields[h.bridge.scope?.()==='service_plans'?'location':'barrier_type'],'Pending barrier details');h.controller.destroy();
     const defect=component();await flush();await defect.controller.select(uuid(2));assert.equal(defect.button('Add barrier in Item Details').title,'Add barrier to D-0001');defect.answers.push({substrate:'Concrete',uncertainty_state:'not_assessed'});await defect.click('Add barrier in Item Details');assert.equal(defect.calls.previews.at(-1)[0].entity.defect_id,uuid(2));defect.controller.destroy();
   });
   await check('Item Details child dropdowns follow the selected Defect across pages and reject unrelated families',async()=>{
@@ -743,7 +743,7 @@ async function check(label,test){await test();passed++;console.log(`ok - ${label
   await check('Count creation actions resolve actual ancestor parents and use reviewed commands without changing marker identity',async()=>{
     const value=graph(),marker={document_id:uuid(80),document_sha256:'d'.repeat(64),page:1,point:[10,20]};value.barriers[0].marker=marker;const h=component(value);await flush();await h.controller.selectDrawing(uuid(5));
     h.answers.push({substrate:'Masonry',uncertainty_state:'not_assessed'});const barrierId=await h.controller.createFromSelection('barrier');assert.equal(h.calls.previews.at(-1)[0].entity.defect_id,uuid(2));assert.equal(h.current.physical.barriers.at(-1).id,barrierId);assert.equal(h.current.physical.barriers.at(-1).marker,undefined);assert.equal(h.controller.selectedBarrier().id,barrierId);
-    await h.controller.selectDrawing(uuid(5));h.answers.push({service:'Mechanical',quantity:2,uncertainty_state:'not_assessed'});const serviceId=await h.controller.createFromSelection('service');assert.equal(h.calls.previews.at(-1)[0].entity.barrier_id,uuid(1));assert.equal(h.current.physical.services.at(-1).id,serviceId);assert.equal(h.current.physical.services.at(-1).quantity,2);assert.deepEqual(h.current.physical.barriers[0].marker,marker);
+    await h.controller.selectDrawing(uuid(5));h.answers.push({service:'HVAC & Mechanical',quantity:2,uncertainty_state:'not_assessed'});const serviceId=await h.controller.createFromSelection('service');assert.equal(h.calls.previews.at(-1)[0].entity.barrier_id,uuid(1));assert.equal(h.current.physical.services.at(-1).id,serviceId);assert.equal(h.current.physical.services.at(-1).quantity,2);assert.deepEqual(h.current.physical.barriers[0].marker,marker);
     h.answers.push({label:'Second defect',uncertainty_state:'not_assessed'});const defectId=await h.controller.createFromSelection('defect');assert.equal(h.current.physical.defects.at(-1).id,defectId);assert.equal(h.calls.previews.at(-1)[0].entity.defect_id,undefined);assert.equal(h.calls.asks.length,3);h.controller.destroy();
   });
   await check('Count creation preserves pending input, cancelled parent choice and project replacement guards',async()=>{

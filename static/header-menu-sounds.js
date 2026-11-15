@@ -9,6 +9,7 @@
   const feedbackSources = Object.freeze({
     select: "/sounds/select.mp3",
     takeoffTab: "/sounds/glitch.mp3",
+    calculatorTab: "/sounds/shutter.mp3",
     page: "/sounds/page.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
@@ -152,7 +153,7 @@
     function navigationOpened(kind) {
       if (closed || document.hidden) return;
       if (kind === "header") {players.stop();menu.play("confirm");}
-      else if (kind === "page" || kind === "takeoffTab") {menu.stop?.();players.play(kind);}
+      else if (kind === "page" || kind === "takeoffTab" || kind === "calculatorTab") {menu.stop?.();players.play(kind);}
     }
     return Object.freeze({ stop, close, prepareQuote, quoteAccepted, navigationOpened });
   }

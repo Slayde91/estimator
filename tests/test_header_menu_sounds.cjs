@@ -278,6 +278,8 @@ test("Workspace tabs wait for the navigation owner to confirm the destination", 
   }
   assert.deepEqual(h.plays(),[]);feedback.navigationOpened("page");
   assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/page.mp3"]);
+  feedback.navigationOpened("calculatorTab");
+  assert.deepEqual(h.plays().map(row => row[1]), ["/sounds/page.mp3", "/sounds/shutter.mp3"]);
 });
 
 test("PDF drawing hits and handles are silent while pane and explicit context-menu buttons keep Takeoff feedback", () => {
@@ -373,6 +375,7 @@ test("muting immediately stops header, Takeoff and logo clips without replay aft
   const header=create({querySelectorAll:()=>[button]},h.host),feedback=createFeedback(h.document,h.host,header);
   feedback.navigationOpened("header");assert.ok(h.players.some(audio=>!audio.paused));
   const count=h.plays().length;preference.setEnabled(false);assert.ok(h.players.every(audio=>audio.paused));
+  feedback.navigationOpened("calculatorTab");
   button.emit('pointerenter',{pointerType:'mouse'});button.emit('click');
   h.document.emit('click',{target:element(element(null,{zone:'header'}),{brand:true})});
   h.document.emit('click',{target:element(element(null,{zone:'takeoff'}),{control:true})});
@@ -391,6 +394,7 @@ test("supplied feedback assets and the trimmed logo clip retain verified bytes",
     "hover.mp3": [5015, "052d0d7f3fb41ddb67766dedd8f4c237b46c8b18745dfad0a73a14c8afb6fad5"],
     "select.mp3": [11520, "60e089eeac138ce5301fb59dc9d649c0404a556499c8f78c15c81a7cdfde1969"],
     "page.mp3": [23808, "170023a6ce7840b7b8ab96576201c6170be7bfabc870a8502f805f09f4ac1024"],
+    "shutter.mp3": [21733, "09d62171adf3e5286acfdcd9e290ebd746af4f5ffa13817276c9b87001d5f0e6"],
     "select-2.mp3": [192768, "37e5c8645aa76e11dc8039545940436ea9201e533b1c946fbc9dfc3845efeb7b"],
     "mixkit-vintage-dot-printing-1371.wav": [249332, "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"],
     "checkpoint.ogg": [39539, "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],

@@ -81,6 +81,12 @@
     border-inline-start: 3px solid var(--red);
     padding-inline-start: 12px;
   }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.workspace-title-accent, [data-takeoff-mode="steel"] .takeoff-workspace-title) {
+    color: #ffd800;
+  }
+  :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(#main-input-heading, #summary-heading) {
+    color: var(--red);
+  }
   :root:is(:not([data-theme]), [data-theme="ceasefire"]) :is(.home-card, .estimator-choice, .project-browser-entry):hover {
     background: #20252d;
     border-color: #9c3a49;

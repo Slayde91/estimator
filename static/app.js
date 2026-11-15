@@ -1414,10 +1414,10 @@
     });
     window.addEventListener("pointerdown", event => { if (!navigation.contains(event.target)) setOpen(false); });
   }
-  function setupWorkspaceTabs(id, selector, navigate) {
+  function setupWorkspaceTabs(id, selector, navigate, sound = "page") {
     const strip = $(id);
     for (const button of strip?.querySelectorAll(selector) || []) button.addEventListener("click", () => {
-      void navigateFromControl(button,id==="takeoff-pages" ? "takeoffTab" : "page",navigate);
+      void navigateFromControl(button, sound, navigate);
     });
     strip?.addEventListener("keydown", event => {
       const tabs = [...strip.querySelectorAll(selector)].filter(button => !button.disabled), index = tabs.indexOf(event.target);
@@ -3244,9 +3244,9 @@
   for (const card of document.querySelectorAll(".projects-section-card[data-document-section]")) card.addEventListener("click", () => requestViewNavigation(card.dataset.documentSection));
   setupWorkspaceTabs("document-pages","[data-document-section]",button=>requestViewNavigation(button.dataset.documentSection));
   for (const card of document.querySelectorAll("[data-steel-calculator]")) card.addEventListener("click", () => requestCalculatorNavigation(card.dataset.steelCalculator));
-  setupWorkspaceTabs("calculator-kind-pages", "[data-calculator-id]", button => requestCalculatorNavigation(button.dataset.calculatorId));
+  setupWorkspaceTabs("calculator-kind-pages", "[data-calculator-id]", button => requestCalculatorNavigation(button.dataset.calculatorId), "calculatorTab");
   setupWorkspaceTabs("library-pages", "[data-library-kind]", button => requestLibraryNavigation(button.dataset.libraryKind));
-  setupWorkspaceTabs("takeoff-pages", "[data-mode]", button => requestTakeoffNavigation(button.dataset.mode, button.dataset.physicalScope));
+  setupWorkspaceTabs("takeoff-pages", "[data-mode]", button => requestTakeoffNavigation(button.dataset.mode, button.dataset.physicalScope), "takeoffTab");
   setupCalculatorNavigation();
   for (const button of document.querySelectorAll("[data-home-view]")) button.addEventListener("click", () => navigateToArea(button.dataset.homeView));
   document.querySelector(".brand")?.addEventListener("click", (event) => { event.preventDefault(); requestViewNavigation("home"); });

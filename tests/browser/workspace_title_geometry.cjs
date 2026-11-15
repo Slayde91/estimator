@@ -6,6 +6,8 @@ const {openProjectSection}=require('./project_actions.cjs');
 
 async function workspaceTitleMeasurements(page, output) {
   const sizes=[1915,1254,631,390,351,350,320], measurements=[], reference=new Map();
+  const yellow='rgb(255, 216, 0)', red='rgb(237, 0, 27)';
+  const highlighted=new Set(['Takeoffs Steel','pricing library','penetration library','technical library','Firestopping','Duct','Estimate','documentation','quotes','quote','work-orders','purchase-orders','Leads','Scheduler, clocked out','Scheduler, clocked in']);
   async function record(name,selector) {
     const title=page.locator(selector);
     await expect(title).toBeVisible();
@@ -22,13 +24,14 @@ async function workspaceTitleMeasurements(page, output) {
         const heading=element.closest('.page-heading,.calculator-workspace-heading,.takeoff-workspace-heading');
         const banner=heading.getBoundingClientRect();
         const inlineStart=rect.left-view.left,top=rect.top-header.bottom;
-        return {inlineStart,top,height:rect.height,fontSize:getComputedStyle(element).fontSize,
+        return {inlineStart,top,height:rect.height,fontSize:getComputedStyle(element).fontSize,color:getComputedStyle(element).color,
           rowY:banner.top-header.bottom,rowHeight:banner.height,below:parseFloat(getComputedStyle(heading).marginBottom),
           ...(heading.classList.contains('scheduler-clock-heading')?{tabGap:heading.querySelector('.scheduler-tabs').getBoundingClientRect().top-rect.bottom}:{}),
           x:rect.x,viewX:view.x,headingRight:rect.right,viewport:document.documentElement.clientWidth};
       },selector);
       const geometry=await sample.jsonValue();
       await sample.dispose();
+      assert.equal(geometry.color===yellow,highlighted.has(name),name+' title color at '+width);
       if(name==='Takeoffs Steel')reference.set(width,geometry);
       else {
         const peer=reference.get(width),context=name+' at '+width+': '+JSON.stringify(geometry);
@@ -58,6 +61,17 @@ async function workspaceTitleMeasurements(page, output) {
     await chooseCalculator(page,label);await record(label,label==='Firestopping'?'#penetration-heading':'#calculator-title');
   }
   await page.locator('#estimate-navigation-toggle').click();await record('Estimate','#estimate-heading');
+  for(const id of ['main-input-heading','summary-heading'])await expect(page.locator('#'+id)).toHaveCSS('color',red);
+  await expect(page.locator('#calculation-status')).not.toHaveCSS('color',red);
+  for(const selector of ['#view-settings > .page-heading h1','#forms-heading'])await expect(page.locator(selector)).toHaveCSS('color',yellow);
+  const theme=await page.locator('html').getAttribute('data-theme');
+  try {
+    await page.evaluate(()=>document.documentElement.dataset.theme='ocean');
+    await expect(page.locator('#estimate-heading')).not.toHaveCSS('color',yellow);
+    await expect(page.locator('#summary-heading')).not.toHaveCSS('color',red);
+  } finally {
+    await page.evaluate(theme=>{if(theme===null)document.documentElement.removeAttribute('data-theme');else document.documentElement.dataset.theme=theme;},theme);
+  }
   for(const [section,id] of [['documentation','#documentation-heading'],['quotes','#quotes-heading'],['quote','#commercial-quote-root'],['work-orders','#commercial-work-order-root'],['purchase-orders','#commercial-purchase-order-root']]){
     await openProjectSection(page,section);await record(section,id+(id.endsWith('-root')?' .page-heading h1':''));
   }

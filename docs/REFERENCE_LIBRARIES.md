@@ -516,3 +516,32 @@ Tests use synthetic content. Real source extraction, page coverage, image
 mapping and link-review evidence stay with the local installation work, outside
 the public repository. Whole-report text extraction is not a claim that every
 page or technical interpretation has been visually reviewed.
+## SNAP Fire Systems product filter
+
+The 16 November 2026 capture contains 3,568 distinct system IDs. The private
+installation bundle contains 3,564 records. Four selector configurations conflict
+with the cited report on a service size or floor build-up. The bundle's
+`exclusions.json` identifies those systems and the report pages.
+
+Filter the Technical Library by manufacturer **Snap**. Each entry retains its
+SNAP ID, system products, named barrier, service, nominal size, fitting allowance,
+installation details and report number. When SNAP specifies an effective FRL,
+that rating drives search and inspection selection. Installation Details records
+both values when the selector rating differs. Manufacturer sources links to the
+product, applicable guides and available evidence.
+
+The bundle uses 38 standalone product drawings and eight selected installation-guide
+figures. The installer shares identical PNGs across records and checks every
+image digest before applying the SQLite transaction. Re-running the same import
+verifies the installed records. A conflicting edit aborts the import.
+
+To install, extract the private `snap-technical-library-20261116.zip`, then run
+from the application checkout with the extracted directory in `$snapBundle`:
+
+```powershell
+python scripts/install_snap_library.py --manifest "$snapBundle/manifest.json" --database .runtime/estimator.sqlite3 --library .runtime/reference-library --expected-manifest-sha256 d60b9f6a4e6ed547e171c3bfe8346a5781f106b556a57159326535c6ce0b91e8
+```
+
+Append `--apply` to install. The private audit also retains the public filter
+capture, product reviews, report references, PDF fingerprints and figure
+selections used by `scripts/prepare_snap_library.py`.

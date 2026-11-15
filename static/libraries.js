@@ -1064,6 +1064,20 @@
       ? [{ url: data.diagram.url, caption: "Source diagram" }]
       : (data.images || []).filter(item => validAssetId(item.id));
     if (images.length) { const gallery = node("section", "library-images"); uiAttr(gallery, "aria-label", "Source diagrams"); gallery.append(...images.map(item => imageNode(item, pane.kind, false, pane.detail.image_replicas, data))); content.push(gallery); }
+    if (pane.kind === "technical" && data.source_label === "Snap Fire Systems product filter") {
+      const sources = node("details", "library-detail-section");
+      sources.append(uiNode("summary", "", "Manufacturer sources"));
+      for (const source of data.sources || []) {
+        let url;
+        try { url = new URL(source.url); } catch { continue; }
+        if (url.protocol !== "https:" || url.username || url.password || url.port ||
+            !["www.snapcollars.com.au", "docs.snapcollars.com.au"].includes(url.hostname)) continue;
+        const link = node("a", "", source.label);
+        link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+        const paragraph = node("p"); paragraph.append(link); sources.append(paragraph);
+      }
+      if (sources.childElementCount > 1) content.push(sources);
+    }
     const technicalRelated = pane.kind === "technical" ? relatedTechnicalSection(data, technicalSummary) : null;
     if (technicalRelated) content.push(technicalRelated);
     const related = node("section", "library-detail-section"), links = data.links || [];

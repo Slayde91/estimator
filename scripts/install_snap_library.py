@@ -76,7 +76,7 @@ def check_record(record, labels):
         text(source['label'], 2000, blank=False)
 
 
-def prepare(manifest, drawing_root, library):
+def prepare(manifest, drawing_root, library, expected_manifest_sha256=None):
     index_path = library / 'library.json'
     index_bytes = index_path.read_bytes()
     index_hash = sha256(index_bytes).hexdigest()
@@ -85,7 +85,10 @@ def prepare(manifest, drawing_root, library):
     labels.update(field['label'] for item in items for field in item['fields'])
     reserved = {item['id'] for item in items}
     del items, index_bytes
-    systems = json.loads(manifest.read_bytes())['systems']
+    captured = manifest.read_bytes()
+    if expected_manifest_sha256 and sha256(captured).hexdigest() != expected_manifest_sha256:
+        raise ValueError('The manifest does not match the expected SNAP import.')
+    systems = json.loads(captured)['systems']
     if not isinstance(systems, list) or not systems:
         raise ValueError('The manifest contains no systems.')
     records = []
@@ -123,9 +126,9 @@ def prepare(manifest, drawing_root, library):
     return records, paths, index_hash
 
 
-def install(manifest, library, database, apply=False, drawing_root=None):
+def install(manifest, library, database, apply=False, drawing_root=None, expected_manifest_sha256=None):
     manifest, library, database = map(Path, (manifest, library, database))
-    records, drawings, index_hash = prepare(manifest, Path(drawing_root or manifest.parent), library)
+    records, drawings, index_hash = prepare(manifest, Path(drawing_root or manifest.parent), library, expected_manifest_sha256)
     # Open an existing database without initializing the commercial/application store.
     mode = 'rw' if apply else 'ro'
     with closing(sqlite3.connect(database.resolve().as_uri() + '?mode=' + mode, uri=True, timeout=30)) as db, db:
@@ -171,5 +174,6 @@ if __name__ == '__main__':
     for argument in ('manifest', 'library', 'database'):
         parser.add_argument('--' + argument, required=True, type=Path)
     parser.add_argument('--drawing-root', type=Path, help='Base for relative screenshot paths (default: manifest directory).')
+    parser.add_argument('--expected-manifest-sha256', help='Verify the reviewed manifest digest before reading any records.')
     parser.add_argument('--apply', action='store_true')
     print(json.dumps(install(**vars(parser.parse_args())), indent=2))

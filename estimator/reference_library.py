@@ -48,6 +48,7 @@ from .technical_variants import (REVIEW_KEY as VARIANT_REVIEW_KEY,
 from .technical_variant_presentation import build_variant_displays, variant_display
 
 KINDS = {'penetration': 'Firestopping Library', 'technical': 'Technical Library'}
+INSPECTION_FILTERS = ('substrate', 'type', 'orientation', 'manufacturer', 'category')
 IDENTIFIER = re.compile(r'[a-z0-9][a-z0-9_-]{0,119}\Z')
 # The BOSS matrix leaves the reviewed index within 3 KiB of the old 64 MiB limit.
 # Keep a bounded file size and the existing record/field/asset limits.
@@ -659,7 +660,7 @@ class ReferenceLibrary:
                 item['thumbnail_url'] = self._technical_thumbnail(item)
                 discovery = data['_technical_discovery'][key]
                 item['inspection_options'] = {facet: list(discovery.get(facet, []))
-                                              for facet in ('substrate', 'orientation', 'manufacturer')}
+                                              for facet in INSPECTION_FILTERS}
                 item['manufacturers'] = item['inspection_options']['manufacturer']
                 if display:
                     for field in item.get('fields', []):

@@ -208,11 +208,13 @@
     entrySelect = el('select');
     entrySelect.addEventListener('change', () => { current = Number(entrySelect.value); message = ''; render(); });
     refreshEntryList();
-    const add = action('Add entry', () => {
+    const {iconButton} = window.ClassifireFormControls;
+    const back = iconButton('Back', 'back', () => window.CeasefireProject.openDocumentation());
+    const add = iconButton('Add entry', 'add', () => {
       entries.push(newEntry()); nextNumber++; current = entries.length - 1; changed(); message = ''; render();
     });
     add.disabled = entries.length >= 200;
-    const remove = action('Remove entry', async () => {
+    const remove = iconButton('Remove entry', 'remove', async () => {
       if (!entries.length || !await window.CeasefireDialogs.confirm('Remove this register entry?', 'Remove entry and its photos?', 'Remove entry')) return;
       if (entry !== editedEntry()) return;
       entries.splice(current,1);
@@ -223,9 +225,9 @@
     });
     remove.disabled = !entries.length;
     removeEntry = remove;
-    exportButton = action('Download PDF', e => download(e.currentTarget), 'primary');
+    exportButton = iconButton('Download PDF', 'pdf', e => download(e.currentTarget));
     exportButton.disabled = exporting;
-    toolbar.append(field('Register entry',entrySelect), add, remove, exportButton);
+    toolbar.append(field('Register entry',entrySelect), back, add, remove, exportButton);
     const status = el('p','helper',message);
     status.setAttribute('role','status');
     if (pickerEntry !== entry) {

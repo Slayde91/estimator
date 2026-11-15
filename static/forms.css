@@ -63,6 +63,7 @@
 .forms-layout-controls, .forms-layout-output { display:grid; gap:.5rem; margin:.75rem 0; min-width:0; }
 .forms-layout-row { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; padding:.45rem; border:1px solid var(--line); }
 .forms-layout-row :is(input,select) { width:auto; max-width:100%; }
+.forms-layout-add { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:.5rem; }
 .forms-layout-output img { max-width:12rem; max-height:4rem; }
 .forms-align-center { text-align:center; } .forms-align-left { text-align:left; } .forms-align-right { text-align:right; }
 

@@ -13,8 +13,10 @@ from .company_settings import company_logo
 from .documentation_catalog import register_options
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
-from .reference_library import ReferenceNotFound, identifier
-from .technical_item_exports import append_technical_item_fields, prepare_technical_item
+from .reference_library import INSPECTION_FILTERS, ReferenceNotFound, identifier
+from .technical_item_exports import (append_technical_heading, append_technical_tables,
+                                     prepare_technical_item, technical_pdf_rows)
+from .register_plans import penetration_ids
 from .swms import _text, validate_signature
 from .swms_pdf import Signature
 
@@ -66,8 +68,8 @@ def _entry(raw, position, numbered):
         key = raw['technical_item_id']
         entry['technical_item_id'] = '' if key == '' else identifier(key)
         if 'technical_filters' in raw:
-            selected = _fields(raw['technical_filters'], {'substrate', 'orientation', 'manufacturer'}, 'Technical Library filters')
-            entry['technical_filters'] = {facet: _text(value, FIELDS[facet], 1000).strip() for facet, value in selected.items()}
+            selected = _fields(raw['technical_filters'], set(INSPECTION_FILTERS), 'Technical Library filters')
+            entry['technical_filters'] = {facet: _text(value, facet.capitalize(), 1000).strip() for facet, value in selected.items()}
     for key, label in FIELDS.items():
         if key in ('service_types', 'products'):
             entry[key] = _selection(raw.get(key, []), label)
@@ -256,6 +258,39 @@ def _append_evidence(report, title, groups, width):
                                   style=[('VALIGN', (0, 0), (-1, -1), 'TOP')]))
 
 
+_INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufacturer',
+                     'Penetration IDs', 'ID', 'Category', 'Service')
+_INSTRUCTION_FIELDS = {'service wrap', 'local protection', 'installation details', 'installation instructions'}
+
+
+def _inspection_fields(report, entry, item):
+    """Combine recorded site details and source fields in one printable table."""
+    rows = [('Location', report.p(entry['location'], 'cell')),
+            ('Penetration IDs', report.p(penetration_ids(entry), 'cell'))]
+    if item:
+        rows.extend((label, cell) for label, cell in technical_pdf_rows(report, item)
+                    if label.casefold() not in _INSTRUCTION_FIELDS)
+        source_code = item['record'].get('source_code')
+        if source_code and not any(label == 'ID' for label, _ in rows):
+            rows.append(('ID', report.p(source_code, 'cell')))
+    else:
+        # Legacy inspections store the installation type and services directly.
+        legacy_labels = {'installation_type': 'Type', 'service_types': 'Service', 'report': 'Report Number'}
+        for key, label in FIELDS.items():
+            value = entry[key]
+            if value and key != 'location':
+                rows.append((legacy_labels.get(key, label), report.p(', '.join(value) if isinstance(value, list) else value, 'cell')))
+    order = {label: index for index, label in enumerate(_INSPECTION_ORDER)}
+    # Keep other source fields in their original order and keep linked report numbers together.
+    order['Report Number'] = len(_INSPECTION_ORDER) + 1
+    rows.sort(key=lambda row: order.get(row[0], len(_INSPECTION_ORDER)))
+    rows.append(('Access to the other side', report.p(entry['access'], 'cell')))
+    if entry['access'] == 'NA':
+        rows.append(('Solution', report.p(entry['solution'], 'cell')))
+    rows.append(('Signature', Signature(entry['signature'], 144, 36)))
+    return [[report.p(label, 'cell'), cell] for label, cell in rows]
+
+
 def render_register_pdf(register, details, *, library=None, company, plan_append=None):
     entries = normalize_register(register)['entries']
     if not entries:
@@ -274,29 +309,19 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                                  topMargin=90, bottomMargin=43, title='Passive Fire Inspections',
                                  author=company.get('name') or 'CLASSIFIRE')
 
+    report.story.append(report.p('Passive Fire Inspections', 'title'))
+    project_rows = [[report.p(label, 'cell'), report.p(details[key], 'cell')]
+                    for key, label in [('project_no', 'Project number'), ('client', 'Client'), ('site_address', 'Site address')]
+                    if details.get(key)]
+    if project_rows:
+        report.story.append(report.table(['Project details', 'Value'], project_rows,
+                                         [content * .3, content * .7], compact=True))
+        report.story.append(Spacer(1, 10))
     for number, entry in enumerate(entries, 1):
         if number > 1:
             report.story.append(PageBreak())
-        report.story.extend([report.p('Passive Fire Inspections', 'title'),
-                             report.p(f'Entry {number} of {len(entries)}', 'small')])
-        rows = []
-        for label, value in [('Project number', details.get('project_no')), ('Client', details.get('client')),
-                             ('Site address', details.get('site_address'))]:
-            if value:
-                rows.append((label, value))
-        for key, label in FIELDS.items():
-            if entry.get('technical_item_id') and key != 'location':
-                continue
-            value = entry[key]
-            if value:
-                rows.append((label, ', '.join(value) if isinstance(value, list) else value))
-        rows.append(('Access to the other side', entry['access']))
-        if entry['access'] == 'NA':
-            rows.append(('Solution', entry['solution']))
-        cells = [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in rows]
-        cells.append([report.p('Signature', 'cell'), Signature(entry['signature'], 144, 36)])
-        report.story.append(report.table(['Installation record', 'Details'],
-                                         cells, [content * .32, content * .68], compact=True))
+        report.story.append(report.p(f'Entry {number} of {len(entries)}', 'small'))
+        item = None
         if key := entry.get('technical_item_id'):
             try:
                 if library is None:
@@ -305,7 +330,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                                               inspection_filters=entry.get('technical_filters', {}))
             except ReferenceNotFound as err:
                 raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
-            append_technical_item_fields(report, item, content)
+            append_technical_heading(report, item)
+        report.story.append(report.table(['Field', 'Value'], _inspection_fields(report, entry, item),
+                                         [content * .3, content * .7], compact=True))
+        if item:
+            append_technical_tables(report, (table for table in item['tables']
+                                             if table['label'].casefold() not in _INSTRUCTION_FIELDS), content)
         if entry['comments'] and entry['access'] == 'No':
             report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):

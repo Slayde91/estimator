@@ -32,8 +32,8 @@ a{color:inherit}
 .brand-logo{display:block;width:190px;max-width:100%;height:auto}
 .header-navigation{min-width:0;max-width:100%;width:fit-content;justify-self:center}
 .header-tagline{min-width:0;margin:0;font-family:inherit;font-style:italic;font-size:12px;line-height:1.5;color:var(--muted);text-align:start;white-space:nowrap;overflow-x:auto;scrollbar-width:none}
-#header-tagline-typed.tagline-brand{font-style:normal;font-weight:400}
-#header-tagline-prefix{font-weight:700}
+#header-tagline-typed.tagline-brand{font-style:normal;font-weight:700}
+#header-tagline-prefix{font-weight:inherit}
 #header-tagline-typed.tagline-complete{
   background:linear-gradient(currentColor,currentColor) left bottom / 100% 1px no-repeat;
   animation:header-tagline-underline 650ms linear;

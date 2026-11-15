@@ -76,8 +76,8 @@ async function test() {
   scheduler.on('pageerror', error=>errors.push(error.message));
   await scheduler.goto(base);
   await scheduler.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
-  await scheduler.locator('#scheduler-navigation').click();
-  await button(scheduler.locator('.scheduler-tabs'),'Team members').click();
+  await scheduler.locator('#settings-navigation-toggle').hover();
+  await button(scheduler.locator('#settings-navigation-menu'),'Settings').click();
   await button(scheduler.locator('.scheduler-team .card').filter({hasText:worker.email}),'Edit member').click();
   const editor = scheduler.getByRole('dialog');
   await editor.getByLabel('Base hourly rate (AUD)').fill('40');

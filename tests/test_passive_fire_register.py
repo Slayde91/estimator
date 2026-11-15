@@ -94,6 +94,10 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 pages = PdfReader(BytesIO(payload)).pages
                 content = '\n'.join(page.extract_text() for page in pages)
                 self.assertGreaterEqual(len(pages), 2)
+                self.assertEqual(content.count('PN-TEST'), 1)
+                self.assertIn('Entry 1 of 2', pages[0].extract_text())
+                ids = '001 / 001-2' if access == 'Yes' else '001'
+                self.assertIn(f'Penetration IDs {ids} ', ' '.join(content.split()))
                 for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Entry 2 of 2', 'Basement west',
                               'Side 1 - 001','Side 1 - 002',
                               'SIDE-A', 'Before', 'During', 'After', 'Label', included,
@@ -113,7 +117,13 @@ class PassiveFireRegisterTests(unittest.TestCase):
             root = Path(folder) / 'technical'
             data = technical_library(root)
             record = data['libraries']['technical']['items'][0]
-            record['fields'].append({'label': 'Barrier Construction', 'value': 'Concrete wall or plasterboard wall'})
+            record['fields'].extend([
+                {'label': 'Barrier Construction', 'value': 'Concrete wall or plasterboard wall'},
+                {'label': 'Service', 'value': 'Copper pipe'},
+                {'label': 'ID', 'value': 'V2'},
+                {'label': 'Service Wrap', 'value': 'Source wrap instructions'},
+                {'label': 'Local Protection', 'value': 'Source local protection instructions'},
+            ])
             data['libraries']['technical']['filters'].append({'key': 'orientation', 'label': 'Orientation'})
             record['filter_values']['orientation'] = ['Vertical']
             (root / 'library.json').write_text(json.dumps(data), encoding='utf-8')
@@ -121,14 +131,19 @@ class PassiveFireRegisterTests(unittest.TestCase):
             entry = {**completed_entry(), 'technical_item_id': 'report-a-v1'}
             for key in ('seal_type','frl','products','report','service_types','manufacturer','orientation','substrate','installation_type'):
                 entry.pop(key)
-            entry['technical_filters'] = {'substrate': 'Concrete/masonry wall', 'orientation': 'Vertical',
-                                          'manufacturer': 'Synthetic manufacturer'}
+            entry['technical_filters'] = {'substrate': 'Concrete/masonry wall', 'type': 'Core hole',
+                                          'orientation': 'Vertical', 'manufacturer': 'Synthetic manufacturer',
+                                          'category': 'Plumbing & Hydraulic'}
             draft = normalize_register({'entries': [entry]})
             self.assertEqual(draft['entries'][0]['technical_item_id'], 'report-a-v1')
             with patch.object(library, 'asset', side_effect=AssertionError('Technical images are never read for the register')):
                 pdf = PdfReader(BytesIO(render_register_pdf(draft, {}, library=library, company=DEFAULTS)))
             text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
-            self.assertIn('Substrate Concrete/masonry wall Orientation Vertical Manufacturer Synthetic manufacturer', text)
+            self.assertIn('Field Value Location Riser <01> & plant Substrate Concrete/masonry wall Type Core hole', text)
+            self.assertIn('Penetration IDs 001 / 001-2 ID V2 Category Plumbing & Hydraulic Service Copper pipe', text)
+            self.assertIn('Report Number Unlinked source report Access to the other side Yes Signature', text)
+            for omitted in ('Service Wrap', 'Local Protection', 'Installation Details', 'Retain original conditions.'):
+                self.assertNotIn(omitted, text)
             self.assertEqual(pdf.metadata.title, 'Passive Fire Inspections')
             stale = {**entry, 'technical_filters': {'orientation': 'Horizontal'}}
             with self.assertRaisesRegex(ValidationError, 'no longer matches'):

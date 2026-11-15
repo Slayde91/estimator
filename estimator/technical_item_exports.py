@@ -26,7 +26,7 @@ from .catalog import ValidationError
 from .firestopping_library import MAX_DIAGRAM_BYTES, _render_diagram
 from .library_report_links import validate_report_links
 from .pricing_workbook import _serialize_exact
-from .reference_library import identifier
+from .reference_library import INSPECTION_FILTERS, identifier
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _escaped, _register_fonts, _LINE, _MUTED
 from .technical_fields import is_hidden_technical_label
@@ -81,7 +81,7 @@ def prepare_technical_item(body, *, library, include_diagrams=True, inspection_f
     account(list(metadata.values()))
     inspection_rows = set()
     if inspection_filters is not None:
-        for facet in ('substrate', 'orientation', 'manufacturer'):
+        for facet in INSPECTION_FILTERS:
             label = facet.capitalize()
             choices = record['inspection_options'][facet]
             selected = inspection_filters.get(facet)
@@ -269,8 +269,7 @@ def build_technical_item_xlsx(snapshot):
     return _serialize_exact(workbook)
 
 
-def append_technical_item_fields(report, snapshot, content):
-    """The same titled fields, report links and installation tables in both PDFs."""
+def append_technical_heading(report, snapshot):
     record = snapshot['record']
     title = display_technical_title(record)
     if record.get('configuration'):
@@ -280,13 +279,16 @@ def append_technical_item_fields(report, snapshot, content):
     report.story.append(report.p(title or 'Technical Library item', 'subheading'))
     if record.get('configuration') and record['configuration'] not in (title or ''):
         report.story.append(report.p(record['configuration']))
-    rows = []
+
+
+def technical_pdf_rows(report, snapshot):
     for label, value, url in _field_rows(snapshot):
         cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#{accent_hex()}"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
-        rows.append([report.p(label, 'cell'), cell])
-    if rows:
-        report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))
-    for table in snapshot['tables']:
+        yield label, cell
+
+
+def append_technical_tables(report, tables, content):
+    for table in tables:
         report.story.append(report.p(compact_technical_text(table['label']), 'subheading'))
         display_rows = _display_rows(table)
         if len(table['columns']) <= 4:
@@ -306,7 +308,11 @@ def render_technical_item_pdf(snapshot, *, company=None):
     report = _Report({})
     width, height = A4
     margin, content = 32, width - 64
-    append_technical_item_fields(report, snapshot, content)
+    append_technical_heading(report, snapshot)
+    rows = [[report.p(label, 'cell'), cell] for label, cell in technical_pdf_rows(report, snapshot)]
+    if rows:
+        report.story.append(report.table(['Field', 'Value'], rows, [content * .3, content * .7]))
+    append_technical_tables(report, snapshot['tables'], content)
     if not snapshot['images']:
         report.story.extend([report.p('Diagram', 'subheading'), report.p('No diagram is recorded.')])
     for index, image in enumerate(snapshot['images']):

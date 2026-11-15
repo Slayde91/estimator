@@ -45,7 +45,7 @@
         entry.technical_item_id = check.checked ? item.id : '';
         entry.technical_filters = {};
         if (check.checked) {
-          for (const key of ['substrate', 'orientation', 'manufacturer']) {
+          for (const key of ['substrate', 'type', 'orientation', 'manufacturer', 'category']) {
             if (values[key]) entry.technical_filters[key] = values[key];
           }
         }

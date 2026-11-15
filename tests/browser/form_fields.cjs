@@ -37,6 +37,7 @@ const assert=require('node:assert/strict'), path=require('node:path');
       {id:'file',type:'attachment',label:'Document'},
       {id:'place',type:'location',label:'Position'},{id:'act',type:'action',label:'Action'},
       {id:'scan',type:'scan_id',label:'Verify staff ID'},{id:'wallet',type:'staff_wallet',label:'Staff identity'},
+      {id:'manualId',type:'id_text',label:'Inspection ID'},
       {id:'sign',type:'signature',label:'Employee signature'},{id:'n',type:'counter',label:'Form number'},
       {id:'tab',type:'table',label:'Inventory',columns:[{id:'qty',type:'number',label:'Qty',required:true}]},
       {id:'fixed',type:'table',table_mode:'fixed',label:'Fixed inventory',default:[{count:2}],columns:[
@@ -86,6 +87,7 @@ const assert=require('node:assert/strict'), path=require('node:path');
     assert.equal(await valid(),false);
     await expect(page.getByLabel('Subject')).toBeFocused();
     await page.getByLabel('Subject').fill('<script>Inspection</script>');
+    await page.getByLabel('Inspection ID').fill('BR-007');
     await expect(field('detail')).toBeHidden();
     await expect(field('locked').locator('input')).toHaveCount(0);
     assert.ok(!Object.hasOwn(await values(),'locked'));
@@ -203,6 +205,7 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await mount({...options,readOnly:true,values:{...saved,n:14,fixed:[{...saved.fixed[0],price:'70',desc:'Banana'}],sign:{member_name:'Harper',at:'2026-11-15T06:00Z',signature_image:saved.hand.image},
       wallet:{member_name:'Harper',member_id:'s1',role:'editor',at:'2026-11-15T06:00Z'}}});
     await expect(field('range')).toContainText('15/11/2026');
+    await expect(field('manualId')).toContainText('BR-007');
     await expect(field('detail').locator('i')).toHaveText('Check seal');
     await expect(field('range')).not.toContainText('2026-11-15');
     await expect(page.locator('main :is(input,select,textarea,button)')).toHaveCount(0);

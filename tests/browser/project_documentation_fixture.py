@@ -47,7 +47,9 @@ def main():
         from technical_item_fixture_data import technical_library
         from fixtures import make_pdf
         library = folder / 'technical-library'
-        technical_library(library)
+        data = technical_library(library)
+        data['libraries']['technical']['items'][0]['fields'].append({'label': 'Service', 'value': 'Copper pipe'})
+        (library / 'library.json').write_text(json.dumps(data), encoding='utf-8')
         make_pdf(folder / 'Register plans.pdf')
     server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs(), library_directory=library)
     print(json.dumps({'port': server.server_port, 'directory': str(folder),

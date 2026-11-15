@@ -100,6 +100,7 @@
 .form-builder-properties { padding: 1rem; border-top: 1px solid var(--line); }
 .form-builder-control { display: grid; min-width: 0; gap: .35rem; font-weight: 650; }
 .form-builder-control textarea { min-height: 4.5rem; resize: vertical; }
+.form-builder-control textarea.form-print-text { min-height:0; field-sizing:content; }
 .form-builder-condition { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .7rem; }
 .form-builder-group, .form-builder-setting-card { display: grid; gap: .8rem; align-content: start; padding: 1rem; margin: 0; }
 .form-builder-group legend { font-weight: 750; padding: 0 .35rem; }

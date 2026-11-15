@@ -40,7 +40,8 @@ _MARGIN = 36
 _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
 
 
-def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False, company=None):
+def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False,
+                    company=None, centered_title_color=None):
     """Draw the same contact header within the reserved space on every PDF page."""
     logo_width, logo_height = logo.getSize()
     scale = min(146 / logo_width, 35 / logo_height)
@@ -48,16 +49,23 @@ def _company_header(canvas, logo, page_width, page_height, margin, report_label,
                      width=logo_width * scale, height=logo_height * scale, mask="auto")
     canvas.setFillColor(_MUTED)
     canvas.setFont(FONT_REGULAR, 7.5)
-    if label_below_logo:
+    contact_width = page_width * .5 - margin
+    if centered_title_color is not None:
+        canvas.setFont(FONT_BOLD, 16)
+        canvas.setFillColor(centered_title_color)
+        canvas.drawCentredString(page_width / 2, page_height - 43, report_label)
+        contact_width -= pdfmetrics.stringWidth(report_label, FONT_BOLD, 16) / 2 + 10
+        canvas.setFillColor(_MUTED)
+    elif label_below_logo:
         canvas.drawString(margin, page_height - 69, report_label)
     else:
         canvas.drawRightString(page_width - margin, page_height - 27, report_label)
     value = company or COMPANY_DEFAULTS
     name = value.get('name', '')
-    canvas.setFont(FONT_REGULAR, min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(name, FONT_REGULAR, 1))))
+    canvas.setFont(FONT_REGULAR, min(7.5, contact_width / max(1, pdfmetrics.stringWidth(name, FONT_REGULAR, 1))))
     canvas.drawRightString(page_width - margin, page_height - 15, name)
     for offset, text in zip((40, 51, 62), contact_lines(value)):
-        size = min(7.5, (page_width * .5 - margin) / max(1, pdfmetrics.stringWidth(text, FONT_REGULAR, 1)))
+        size = min(7.5, contact_width / max(1, pdfmetrics.stringWidth(text, FONT_REGULAR, 1)))
         canvas.setFont(FONT_REGULAR, size)
         canvas.drawRightString(page_width - margin, page_height - offset, text)
     canvas.setStrokeColor(pdf_accent())
@@ -249,7 +257,7 @@ class _Report:
         return "Blank" if value is None or value == "" else _text(value)
 
     def table(self, headings, rows, widths, *, compact=False, total_rows=0, row_header_color=None,
-              grid_color=None):
+              grid_color=None, table_type=LongTable):
         """Passing no headings starts with data. Row-header fill applies only to the first body column."""
         # Numeric tokens must not wrap midway through their decimal digits.
         # Most values fit at the normal font size after column allocation; a
@@ -263,8 +271,8 @@ class _Report:
                 fitted.append(cell)
             fitted_rows.append(fitted)
         header = [[self.p(heading, "head") for heading in headings]] if headings else []
-        table = LongTable(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT",
-                          splitInRow=1, renderCB=table_outline(grid_color) if grid_color is not None else None)
+        table = table_type(header + fitted_rows, colWidths=widths, repeatRows=len(header), hAlign="LEFT",
+                           splitInRow=1, renderCB=table_outline(grid_color) if grid_color is not None else None)
         padding = 4 if compact else 6
         branding = _table_branding(headings=bool(header), grid_color=grid_color)
         if row_header_color is not None and fitted_rows:

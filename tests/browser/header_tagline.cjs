@@ -245,7 +245,9 @@ async function presentationNavigation(initial) {
     assert.match(response.headers()['content-security-policy'], /(?:^|;\s*)script-src 'self'(?:;|$)/);
     await page.evaluate(() => document.fonts.ready);
     await finishBootFrames();
-    const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.typedStyle, 'italic');
+    const initial = await layout(); assert.equal(initial.accessible, phrase); assert.equal(initial.typedStyle, 'normal');
+    const logoInkLeft = initial.logo.x + initial.logo.width * 45 / 2172;
+    assert.ok(Math.abs(initial.visual.x - logoInkLeft) <= 1, 'Tagline aligns with the visible logo');
     assert.ok(phrase.startsWith(initial.typed)); assert.notEqual(initial.typed, phrase, 'Actual typing must still be in progress');
     assert.ok(initial.tagline.y >= Math.max(initial.logo.bottom,initial.nav.bottom)-1,'The sentence appears below the brand and navigation'); assert.ok(initial.overflow <= 1);
     assert.equal(initial.alignment, 'start'); assert.ok(initial.tagline.bottom <= initial.header.bottom && initial.tagline.y >= initial.header.y, 'The tagline fits within the header');

@@ -1,6 +1,7 @@
 /* Application chrome only. Keep the original controls and their event owners. */
 @media screen {
   .app-header {
+    --header-logo-width: 250px;
     grid-template-columns: minmax(460px, 1fr) fit-content(60%);
     align-items: start;
     gap: 2px 18px;
@@ -15,7 +16,7 @@
   }
   .app-header .brand { position: relative; max-width: 100%; color: inherit; }
   .app-header .brand-logo {
-    width: 250px;
+    width: var(--header-logo-width);
     aspect-ratio: 250 / 83.8;
     height: auto;
     object-fit: contain;
@@ -35,7 +36,8 @@
   }
   .app-header .header-status-row {
     grid-column:1/-1; display:flex; align-items:center; gap:12px; min-width:0;
-    padding-inline-start:clamp(0px, 3vw, 56px);
+    /* Match the visible mark, inset 45 pixels in the 2172-pixel logo asset. */
+    padding-inline-start:calc(var(--header-logo-width) * 45 / 2172);
   }
   .app-header .header-status-row .header-tagline { flex:1; margin:0; }
   .app-header .header-status-row .status-label { flex:none; margin:0; }
@@ -177,13 +179,14 @@
   }
   @media (min-width: 721px) and (max-width: 980px) {
     .app-header { grid-template-columns: minmax(330px, 1fr) fit-content(60%); }
-    .app-header .brand-logo { width: 180px; }
+    .app-header { --header-logo-width: 180px; }
   }
   @media (max-width: 720px) {
     .app-header { padding: 12px 14px; grid-template-columns: minmax(0, 1fr); gap: 8px; }
     .app-header .brand-stack { max-width: none; column-gap: 24px; }
-    .app-header .brand-logo { width: 130px; aspect-ratio: auto; }
-    .app-header .header-status-row { flex-wrap:wrap; padding-inline-start:0; gap:4px; }
+    .app-header { --header-logo-width: 130px; }
+    .app-header .brand-logo { aspect-ratio: auto; }
+    .app-header .header-status-row { flex-wrap:wrap; gap:4px; }
     .app-header .header-status-row .status-label { order:-1; margin-inline-start:auto; }
     .app-header .header-status-row .header-tagline { flex-basis:100%; font-size:11px; }
     .app-header .header-navigation-stack { width: 100%; gap: 4px; }
@@ -201,7 +204,7 @@
   @media (max-width: 420px) {
     /* Reserve room for the full credit beside the smaller wordmark. */
     .app-header .brand-stack { column-gap: 36px; }
-    .app-header .brand-logo { width: 100px; }
+    .app-header { --header-logo-width: 100px; }
     .app-header .header-status-row .status-label { font-size: 10px; }
   }
 }

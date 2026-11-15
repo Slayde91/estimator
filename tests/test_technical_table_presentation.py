@@ -85,19 +85,47 @@ class TechnicalTablePresentationTests(unittest.TestCase):
                 present_redundant_tables(fields)
                 self.assertEqual(fields, before)
 
-    def test_blank_seal_moves_only_missing_construction_and_preserves_aperture_conditions(self):
+    def test_blank_seal_promotes_row_details_without_losing_size_or_rating_qualifications(self):
         fields = [
             {'label': 'Barrier Construction', 'value': '',
              'table': {'columns': ['Max Aperture Size', 'Separating Element', 'FRL'],
                        'rows': [['600 mm × 1200 mm', 'Min. 51 mm Speedpanel wall', '-/60/60']]}},
             {'label': 'Blank Seal FRL', 'value': '-/60/60'},
             {'label': 'Max. Opening Size', 'value': '600 mm x 1200 mm'}]
-        for column, condition in ((0, ' or equivalent area'), (2, ' supporting self-weight only')):
-            qualified = deepcopy(fields)
-            qualified[0]['table']['rows'][0][column] += condition
-            before = deepcopy(qualified)
-            present_redundant_tables(qualified)
-            self.assertEqual(qualified, before)
+        row = fields[0]['table']['rows'][0]
+        row[0] += ' or equivalent area'
+        row[2] += ' Supporting self-weight of barrier only'
         present_redundant_tables(fields)
-        self.assertEqual(fields[0]['value'], 'Min. 51 mm Speedpanel wall')
-        self.assertFalse(field_tables(fields[0]))
+        self.assertEqual(fields, [
+            {'label': 'Barrier Construction', 'value': 'Min. 51 mm Speedpanel wall (-/60/60 Supporting self-weight of barrier only)'},
+            {'label': 'Blank Seal FRL', 'value': '-/60/60'},
+            {'label': 'Max. Opening Size', 'value': '600 mm × 1200 mm or equivalent area'}])
+
+    def test_unrelated_opening_or_rating_keeps_original_blank_seal_table(self):
+        for aperture, rating in [('600 mm × 1200.5 mm', '-/60/60'), ('600 mm × 1200 mm', '-/60/90'),
+                                 ('600 mm × 1200 mm', '-/60/60 or -/120/120')]:
+            fields = [
+                {'label': 'Barrier Construction', 'value': '',
+                 'table': {'columns': ['Max Aperture Size', 'Separating Element', 'FRL'],
+                           'rows': [[aperture, 'Concrete', rating]]}},
+                {'label': 'Blank Seal FRL', 'value': '-/60/60'},
+                {'label': 'Maximum Opening Size', 'value': '600 mm × 1200 mm'}]
+            before = deepcopy(fields)
+            present_redundant_tables(fields)
+            self.assertEqual(fields, before)
+
+    def test_promat_fixings_must_match_a_complete_paragraph(self):
+        cell = 'Fixings: steel anchor 6 x 25mm'
+        fields = [
+            {'label': 'Service Size / Configuration', 'value': '40 mm',
+             'table': {'columns': ['Service Size / Configuration', 'Installation Details', 'Local Protection'],
+                       'rows': [['40 mm', cell, '']]}},
+            {'label': 'Local Protection', 'value': ''},
+            {'label': 'Installation Details', 'value': 'Fit the collar.\n\n' + cell + ' for floors only'}]
+        before = deepcopy(fields)
+        present_redundant_tables(fields)
+        self.assertEqual(fields, before)
+        fields[2]['value'] = 'Fit the collar.\n\n' + cell
+        present_redundant_tables(fields)
+        self.assertEqual(fields[0], {'label': 'Service Size / Configuration', 'value': '40 mm'})
+        self.assertEqual(fields[2]['value'], 'Fit the collar.\n\n' + cell)

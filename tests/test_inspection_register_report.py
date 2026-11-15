@@ -49,14 +49,19 @@ class InspectionRegisterReportTests(unittest.TestCase):
 
     def test_multipage_register_repeats_columns_and_displays_project_details_once(self):
         entries = [{**completed_entry(), 'location': f'Lobby {i}', 'access': 'NA'} for i in range(16)]
+        for entry in entries[::3]:
+            entry['location'] += ' east riser' * 35
         pages = PdfReader(BytesIO(render_inspection_register({'entries': entries}, {'site_address': 'Test Road'},
                                                              library=None, company=DEFAULTS))).pages
         self.assertGreater(len(pages), 1)
         self.assertEqual(sum(page.extract_text().count('Test Road') for page in pages), 1)
-        for page in pages:
+        for number, page in enumerate(pages, start=1):
             self.assertGreater(float(page.mediabox.width), float(page.mediabox.height))
             words = ' '.join(page.extract_text().split())
-            self.assertIn('Level/Location Penetration ID Substrate Orientation Category Services Manufacturer FRL Report Numbers Before During After Label', words)
+            headings = 'Level/Location Penetration ID Substrate Orientation Category Services Manufacturer FRL Report Numbers Before During After Label'
+            self.assertEqual(words.count(headings), 1)
+            self.assertEqual(words.count('PASSIVE FIRE REGISTER'), int(number == 1))
+            self.assertEqual(words.count('Passive Fire Registers'), 1)  # Footer only.
         self.assertIn('Lobby 15', pages[-1].extract_text())
 
 

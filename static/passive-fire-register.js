@@ -238,7 +238,10 @@
       const result = await window.CeasefireDownloads.save('/api/project/passive-fire-register.pdf',
         {register:snapshot, project_details:window.CeasefireProject.details(),
           ...window.ClassifireRegisterPlans?.exportContext(snapshot)}, {button});
-      if (result?.saved) setStatus('Document saved. Its revision is available in this project.');
+      if (result?.saved) {
+        setStatus('');
+        window.CeasefireDialogs.message({i18nSource:'File saved to {0}.{1}', i18nArgs:[result.path, '']});
+      }
     } catch(error) { setStatus(error.message); }
     finally { exporting = false; exportButton.disabled = false; }
   }

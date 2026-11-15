@@ -4,7 +4,7 @@ from io import BytesIO
 from itertools import zip_longest
 
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import Image, SimpleDocTemplate, Spacer
+from reportlab.platypus import Image, LongTable, PageBreak, SimpleDocTemplate, Spacer
 
 from .catalog import ValidationError
 from .company_settings import company_logo
@@ -21,6 +21,16 @@ TITLE = 'Passive Fire Registers'
 HEADINGS = ('Level/Location', 'Penetration ID', 'Substrate', 'Orientation', 'Category', 'Services',
             'Manufacturer', 'FRL', 'Report Numbers', *PHASES.values())
 FACETS = ('substrate', 'orientation', 'category', 'services', 'manufacturer', 'frl')
+
+
+class _RegisterTable(LongTable):
+    def split(self, availWidth, availHeight):
+        parts = super().split(availWidth, availHeight)
+        # A tall next row can split into the space below the first fragment.
+        # Start its continuation on a fresh page so the heading occurs only once.
+        if len(parts) == 2:
+            return [parts[0], PageBreak(), parts[1]]
+        return parts
 
 
 def _system_cells(report, entry, library):
@@ -97,7 +107,6 @@ def render_inspection_register(register, details, *, library, company, plan_sess
     document = SimpleDocTemplate(output, pagesize=(width, height), leftMargin=margin, rightMargin=margin,
                                  topMargin=90, bottomMargin=36, title=TITLE, author=company.get('name') or 'CLASSIFIRE')
     content = document.width - 12
-    report.story.append(report.p(TITLE, 'title'))
     report.story.append(report.p('Project Details', 'subheading'))
     project_rows = [[report.p(label, 'head'), report.p(details.get(key) or '—', 'cell')]
                     for key, label in [('project_no', 'Project No.'), ('client', 'Client'), ('site_address', 'Site Address')]]
@@ -107,14 +116,16 @@ def render_inspection_register(register, details, *, library, company, plan_sess
     weights = (72, 67, 84, 61, 69, 71, 70, 48, 70, 49, 49, 49, 49)
     widths = [content * weight / sum(weights) for weight in weights]
     grid = report.table(HEADINGS, _register_rows(report, completed, library, widths), widths,
-                        compact=True, grid_color=_INSPECTION_RED)
+                        compact=True, grid_color=_INSPECTION_RED, table_type=_RegisterTable)
     grid.setStyle([('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3)])
     report.story.append(grid)
 
     logo = company_logo(company)
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, TITLE, company=company)
+        first_page = doc.page == 1
+        _company_header(canvas, logo, width, height, margin, 'PASSIVE FIRE REGISTER' if first_page else '',
+                        company=company, centered_title_color=_INSPECTION_RED if first_page else None)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 30, width - margin, 30)
         canvas.setFillColor(_MUTED)

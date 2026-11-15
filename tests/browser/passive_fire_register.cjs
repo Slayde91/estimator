@@ -50,6 +50,16 @@ async function run() {
   await register();
   const form = page.locator('#passive-register-root');
   await form.getByLabel('Level/Location').fill('North wall, Level 2');
+  const toolbar = form.locator('.register-toolbar');
+  assert.deepEqual(await toolbar.locator('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))),
+    ['Back','Add entry','Remove entry','Download PDF']);
+  await expect(toolbar.getByRole('button',{name:'Add entry'})).toHaveClass(/add-icon-action/);
+  await expect(toolbar.getByRole('button',{name:'Remove entry'}).locator('.trash-artwork')).toHaveCount(1);
+  await expect(toolbar.getByRole('button',{name:'Download PDF'}).locator('.download-format')).toHaveText('PDF');
+  await toolbar.getByRole('button',{name:'Back',exact:true}).click();
+  await expect(page.locator('#view-documentation')).toBeVisible();
+  await register();
+  await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   const picker = form.locator('.register-library-picker');
   const library = await page.request.get(new URL('/api/libraries/technical?limit=1', page.url()).href);
   const {filters} = await library.json();
@@ -68,6 +78,8 @@ async function run() {
   await chosen.uncheck();
   await expect(picker.getByRole('checkbox')).toHaveCount(2);
   await picker.locator('[data-library-filter="manufacturer"]').selectOption('Synthetic manufacturer');
+  await picker.locator('[data-library-filter="type"]').selectOption('Core hole');
+  await picker.locator('[data-library-filter="category"]').selectOption('Plumbing & Hydraulic');
   await chosen.check();
   await expect(form.getByLabel('ID Number')).toHaveValue('001');
   await expect(form.getByLabel('ID Number')).toHaveJSProperty('readOnly', true);
@@ -77,7 +89,7 @@ async function run() {
   await idle();
   const entry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
   assert.equal(entry.location,'North wall, Level 2');
-  assert.deepEqual(entry.technical_filters,{manufacturer:'Synthetic manufacturer'});
+  assert.deepEqual(entry.technical_filters,{manufacturer:'Synthetic manufacturer',type:'Core hole',category:'Plumbing & Hydraulic'});
   await require('./register_plan_location.cjs').pinDrawing(page, register, info.directory);
   const access = form.getByLabel('Is the other side accessible?');
   await access.selectOption('No');

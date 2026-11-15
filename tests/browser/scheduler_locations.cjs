@@ -11,7 +11,9 @@ const errors=[],checks=[];
 async function expectSchedulerRole(admin) {
   const tabs=page.locator('.scheduler-tabs');
   await expect(tabs.getByRole('button',{name:'Schedule',exact:true})).toBeVisible();
-  await expect(tabs.getByRole('button',{name:'Team members',exact:true})).toHaveCount(admin ? 1 : 0);
+  await expect(tabs.getByRole('button',{name:'Settings',exact:true})).toHaveCount(admin ? 1 : 0);
+  await expect(tabs.getByRole('button',{name:'Team members',exact:true})).toHaveCount(0);
+  await expect(page.locator('#settings-team-members .scheduler-team')).toHaveCount(admin ? 1 : 0);
 }
 (async()=>{
   const info=await ready;assert.notEqual(info.port,8765);const base=`http://127.0.0.1:${info.port}`;

@@ -42,10 +42,10 @@ const ready=new Promise((resolve,reject)=>{
     assert.equal(response.status(),200);assert.match(response.headers()['content-type'],/image\/svg\+xml/);
   }
   const forms=page.locator('#forms-root'), b=(name)=>forms.getByRole('button',{name,exact:true});
-  for (const tab of ['Form records','Templates']) {
+  for (const tab of ['Records','Templates']) {
     await b(tab).click();
     await page.mouse.move(0,0);
-    for (const name of ['Templates','Form records']) {
+    for (const name of ['Templates','Records']) {
       const control = b(name);
       await expect(control).toHaveAttribute('aria-pressed',String(name===tab));
       const navBackground=await page.locator('#document-pages [aria-pressed=true]').evaluate(el=>getComputedStyle(el).backgroundImage);
@@ -84,6 +84,25 @@ const ready=new Promise((resolve,reject)=>{
   await open(view);const viewRoot=view.locator('#forms-root');
   await expect(viewRoot).not.toContainText('Site QA inspection');await expect(viewRoot.getByRole('button',{name:'Create template'})).toHaveCount(0);
   await b('Edit').click();await b('Settings').click();await forms.getByRole('checkbox',{name:'Viewer',exact:true}).check();
+  for (const width of [1350,360]) {
+    await page.setViewportSize({width,height:850});
+    for (const title of ['Header','Footer']) {
+      const text=forms.getByRole('textbox',{name:title,exact:true});
+      await expect(text).toHaveAttribute('rows','1');
+      const single=(await text.boundingBox()).height;
+      await text.fill('Line one\nLine two\nLine three');
+      await expect.poll(async ()=>(await text.boundingBox()).height).toBeGreaterThan(single+25);
+      await text.fill('');
+      await expect.poll(async ()=>(await text.boundingBox()).height).toBe(single);
+      const section=forms.getByRole('group',{name:title+' elements',exact:true});
+      const plus=section.getByRole('button',{name:'Add element',exact:true});
+      await expect(plus).toHaveClass(/primary add-icon-action/);
+      await expect(plus).toHaveText('+');
+      const [buttonBox,pickerBox]=await Promise.all([plus.boundingBox(),section.getByRole('combobox').boundingBox()]);
+      assert.ok(buttonBox.x+buttonBox.width<=pickerBox.x && Math.abs(buttonBox.y-pickerBox.y)<5);
+    }
+  }
+  await page.setViewportSize({width:1350,height:850});
   for (const title of ['Header elements','Footer elements']) {
     const layout=forms.getByRole('group',{name:title,exact:true}), rows=layout.locator('.forms-layout-row');
     const action=(row,name)=>row.getByRole('button',{name,exact:true});
@@ -126,11 +145,11 @@ const ready=new Promise((resolve,reject)=>{
   for (const title of ['Header elements','Footer elements']) {
     await expect(forms.getByRole('group',{name:title,exact:true}).locator('.forms-layout-row strong')).toHaveText(['Created by']);
   }
-  await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();await b('Form records').click();await b('Site QA inspection').click();
+  await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();await b('Records').click();await b('Site QA inspection').click();
   await expect(forms).toContainText('Template version 2');await expect(forms).toContainText('QA site, bay B');
   await open(view);await expect(viewRoot).toContainText('Site QA inspection revised');
   await expect(viewRoot.getByRole('button',{name:'Fill out'})).toHaveCount(0);
-  await viewRoot.getByRole('button',{name:'Form records'}).click();
+  await viewRoot.getByRole('button',{name:'Records',exact:true}).click();
   await viewRoot.getByRole('button',{name:'Site QA inspection',exact:true}).click();await expect(viewRoot).toContainText('QA site, bay B');
   await b('Back to forms').click();await b('Templates').click();await b('Create template').click();
   const createDialog=page.getByRole('dialog',{name:'Create template'});
@@ -231,7 +250,7 @@ const ready=new Promise((resolve,reject)=>{
     const recipientPage = await recipient.newPage();
     await open(recipientPage);
     const records = recipientPage.locator('#forms-root');
-    await records.getByRole('button',{name:'Form records',exact:true}).click();
+    await records.getByRole('button',{name:'Records',exact:true}).click();
     const assignedRow = records.getByRole('row').filter({hasText:templateName});
     await expect(assignedRow.getByRole('cell',{name:'Requested',exact:true})).toBeVisible();
     await assignedRow.getByRole('button',{name:templateName,exact:true}).click();

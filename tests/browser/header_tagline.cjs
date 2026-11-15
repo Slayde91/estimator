@@ -336,7 +336,7 @@ async function presentationNavigation(initial) {
     const audio=await page.request.get(`http://127.0.0.1:${info.port}/sounds/classifire.mp3`);assert.equal(audio.status(),200);
     assert.equal(crypto.createHash('sha256').update(await audio.body()).digest('hex'),assetHashes['static/sounds/classifire.mp3']);
     assert.match(audio.headers()['content-type'],/audio\/mpeg/);
-    assert.equal(first.typedStyle,'normal');assert.equal(settled.prefixText,'CLASSIFIRE:');assert.equal(settled.prefixWeight,'700');assert.equal(settled.suffixWeight,'400');
+    assert.equal(first.typedStyle,'normal');assert.equal(settled.prefixText,'CLASSIFIRE:');assert.equal(settled.prefixWeight,'700');assert.equal(settled.suffixWeight,'700');
     evidence.intelligence={first,resolving,settled,brandSoundPlays:1,literalInFrench:true,audioBytesVerified:true};csp.push(...await page.evaluate(()=>window.qaCsp));await context.close();
   }
   {

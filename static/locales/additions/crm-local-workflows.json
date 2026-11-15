@@ -914,10 +914,10 @@
     "Mag-sign in gamit ang Scheduler account ng kawani para pamahalaan ang access sa computer na ito.",
     "Đăng nhập bằng tài khoản nhân viên điều phối để quản lý quyền truy cập trên máy này."
   ],
-  "Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
-    "직원 이름, 비밀번호, 팀 관리자 역할은 일정 관리에서 설정합니다. 편집자는 CRM 기록을 수정하고 열람자는 읽을 수 있습니다. 일정 관리 전용 직원은 CRM에 접근할 수 없습니다.",
-    "Pamahalaan sa Scheduler ang pangalan, password at tungkulin ng admin ng pangkat. Maaaring mag-update ng mga rekord ng CRM ang editor at magbasa ang viewer. Walang access sa CRM ang kawani na Scheduler lang.",
-    "Quản lý tên, mật khẩu và vai trò quản trị nhóm trong lịch điều phối. Người chỉnh sửa có thể cập nhật CRM, người xem có thể đọc, nhân viên chỉ có lịch điều phối không thể truy cập CRM."
+  "Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
+    "편집자는 CRM 기록을 수정하고 열람자는 읽을 수 있습니다. 일정 관리 전용 직원은 CRM에 접근할 수 없습니다.",
+    "Maaaring mag-update ng mga rekord ng CRM ang editor at magbasa ang viewer. Walang access sa CRM ang kawani na Scheduler lang.",
+    "Người chỉnh sửa có thể cập nhật CRM, người xem có thể đọc, nhân viên chỉ có lịch điều phối không thể truy cập CRM."
   ],
   "View-only access. An editor is required to save changes.": [
     "보기 전용입니다. 변경 사항을 저장하려면 편집자 권한이 필요합니다.",

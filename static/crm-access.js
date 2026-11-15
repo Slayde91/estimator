@@ -97,7 +97,7 @@
     out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>reportError(message,error)));
     actions.append(out);card.append(actions,message);
     if(session.user.role!=='admin')return;
-    card.append(el('p','Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
+    card.append(el('p','Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
     try{
       const result=await request('members'),scroll=el('div',undefined,'table-scroll'),table=el('table',undefined,'staff-access-table'),thead=el('thead'),tr=el('tr'),tbody=el('tbody');
       for(const label of ['Staff member','CRM access','Actions'])tr.append(el('th',label));thead.append(tr);table.append(thead,tbody);scroll.append(table);card.append(scroll);
@@ -120,6 +120,7 @@
       card.append(details);
     }catch(error){reportError(message,error);}
   }
+  window.addEventListener("classifire:team-members-changed", () => { if (can("admin")) void render(); });
   request('session').then(value=>{session=value;resolveReady(value);void render();
     if(value.enabled&&value.user?.role==='viewer'){const main=document.querySelector('main');if(main){const banner=el('p','View-only access. An editor is required to save changes.','staff-access-banner');banner.setAttribute('role','status');main.prepend(banner);}}
   }).catch(()=>resolveReady(session));

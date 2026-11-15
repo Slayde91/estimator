@@ -50,6 +50,7 @@ const {chromium, expect} = require('@playwright/test');
     }
     await expect(palette('scan_id')).toHaveCount(0);
     await expect(palette('staff_wallet')).toHaveCount(0);
+    await expect(palette('id_text')).toHaveCount(0);
     await name.fill('Site inspection');
     await palette('choice').dragTo(page.locator('.form-builder-drop-empty'));
     await page.getByLabel('Field label').fill('Weather');
@@ -139,6 +140,7 @@ const {chromium, expect} = require('@playwright/test');
     assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
     await expect(page.locator('.form-builder-nested-row select option[value="scan_id"]')).toHaveCount(0);
     await expect(page.locator('.form-builder-nested-row select option[value="staff_wallet"]')).toHaveCount(0);
+    await expect(page.locator('.form-builder-nested-row select option[value="id_text"]')).toHaveCount(0);
     await checkRowIcons(columns.first());
     const addField = btn('Add group field');
     await expect(addField.locator('.add-symbol[aria-hidden="true"]')).toHaveText('+');
@@ -250,6 +252,7 @@ const {chromium, expect} = require('@playwright/test');
       const saved = {id:'legacy-template',name:'Saved staff checks',version:1,status:'published',fields:[
         {id:'staff-check',type:'scan_id',label:'Badge scan',help:'Previously entered description.'},
         {id:'wallet',type:'staff_wallet',label:'Verified identity'},
+        {id:'manual',type:'id_text',label:'Inspection ID'},
         {id:'sign-in',type:'group',label:'Staff sign-in',children:[
           {id:'badge',type:'scan_id',label:'Badge'},{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'}]}
       ]};
@@ -264,9 +267,10 @@ const {chromium, expect} = require('@playwright/test');
     await expect(columns.last().getByLabel('Type',{exact:true})).toHaveValue('staff_wallet');
     await expect(columns.first().locator('option[value="staff_wallet"]')).toHaveCount(0);
     await btn('Save changes').click();
-    const [scan,wallet,group] = await page.evaluate(() => window.saved.fields);
+    const [scan,wallet,manual,group] = await page.evaluate(() => window.saved.fields);
     assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Staff badge',help:'Previously entered description.'});
     assert.deepEqual(wallet,{id:'wallet',type:'staff_wallet',label:'Verified identity'});
+    assert.deepEqual(manual,{id:'manual',type:'id_text',label:'Inspection ID'});
     assert.equal(group.children[0].type,'scan_id');
     assert.deepEqual(group.children[1],{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'});
     await palette('instruction').click();

@@ -101,7 +101,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   for(const width of [1254,320]){
     await page.setViewportSize({width,height:900});
     const gear=tabs.getByRole('button',{name:'Settings',exact:true});
-    await tabs.getByRole('button',{name:'Team members',exact:true}).focus();await page.keyboard.press('Tab');
+    await tabs.getByRole('button',{name:'Reports',exact:true}).focus();await page.keyboard.press('Tab');
     await expect(gear).toBeFocused();
     await expect(gear).toBeInViewport({ratio:0.99});
     await expect(tabs).toHaveCSS('box-shadow',/0px 1px 0px 0px/);
@@ -112,7 +112,9 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.setViewportSize(previousViewport);checks.push('All Scheduler tabs stay visible without horizontal scrolling, including when focused by keyboard');
   assert.ok((await context.cookies()).some(cookie => cookie.httpOnly && cookie.sameSite === 'Strict'));
   checks.push('administrator setup through UI with HttpOnly session');
-  await tab('Team members');
+  await expect(tabs.getByRole('button',{name:'Team members',exact:true})).toHaveCount(0);
+  await page.locator('#settings-navigation-toggle').hover();
+  await page.locator('#settings-navigation-menu').getByRole('button',{name:'Settings',exact:true}).click();
   await openAdd('Add team member');
   let modal = page.locator('dialog[open]');
   await modal.getByLabel('Name',{exact:true}).fill('Jordan QA');
@@ -128,9 +130,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(modal.getByRole('button',{name:'Close',exact:true})).toHaveText('×');
   await expect(modal.getByRole('button',{name:'Save member'})).toHaveClass(/primary/);
   await submit('Save member');
-  await expect(page.locator('.scheduler-team')).toContainText('Jordan QA');
-  checks.push('create team member and saved base rate');
-  await tab('Schedule');
+  await expect(page.locator('#view-settings .scheduler-team')).toContainText('Jordan QA');
+  await expect(page.locator('#staff-access-settings').getByLabel('Jordan QA CRM access')).toBeVisible();
+  checks.push('administrator adds a team member in main Settings with the saved rate and a matching CRM access row');
+  await scheduler();
   await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02');
   await page.getByLabel('Week containing date',{exact:true}).press('Tab');
   await openAdd('Add shift');
@@ -411,7 +414,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
       const box=button.getBoundingClientRect(),icon=button.querySelector('svg').getBoundingClientRect();
       return {size:icon.width,x:(icon.left+icon.right-box.left-box.right)/2,y:(icon.top+icon.bottom-box.top-box.bottom)/2};
     }));
-    assert.deepEqual(tabs,[42,42,42,42,42]);assert.equal(clockOut,42);assert.equal(date,42);
+    assert.deepEqual(tabs,[42,42,42,42]);assert.equal(clockOut,42);assert.equal(date,42);
     assert.deepEqual(arrows,[{size:22,x:0,y:0},{size:22,x:0,y:0}]);
     controlGeometry.push({width,tabs,clockOut,date,arrows});
     assert.ok(bounds.x>=0 && bounds.x+bounds.width<=width);

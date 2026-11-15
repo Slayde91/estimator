@@ -8,6 +8,7 @@
     down:      ['secondary', 'button-symbol', '↓'],
     duplicate: ['secondary', 'button-symbol', '⧉'],
     remove:    ['secondary trash-button', 'trash-artwork'],
+    pdf:       ['primary', 'download-format-icon'],
     add:       ['primary add-icon-action', 'button-symbol add-symbol', '+'],
     signature: ['secondary personal-signature-button takeoff-icon-button takeoff-signature-button', 'takeoff-action-icon takeoff-signature-icon'],
     clear:     ['secondary', 'form-clear-icon'],
@@ -27,6 +28,15 @@
     icon.className = iconClass;
     icon.setAttribute('aria-hidden', 'true');
     if (symbol) icon.textContent = symbol;
+    if (kind === 'pdf') {
+      const arrow = document.createElement('span');
+      arrow.className = 'download-arrow';
+      arrow.textContent = '⇩';
+      const format = document.createElement('span');
+      format.className = 'download-format';
+      format.textContent = 'PDF';
+      icon.append(arrow, format);
+    }
     button.append(icon);
     button.addEventListener('click', onClick);
     return button;

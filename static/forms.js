@@ -194,7 +194,7 @@
   function libraryView() {
     const host = frame(), box = el('section', null, 'card forms-register');
     const tabs = el('div',null,'actions forms-tabs');
-    for (const [key,text] of [['templates','Templates'],['records','Form records']]) {
+    for (const [key,text] of [['templates','Templates'],['records','Records']]) {
       const tab = button(text, () => {panel = key; query = ''; libraryView();}, true);
       tab.setAttribute('aria-pressed', String(panel === key)); tabs.append(tab);
     }

@@ -97,9 +97,9 @@
 #scheduler-root { min-width:0; }
 #scheduler-root .button.scheduler-add-action { background:#1767b2; border-color:#1767b2; color:#fff; }
 #scheduler-root .button.scheduler-add-action:hover:not(:disabled) { background:#12558f; border-color:#12558f; }
-#scheduler-root .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
-#scheduler-root .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
-#scheduler-root .scheduler-toolbar-add { display:inline-grid; place-items:center; flex:0 0 48px; width:48px; min-width:48px; height:48px; padding:0; border-radius:10px; font-size:28px; line-height:1; }
+:is(#scheduler-root,#settings-team-members) .button.scheduler-primary-action { background:#d0001b; border-color:#a80016; color:#fff; }
+:is(#scheduler-root,#settings-team-members) .button.scheduler-primary-action:hover:not(:disabled) { background:#a80016; border-color:#8d0012; }
+:is(#scheduler-root,#settings-team-members) .scheduler-toolbar-add { display:inline-grid; place-items:center; flex:0 0 48px; width:48px; min-width:48px; height:48px; padding:0; border-radius:10px; font-size:28px; line-height:1; }
 .scheduler-top,.scheduler-toolbar,.scheduler-clock,.scheduler-dialog-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
 .staff-portal-account { display:flex; justify-content:flex-end; padding:8px 16px 0; }
 .scheduler-top { justify-content:space-between; margin-bottom:18px; }

@@ -278,6 +278,7 @@
       if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
       if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
+      renderTeamSettings();
       if (!state.projectsScan) void loadOrders();
       const previousWeek = state.week;
       setZone(data.settings.timezone);
@@ -296,7 +297,7 @@
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
     document.getElementById("staff-sign-out-dialog")?.close();
-    closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false; state.settingsRuleDialog = null;
+    closeDialog(true); stopLocation(); state.data = null; renderTeamSettings(); state.settingsDirty = false; state.settingsRuleDialog = null;
     state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
     state.page = "schedule"; state.report = null; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
@@ -364,7 +365,7 @@
     return heading;
   }
   function closeDialog(force = false) { if(state.busy && force !== true)return; clearInterval(state.locationPlayback); state.locationPlayback = null; state.dialog?.close(); state.dialog?.remove(); state.dialog = null; }
-  function dialog(title, build, saveLabel, save, submitClass = "button", draftLabel = "") {
+  function dialog(title, build, saveLabel, save, submitClass = "button", draftLabel = "", parent = state.root) {
     closeDialog();
     const modal = el("dialog", "scheduler-dialog"), form = el("form", "scheduler-form");
     const heading = el("div", "section-heading");
@@ -405,7 +406,7 @@
       catch (failure) { if(current() && state.dialog === modal) {error.textContent = failure.message; error.hidden = false;} }
       finally { if(current()) {state.busy = false; form.querySelectorAll("button").forEach(button => button.disabled = false);} }
     });
-    state.root.append(modal); state.dialog = modal; modal.showModal();
+    parent.append(modal); state.dialog = modal; modal.showModal();
     return modal;
   }
   async function deleteRecord(path,payload,prompt) {
@@ -458,7 +459,7 @@
     const previousReport = state.page === "reports" && state.root.querySelector(".scheduler-reports");
     const heading = shell();
     const top = el("div", "scheduler-top"), tabs = el("nav", "calculator-pages scheduler-tabs"); tabs.setAttribute("aria-label","Scheduler pages");
-    const pages = [["schedule","Schedule"],["entries","Time entries"],["reports","Reports"],...(admin() ? [["team","Team members"],["settings","Settings"]] : [])];
+    const pages = [["schedule","Schedule"],["entries","Time entries"],["reports","Reports"],...(admin() ? [["settings","Settings"]] : [])];
     pages.forEach(([id,label]) => {
       const tab = button(label,async () => {
         if (state.page === id || !await leave()) return;
@@ -498,7 +499,6 @@
         return window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone});
       }
     }
-    if (state.page === "team" && admin()) renderTeam();
     if (state.page === "settings" && admin()) renderSettings();
   }
   function renderClock() {
@@ -618,7 +618,7 @@
       body.append(tr);
     });
     table.append(body); scroll.append(table); state.root.append(scroll);
-    if (state.data.members.length === 0) state.root.append(el("p","helper","Add your team in Team members, then select a day to schedule a shift."));
+    if (state.data.members.length === 0) state.root.append(el("p","helper","Add your team in Settings, then select a day to schedule a shift."));
   }
   function shiftContactNotes(project, notes, hint, originalBlock = '') {
     let selection = project.value(), inserted = originalBlock, restore = originalBlock, pending = Promise.resolve(), generation = 0;
@@ -710,11 +710,32 @@
     },"button scheduler-primary-action",translated("Create draft"));
     editor.classList.add("scheduler-shift-editor");
   }
-  function renderTeam() {
-    const heading = el("div","section-heading"); heading.append(el("h2","","Team members"),addIconButton("Add team member",() => editMember(),"scheduler-primary-action scheduler-toolbar-add")); state.root.append(heading);
+  function renderTeamSettings() {
+    const host = document.getElementById("settings-team-members");
+    if (!host) return;
+    host.hidden = !admin();
+    if (host.hidden) {
+      host.replaceChildren();
+      delete host.dataset.rosterVersion;
+      return;
+    }
+    const members = state.data.members;
+    const version = document.documentElement.lang + "/" + members.map(member => member.id + ":" + member.version).join(",");
+    if (host.dataset.rosterVersion === version) return;
+    host.dataset.rosterVersion = version;
+    const heading = el("div","section-heading"), title = el("h2","","Team members");
+    title.id = "team-members-heading";
+    window.CeasefireI18n?.text(title,"Team members");
+    heading.append(title,addIconButton("Add team member",() => editMember(),"scheduler-primary-action scheduler-toolbar-add"));
     const list = el("div","scheduler-team");
-    state.data.members.forEach(member => {const card = el("section","card"); card.append(el("h3","",member.name),el("p","helper",member.email),el("p","helper",`${member.role === "admin" ? "Administrator" : "Team member"} · ${member.active ? "Active" : "Inactive"}`),button("Edit member",() => editMember(member))); list.append(card);});
-    state.root.append(list);
+    members.forEach(member => {
+      const card = el("section","card");
+      card.append(el("h3","",member.name),el("p","helper",member.email),
+        el("p","helper",translated(member.role === "admin" ? "Administrator" : "Team member") + " · " + translated(member.active ? "Active" : "Inactive")),
+        button(translated("Edit member"),() => editMember(member)));
+      list.append(card);
+    });
+    host.replaceChildren(heading,list);
   }
   function editMember(member = null) {
     dialog(member ? "Edit team member" : "Add team member",host => {
@@ -727,11 +748,11 @@
     },"Save member",async controls => {
       const saved = await request("/members/save",{...(member ? {id:member.id,version:member.version} : {}),name:controls.name.value,email:controls.email.value,
         ...(controls.password.value ? {password:controls.password.value} : {}),base_rate:controls.rate.value,role:controls.role.value,active:controls.active.control.checked});
-      if (member && Number(member.base_rate) !== Number(saved.base_rate)) {
-        accountChannel?.postMessage("member-rate-changed");
-        window.dispatchEvent(new Event("classifire:member-rate-changed"));
-      }
-    },"button primary");
+      const rateChanged = member && Number(member.base_rate) !== Number(saved.base_rate);
+      accountChannel?.postMessage(rateChanged ? "member-rate-changed" : "member-record-changed");
+      window.dispatchEvent(new Event("classifire:team-members-changed"));
+      if (rateChanged) window.dispatchEvent(new Event("classifire:member-rate-changed"));
+    },"button primary","",document.getElementById("view-settings"));
   }
   function renderEntries() {
     const controls = weekControls(); if (admin()) controls.append(addIconButton("Add time entry",() => editEntry(),"scheduler-primary-action scheduler-toolbar-add"));
@@ -1260,6 +1281,7 @@
   }
   initializeOrganizationSettings();
   window.addEventListener("ceasefire:languagechange",() => {
+    renderTeamSettings();
     if (state.page === "reports" && state.data?.user && state.root) render();
   });
   async function restoreClock() {
@@ -1272,8 +1294,12 @@
   }
   document.addEventListener("visibilitychange",() => {if(!document.hidden && state.data?.user) {if(state.locationEnabled)void captureLocation(); void refresh();void loadOrders();}});
   accountChannel?.addEventListener("message",event => {
-    if (event.data === "member-rate-changed") {
-      window.dispatchEvent(new Event("classifire:member-rate-changed"));
+    if (event.data === "member-rate-changed" || event.data === "member-record-changed") {
+      if (event.data === "member-rate-changed") window.dispatchEvent(new Event("classifire:member-rate-changed"));
+      if (admin()) {
+        window.dispatchEvent(new Event("classifire:team-members-changed"));
+        void refresh();
+      }
     } else if (event.data === "changed") {
       resetAccount(); auth(false); void refresh();
     }

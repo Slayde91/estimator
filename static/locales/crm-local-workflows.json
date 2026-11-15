@@ -1280,12 +1280,12 @@
     "سجّل الدخول بحساب موظف في المجدول لإدارة الوصول على هذا الحاسوب.",
     "เข้าสู่ระบบด้วยบัญชีพนักงานตัวจัดกำหนดการเพื่อจัดการสิทธิ์บนคอมพิวเตอร์นี้"
   ],
-  "Manage staff names, passwords and team administrator roles in Scheduler. Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
-    "在排班中管理员工姓名、密码和团队管理员角色。编辑者可更新 CRM 记录，查看者可读取记录，仅排班员工无 CRM 权限。",
-    "शेड्यूलर में कर्मचारी नाम, पासवर्ड और टीम प्रशासक भूमिकाएँ प्रबंधित करें। संपादक CRM रिकॉर्ड बदल सकते हैं, दर्शक उन्हें पढ़ सकते हैं और केवल शेड्यूलर वाले कर्मचारी CRM नहीं खोल सकते।",
-    "Gestione nombres, contraseñas y roles de administración en Planificación. Los editores pueden actualizar las fichas del CRM, los lectores pueden consultarlas y el personal con acceso solo a Planificación no puede abrir el CRM.",
-    "أدِر أسماء الموظفين وكلمات المرور وأدوار مسؤول الفريق في المجدول. يستطيع المحررون تحديث سجلات CRM والمشاهدون قراءتها، ولا يستطيع موظفو المجدول فقط الوصول إلى CRM.",
-    "จัดการชื่อพนักงาน รหัสผ่าน และบทบาทผู้ดูแลทีมในตัวจัดกำหนดการ ผู้แก้ไขอัปเดตระเบียน CRM ได้ ผู้ดูอ่านได้ และพนักงานที่มีสิทธิ์เฉพาะตัวจัดกำหนดการเข้า CRM ไม่ได้"
+  "Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.": [
+    "编辑者可更新 CRM 记录，查看者可读取记录，仅排班员工无 CRM 权限。",
+    "संपादक CRM रिकॉर्ड बदल सकते हैं, दर्शक उन्हें पढ़ सकते हैं और केवल शेड्यूलर वाले कर्मचारी CRM नहीं खोल सकते।",
+    "Los editores pueden actualizar las fichas del CRM, los lectores pueden consultarlas y el personal con acceso solo a Planificación no puede abrir el CRM.",
+    "يستطيع المحررون تحديث سجلات CRM والمشاهدون قراءتها، ولا يستطيع موظفو المجدول فقط الوصول إلى CRM.",
+    "ผู้แก้ไขอัปเดตระเบียน CRM ได้ ผู้ดูอ่านได้ และพนักงานที่มีสิทธิ์เฉพาะตัวจัดกำหนดการเข้า CRM ไม่ได้"
   ],
   "View-only access. An editor is required to save changes.": [
     "仅可查看。保存更改需要编辑权限。",

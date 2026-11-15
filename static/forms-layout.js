@@ -4,7 +4,6 @@
     template_id:'Template ID',template_version:'Template version',form_version:'Form version',author:'Created by',
     record_id:'Record ID',generated_at:'Print date and time',disclaimer:'Print disclaimer'};
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
-  function button(text,action) {const b=el('button',text);b.type='button';b.className='button secondary';b.addEventListener('click',action);return b;}
   function select(items,value,change,label) {
     const s=el('select');s.setAttribute('aria-label',label);
     for(const [id,name] of items) s.append(new Option(name,id,false,value===id));
@@ -39,10 +38,11 @@
           if(item.kind==='image') row.append(select([['','Choose image'],...validImages.map(f=>[f.name,f.name])],item.image || '',v=>{item.image=v;changed();},'Attachment image'));
           section.append(row);
         });
-        const add=el('div');add.className='actions';
+        const add=el('div');add.className='forms-layout-add';
         const pick=select(Object.entries(labels),'logo',()=>{},title+' to add');
-        const insert=button('Add element',()=>update(()=>list.push({kind:pick.value,align:'left'})));insert.disabled=list.length>=20;
-        add.append(pick,insert);section.append(add);host.append(section);
+        const insert=window.ClassifireFormControls.iconButton('Add element','add',()=>update(()=>list.push({kind:pick.value,align:'left'})));
+        insert.disabled=list.length>=20;
+        add.append(insert,pick);section.append(add);host.append(section);
       }
     }
     render();

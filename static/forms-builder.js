@@ -23,11 +23,11 @@
       ['attachment', 'Attachment'], ['photo', 'Photo / video'], ['sketch', 'Sketch'],
       ['location', 'Location'], ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
       ['approval', 'Approval signature'], ['action', 'Action'], ['counter', 'Form counter'],
-      ['id_text', 'ID (manual entry)'], ['weather', 'Weather observation'],
+      ['weather', 'Weather observation'],
     ],
   };
   // These field types remain readable and editable in existing templates.
-  const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet']]);
+  const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet'], ['id_text', 'ID (manual entry)']]);
   const names = new Map([...Object.values(palette).flat(), ...legacyTypes]);
   const columnNames = new Map([...names, ['formula', 'Formula'], ['list_property', 'List property'], ['time', 'Time']]);
   const columnTypes = ['text', 'textarea', 'instruction', 'number', 'date', 'datetime', 'time', 'choice', 'list_property',
@@ -78,7 +78,6 @@
     approval: 'M3 17c4-10 9-12 6-5s-2 9 3 2m1-6 3 3 6-7M3 21h18',
     action: 'M4 4h16v17H4zM8 3h8v4H8zm0 11 3 3 6-7',
     counter: 'M2 6h20v12H2zm7 0v12m6-12v12M5 10v4m7-4v4m6-4v4',
-    id_text: 'M2 5h20v14H2zM6 9v6m4-6v6h2a3 3 0 0 0 0-6zM17 10h2m-2 4h2',
     weather: 'M10 8a4 4 0 1 1 5 5M13 2v1m6 1-1 1m4 4h-2M4 20a4 4 0 1 1 1-8 5 5 0 0 1 9 1 3.5 3.5 0 1 1 2 7z',
   };
   function fieldIcon(type) {
@@ -876,10 +875,14 @@
         if (fixedTables.length) registerCells(register,fixedTables);
       }
       print.append(labelled('Orientation', select(model.settings.orientation,
-        [['portrait', copy('Portrait')], ['landscape', copy('Landscape')]], value => { model.settings.orientation = value; })),
-        labelled('Header', input(model.settings.header, v => { model.settings.header = v; }, 'textarea')),
-        labelled('Footer', input(model.settings.footer, v => { model.settings.footer = v; }, 'textarea')),
-        check('Include a photo appendix', Boolean(model.settings.photo_appendix), on => { model.settings.photo_appendix = on; show('settings'); }));
+        [['portrait', copy('Portrait')], ['landscape', copy('Landscape')]], value => { model.settings.orientation = value; })));
+      for (const [key, label] of [['header','Header'], ['footer','Footer']]) {
+        const area = input(model.settings[key], value => { model.settings[key] = value; }, 'textarea');
+        area.rows = 1;
+        area.className = 'form-print-text';
+        print.append(labelled(label,area));
+      }
+      print.append(check('Include a photo appendix', Boolean(model.settings.photo_appendix), on => { model.settings.photo_appendix = on; show('settings'); }));
       if (model.settings.photo_appendix) print.append(labelled('Photos per page',select(String(model.settings.photos_per_page || 1),
         [1,2,4,6,8,10].map(n=>[String(n),String(n)]),v=>{model.settings.photos_per_page=Number(v);})));
       if (window.ClassifireFormsLayout) {

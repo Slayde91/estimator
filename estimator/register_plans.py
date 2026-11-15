@@ -31,6 +31,11 @@ def normalize_pins(value):
     return pins
 
 
+def penetration_ids(entry):
+    sides = ('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)
+    return ' / '.join(entry[side]['id_number'] for side in sides)
+
+
 def append_plan_pages(pdf, entries, sessions, service):
     # The register stores stable workspace IDs. Temporary session capabilities
     # come from the currently loaded estimate collection, never from saved pins.
@@ -38,9 +43,7 @@ def append_plan_pages(pdf, entries, sessions, service):
         raise ValidationError('Open the project with its Takeoffs drawings to download the pinned plans.')
     groups = defaultdict(lambda: defaultdict(list))
     for entry in entries:
-        label = entry['side1']['id_number']
-        if entry['access'] == 'Yes':
-            label += ' / ' + entry['side2']['id_number']
+        label = penetration_ids(entry)
         for pin in entry.get('plan_pins', []):
             groups[pin['project_id']][pin['document_id']].append((pin, label))
     if set(sessions) != set(groups) or not all(_uuid(value) for value in sessions.values()):

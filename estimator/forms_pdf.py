@@ -19,6 +19,8 @@ from .date_display import display_date
 from .pdf_fonts import FONT_BOLD, PdfParagraphStyle, register_pdf_fonts
 from .forms_pdf_fonts import font_text
 from .forms_pdf_browser import render_shaped_pdf
+from .rich_paragraphs import RichParagraphs
+from .form_fields import is_person_group
 
 
 IMAGES = {'image/png','image/jpeg','image/webp','image/gif'}
@@ -98,14 +100,30 @@ def render_form_pdf(entry, theme, company, staff, reference):
     header = PdfParagraphStyle('column',parent=normal,fontName=FONT_BOLD,textColor=colors.white)
 
     needs_shaping = False
-    def p(value, style=normal):
+    def formatted_text(text, style):
         nonlocal needs_shaping
-        text = str(value)
         markup, fallback = font_text(text,style.fontName)
         needs_shaping = needs_shaping or fallback
-        result = Paragraph(markup,style)
+        return markup
+
+    def p(value, style=normal):
+        text = str(value)
+        result = Paragraph(formatted_text(text, style),style)
         result.form_text = text
         return result
+
+    def rich_paragraphs(value):
+        if not isinstance(value,dict):
+            return [p(value)]
+        parser = RichParagraphs(lambda text: formatted_text(text, normal))
+        parser.feed(value['html'])
+        parser.flush()
+        parts = []
+        for markup in parser.paragraphs:
+            paragraph = Paragraph(markup, normal)
+            paragraph.form_markup = markup
+            parts.append(paragraph)
+        return parts
 
     def grid(rows, widths, headers=True):
         result = LongTable(rows,colWidths=widths,repeatRows=int(headers),splitInRow=1,hAlign='LEFT')
@@ -123,8 +141,12 @@ def render_form_pdf(entry, theme, company, staff, reference):
 
     def answer(field,value,max_width):
         kind = field['type']
+        if kind == 'instruction':
+            return rich_paragraphs(field.get('help') or '—')
         if value is None or value == '' or value == []:
             return [p('—')]
+        if kind == 'textarea':
+            return rich_paragraphs(value)
         if kind in ('attachment','photo'):
             pieces = []
             for attachment in value:
@@ -184,12 +206,13 @@ def render_form_pdf(entry, theme, company, staff, reference):
                 continue
             story.append(p(field['label'],label))
             if field.get('help'):
-                story.append(p(field['help']))
+                story.extend(rich_paragraphs(field['help']) if kind == 'instruction' else [p(field['help'])])
             if kind in ('section','instruction'):
                 continue
             if kind == 'group' and value:
+                row_title = 'Person' if is_person_group(field) else 'Group'
                 for index,row in enumerate(value,1):
-                    story.append(p(f'Group {index}',label))
+                    story.append(p(f'{row_title} {index}',label))
                     render_fields(field['children'],row)
             elif kind == 'table':
                 columns = [col for col in field['columns'] if not col.get('hide_in_pdf')]

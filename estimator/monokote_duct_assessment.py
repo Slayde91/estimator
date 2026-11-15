@@ -90,6 +90,10 @@ def application_formula_overrides(model, overrides=None):
     thickness = (f'IF(CD11="Both",MAX({internal},{external}),'
                  f'IF(CD11="Internal",{internal},'
                  f'IF(CD11="External",{external},"")))')
+    support = original('AM').replace(
+        '" mm. "&IF(BW11,"Use 50 x 50 x 3 mm stiffeners at 1200 mm. Engineer review required. ","")'
+        '&"Use the pin and mesh details in the header comment."',
+        '" mm."&IF(BW11," Use 50 x 50 x 3 mm stiffeners at 1200 mm. Engineer review required.","")')
     masters = {
         'L': f'IF(BD11=2,IF(AND(AS11,BL11,BV11),{thickness},""),{original("L")})',
         'BE': ('IF(BD11=2,AND(' + original('BE') + ',AU11<=2400,AV11<=2400,'
@@ -100,7 +104,7 @@ def application_formula_overrides(model, overrides=None):
               'MAX(AU11,AV11)>4*MIN(AU11,AV11)),"Outside report: duct aspect ratio exceeds 4:1",'
               + original('J') + ')'),
         'AM': ('IF(AND(AS11,BD11=2,BL11),' + _literal(SUPPORT_BASIS) + ','
-               + original('AM') + ')'),
+               + support + ')'),
         'AP': ('IF(AND(AS11,BD11=2),(' + original('AP') + ')&" "&'
                + _literal(THICKNESS_BASIS) + ',' + original('AP') + ')'),
         'AQ': ('IF(AND(AS11,BD11=2),'

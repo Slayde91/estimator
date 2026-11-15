@@ -158,6 +158,10 @@ class CalculatorReportTests(unittest.TestCase):
             for column, actual in row['values'].items():
                 address = column + str(row['row'])
                 if address in expected.get(projected['sheet'], {}):
+                    if identity == 'ductwork' and row['values'].get('C') == 'CAFCO 300' and column == 'AM':
+                        original_note = retained_value(projected['sheet'], address)
+                        self.assertEqual(actual, original_note.removesuffix(' Use the pin and mesh details in the header comment.'))
+                        actual = original_note
                     if (identity == 'ductwork' and row['values'].get('C') == 'MONOKOTE'
                             and column in {'AM', 'AP', 'AQ'}):
                         # The current assessment changes these three descriptions.

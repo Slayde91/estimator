@@ -154,8 +154,9 @@ def _number(value, label, minimum=0):
 class _RichText(HTMLParser):
     allowed = {'p', 'div', 'br', 'b', 'strong', 'i', 'em', 'u', 'ul', 'ol', 'li'}
 
-    def __init__(self):
+    def __init__(self, max_depth=None):
         super().__init__(convert_charrefs=True)
+        self.max_depth = max_depth
         self.output = []
         self.stack = []
 
@@ -164,6 +165,8 @@ class _RichText(HTMLParser):
             raise ValidationError('Rich text supports paragraphs, lists, bold, italic and underline only.')
         self.output.append('<br>' if tag == 'br' else '<' + tag + '>')
         if tag != 'br':
+            if self.max_depth is not None and len(self.stack) >= self.max_depth:
+                raise ValidationError('Rich text formatting is nested too deeply.')
             self.stack.append(tag)
 
     def handle_startendtag(self, tag, attrs):
@@ -185,8 +188,8 @@ class _RichText(HTMLParser):
         raise ValidationError('Rich text cannot contain document declarations.')
 
 
-def validate_rich_text(value, label='Rich text'):
-    parser = _RichText()
+def validate_rich_text(value, label='Rich text', *, max_depth=None):
+    parser = _RichText(max_depth)
     parser.feed(_text(value, label, 120000))
     parser.close()
     if parser.stack:

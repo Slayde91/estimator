@@ -1,4 +1,64 @@
 {
+  "Comment": [
+    "의견",
+    "Komento",
+    "Nhận xét"
+  ],
+  "Require a comment for": [
+    "의견을 요구할 응답",
+    "Mangailangan ng komento para sa",
+    "Yêu cầu nhận xét cho"
+  ],
+  "Enter a comment.": [
+    "의견을 입력하세요.",
+    "Maglagay ng komento.",
+    "Nhập nhận xét."
+  ],
+  "Choose an available answer for each comment.": [
+    "각 의견에 사용할 응답을 선택하세요.",
+    "Pumili ng available na sagot para sa bawat komento.",
+    "Chọn một câu trả lời có sẵn cho mỗi nhận xét."
+  ],
+  "Text formatting": [
+    "텍스트 서식",
+    "Format ng teksto",
+    "Định dạng văn bản"
+  ],
+  "Bold": [
+    "굵게",
+    "Makapal",
+    "Đậm"
+  ],
+  "Italic": [
+    "기울임꼴",
+    "Pahilig",
+    "Nghiêng"
+  ],
+  "Underline": [
+    "밑줄",
+    "Salungguhit",
+    "Gạch chân"
+  ],
+  "Bullets": [
+    "글머리 기호",
+    "Listahang may tuldok",
+    "Danh sách dấu đầu dòng"
+  ],
+  "Numbered list": [
+    "번호 매기기",
+    "Listahang may bilang",
+    "Danh sách đánh số"
+  ],
+  "Person {0}": [
+    "서명자 {0}",
+    "Tao {0}",
+    "Người {0}"
+  ],
+  "Your staff profile changed. Reopen the form.": [
+    "직원 프로필이 변경되었습니다. 양식을 다시 여세요.",
+    "Nagbago ang iyong profile. Buksang muli ang form.",
+    "Hồ sơ nhân viên của bạn đã thay đổi. Hãy mở lại biểu mẫu."
+  ],
   "Raw code": [
     "원시 코드",
     "Raw na code",

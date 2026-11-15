@@ -4,6 +4,7 @@ from datetime import date, datetime, time
 from decimal import Decimal, DecimalException, localcontext
 
 from .catalog import ValidationError
+from .form_rich_text import plain_form_text
 
 
 REFERENCE = re.compile(r'(?:(?:Table([1-9]\d{0,2}))!)?\$?([A-Z]{1,3})(\$?)([1-9]\d{0,4})', re.I)
@@ -179,7 +180,8 @@ def derive_tables(fields, values, *, complete=False, frozen=()):
         column = tables[t]['columns'][c]
         data = rows[t][row]
         if column['type'] not in DERIVED or tables[t]['id'] in frozen:
-            return data.get(column['id'])
+            value = data.get(column['id'])
+            return plain_form_text(value) if column['type'] == 'textarea' else value
         visiting.add(address)
         try:
             if column['type']=='list_property':

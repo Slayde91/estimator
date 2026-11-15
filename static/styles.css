@@ -746,7 +746,8 @@ html.app-busy,html.app-busy *{cursor:progress!important}
 .takeoff-signature-remember{display:flex;align-items:flex-start;gap:8px;width:100%;margin:12px 0;text-align:left}
 .takeoff-signature-remember>input[type=checkbox]{flex:0 0 18px;width:18px;min-width:18px;max-width:18px;height:18px;padding:0;margin:2px 0 0;accent-color:var(--accent)}
 .takeoff-signature-remember>span{flex:1;min-width:0;overflow-wrap:anywhere}
-.takeoff-signature-preview{display:block;max-width:100%;color:var(--text)}
+.takeoff-signature-preview{display:block;max-width:100%;color:#151515;background:#fff}
+#personal-details-previous-image{background:#fff}
 .personal-signature-button>span{display:block;width:24px;height:24px;background:currentColor;mask:url('/icons/signature.svg') center/contain no-repeat}
 
 #personal-details-form textarea{height:44px;min-height:44px;width:100%;min-width:0;resize:vertical}

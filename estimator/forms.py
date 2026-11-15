@@ -7,7 +7,8 @@ import sqlite3
 from uuid import UUID
 
 from .catalog import ValidationError
-from .form_fields import validate_template, validate_values
+from .form_fields import is_person_group, validate_template, validate_values
+from .form_rich_text import plain_form_text
 
 FORM_PDF_THEMES = ('ceasefire', 'midnight', 'ocean', 'forest', 'slate')
 
@@ -39,6 +40,10 @@ def _version(value):
 
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
+
+
+def _full_name(user, profile):
+    return profile.get('fields', {}).get('name', '').strip() or user['name']
 
 
 def _json(value):
@@ -99,6 +104,12 @@ class Forms:
                 yield db
         finally:
             db.close()
+
+    def signer_details(self, user):
+        self._user(user)
+        profile = self.personal(owner_id=user['id']) if self.personal else {}
+        return {'id': user['id'], 'name': _full_name(user, profile),
+                'company': self.company().get('name', ''), 'at': _now()}
 
     @staticmethod
     def _user(user, write=False):
@@ -359,12 +370,14 @@ class Forms:
                                      '(SELECT rowid FROM form_entries WHERE id=?)',(template_id,key)).fetchone()[0]
             profile_fields = [field for parent in template['fields'] for field in (parent, *(
                 parent['children'] if parent['type']=='group' else parent['columns'] if parent['type']=='table' else []))]
-            company = self.company() if any(field['type'] in ('profile','profile_company','profile_phone')
-                                            for field in profile_fields) else {}
+            staff_rows = any(is_person_group(field) for field in template['fields'])
+            needs_company = staff_rows or any(f['type'] in ('profile','profile_company','profile_phone') for f in profile_fields)
+            company = self.company() if needs_company else {}
+            needs_signature = any(f['type']=='signature' for f in profile_fields)
+            profile = self.personal(owner_id=user['id']) if self.personal and (staff_rows or needs_signature) else {}
             now = _now()
-            signer = {**user,'at':now,'company':company.get('name',''),'phone':company.get('phone','')}
-            if self.personal and any(f['type']=='signature' for f in profile_fields):
-                profile = self.personal(owner_id=user['id'])
+            signer = {**user,'at':now,'full_name':_full_name(user,profile),'company':company.get('name',''),'phone':company.get('phone','')}
+            if needs_signature and self.personal:
                 signer.update(signature_image=profile['signature_image'],signature_name=profile['signature_name'])
             values = validate_values(template, body['values'], complete=status == 'submitted',
                                      previous=previous, stage_id=stage_id, staff={p['id'] for p in self.staff()},
@@ -380,12 +393,13 @@ class Forms:
                 field_id,row_index,col = cell['field_id'],cell['row'],cell['column_id']
                 rows = values.get(field_id,[])
                 if row_index<len(rows):
-                    value = rows[row_index].get(col)
+                    value = plain_form_text(rows[row_index].get(col))
                     if isinstance(value,dict):
                         value = value.get('answer')
                     candidates[f'{field_id}:{row_index}:{col}'] = value
             summary = {}
             for selector,value in candidates.items():
+                value = plain_form_text(value)
                 if isinstance(value,str):
                     summary[selector] = value[:500]
                 elif type(value) in (int,float,bool):

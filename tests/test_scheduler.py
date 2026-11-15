@@ -43,7 +43,7 @@ class SchedulerTests(unittest.TestCase):
             call()
         self.assertEqual(caught.exception.status_code, status)
 
-    def test_work_order_cost_uses_recorded_rates_and_other_jobs_towards_overtime(self):
+    def test_work_order_cost_uses_current_rates_and_other_jobs_towards_overtime(self):
         person = self.member()
         target, other = 'file-a:owner:work', 'file-b:owner:work'
         self.store.work_order_lookup = lambda identity, revision: {
@@ -60,25 +60,39 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
         self.assertEqual(self.store.work_order_labour([other]), {'amount':'320.00'})
         self.assertEqual(self.store.work_order_labour(['missing']), {'amount':'0.00'})
-        self.write('members/save', {**{key:person[key] for key in ('id','version','name','email','role','active')},
-                                    'base_rate':'88'})
-        self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
+        def change_rate(member, rate):
+            return self.write('members/save', {**{key: member[key] for key in ('id','version','name','email','role','active')},
+                                               'base_rate': rate})
+        person = change_rate(person, '88')
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'352.00'})
+        self.assertEqual(self.store.work_order_labour([other]), {'amount':'704.00'})
+        payroll = self.store.read('state', {'start':'2020-11-02','end':'2020-11-03'}, self.token)
+        self.assertEqual([entry['base_rate'] for entry in payroll['entries']], ['40.00','40.00'])
+        self.assertEqual(payroll['payroll']['rows'][0]['gross'], '480.00')
         # An unfinished clock and a scheduled shift do not have recorded paid hours.
         self.write('shifts/save', {'member_ids':[person['id']], 'title':'Planned work', 'start':'2026-11-02T10:00',
                   'end':'2026-11-02T11:00','work_order':{'id':target,'revision':'saved'}})
         self.write('clock/in', {'work_order':{'id':target,'revision':'saved'}})
-        self.assertEqual(self.store.work_order_labour([target]), {'amount':'160.00'})
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'352.00'})
         with self.store.connect() as db:
             db.execute("UPDATE scheduler_settings SET data=json_set(data,'$.pay_rules_confirmed',json('false'))")
         self.assertIsNone(self.store.work_order_labour([target])['amount'])
         self.assertEqual(self.store.work_order_labour([other+':unknown']), {'amount':'0.00'})
         with self.store.connect() as db:
             db.execute("UPDATE scheduler_settings SET data=json_set(data,'$.pay_rules_confirmed',json('true'))")
-            db.execute("""UPDATE scheduler_records SET data=json_set(data,'$.base_rate','0')
-                WHERE end IS NOT NULL AND json_extract(data,'$.work_order.id')=?""", (target,))
+        person = change_rate(person, '0')
         zero = self.store.work_order_labour([target])
         self.assertEqual(zero['amount'], '0.00')
         self.assertIn('hourly rate of $0.00', zero['message'])
+        change_rate({**person, 'active':False}, '88')
+        with self.store.connect() as db:
+            db.execute("""UPDATE scheduler_records SET data=json_set(data,'$.base_rate','0')
+                WHERE end IS NOT NULL AND json_extract(data,'$.work_order.id')=?""", (target,))
+        self.assertEqual(self.store.work_order_labour([target]), {'amount':'352.00'})
+        # Old entries with no matching member fall back to the recorded rate if available.
+        with self.store.connect() as db:
+            db.execute("DELETE FROM scheduler_members WHERE id=?", (person['id'],))
+        self.assertEqual(self.store.work_order_labour([other]), {'amount':'320.00'})
         with self.store.connect() as db:
             db.execute("""UPDATE scheduler_records SET data=json_remove(data,'$.base_rate')
                 WHERE end IS NOT NULL AND json_extract(data,'$.work_order.id')=?""", (target,))

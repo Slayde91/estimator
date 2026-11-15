@@ -12,9 +12,9 @@ const {chromium, expect} = require('@playwright/test');
       contentType:'text/html', body:'<!doctype html><html><head><meta name="viewport" content="width=device-width"></head><body><main></main></body></html>',
     }));
     await page.goto('http://localhost/editor');
-    for (const file of ['styles.css','forms-builder.css'])
+    for (const file of ['styles.css','forms-builder.css','form-fields.css'])
       await page.addStyleTag({path:path.resolve(__dirname,'../../static',file)});
-    for (const file of ['form-controls.js','forms-builder.js'])
+    for (const file of ['form-controls.js','form-rich-text.js','forms-builder.js'])
       await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     await page.evaluate(() => {
       window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), null, {
@@ -272,6 +272,16 @@ const {chromium, expect} = require('@playwright/test');
     await palette('instruction').click();
     await page.getByLabel('Instructions',{exact:true}).fill('Wear eye protection.');
     assert.equal((await snap()).fields.at(-1).help,'Wear eye protection.');
+    await page.getByRole('textbox',{name:'Instructions',exact:true}).press('ControlOrMeta+a');
+    await page.getByRole('button',{name:'Bold',exact:true}).click();
+    assert.match((await snap()).fields.at(-1).help.html, /<b>Wear eye protection\.<\/b>/i);
+    await palette('textarea').click();
+    await btn('Default values').click();
+    const defaultEditor = page.getByRole('textbox',{name:'Multi-line text',exact:true});
+    await defaultEditor.fill('Check after fitting');
+    await defaultEditor.press('ControlOrMeta+a');
+    await btn('Underline').click();
+    assert.match((await snap()).fields.at(-1).default.html, /<u>Check after fitting<\/u>/i);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     assert.deepEqual(pageErrors,[]);
     console.log('Forms editor drag/drop, keyboard order, conditions, workflow, table defaults, role access, attachments, save retry and narrow layout passed.');

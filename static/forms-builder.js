@@ -131,8 +131,9 @@
     const wrap = node(single ? 'label' : 'div', 'field form-builder-control');
     const caption = literal ? node('span','',label) : ui('span','',label);
     caption.id = 'form-builder-caption-' + (++controlNumber);
-    if (!single) input.setAttribute('role','group');
-    input.setAttribute('aria-labelledby', caption.id);
+    const richInput = input.querySelector('[contenteditable]');
+    if (!single && !richInput) input.setAttribute('role','group');
+    (richInput || input).setAttribute('aria-labelledby', caption.id);
     wrap.append(caption, input);
     return wrap;
   }
@@ -182,12 +183,13 @@
       ].map(([kind,label]) => ({...newField(kind),label:copy(label)}));
       if (type === 'signatures') field.children = [newField('person'),newField('manual_signature')];
       if (type === 'sign_on_table') field.children = [newField('person'), newField('datetime'), newField('manual_signature')];
+      if (!table) field.person_rows = true;
       return field;
     }
     const field = {id: fieldId(), type, label: copy(columnNames.get(type))};
     if (choiceTypes.has(type)) field.options = [copy('Option 1'), copy('Option 2')];
     if (type === 'table') field.columns = [newField('text')];
-    if (type === 'group') field.children = [newField('text')];
+    if (type === 'group') { field.person_rows = false; field.children = [newField('text')]; }
     return field;
   }
   function baseTemplate(source) {
@@ -273,7 +275,9 @@
             ['constructor','prototype','__proto__'].includes(field.id) || ids.has(field.id)) throw Error(copy('Every field needs a unique ID.'));
         ids.add(field.id);
         if (typeof field.label !== 'string' || !field.label.trim()) throw Error(copy('Enter a label for each field.'));
-        if (field.label.length > 250 || (field.help !== undefined && (typeof field.help !== 'string' || field.help.length > 5000)))
+        const help = field.type === 'instruction' && typeof field.help?.html === 'string'
+          ? window.ClassifireFormRichText.content(field.help).textContent : field.help;
+        if (field.label.length > 250 || (help !== undefined && (typeof help !== 'string' || help.length > 5000)))
           throw Error(copy('Use up to 250 characters for field labels and 5,000 for help text.'));
         if ((choiceTypes.has(field.type) || (field.type === 'yes_no' && field.options !== undefined)) && (!Array.isArray(field.options) || (publishing && !field.options.length) ||
             field.options.length > 500 || field.options.some(opt => typeof opt !== 'string' || opt.length > 500 || !opt.trim()) || new Set(field.options).size !== field.options.length))
@@ -285,7 +289,7 @@
         }
         if (field.type === 'yes_no' && (!valuesFor(field).every(v => yesNoOptions.includes(v)) ||
           (field.explanation_on !== undefined && (!Array.isArray(field.explanation_on) || !field.explanation_on.every(v => valuesFor(field).includes(v))))))
-          throw Error(copy('Choose an available answer for each explanation.'));
+          throw Error(copy('Choose an available answer for each comment.'));
         if (field.reminder_days !== undefined && !(Number.isInteger(field.reminder_days) && field.reminder_days >= 0 && field.reminder_days <= 365))
           throw Error(copy('Choose a whole number of reminder days between 0 and 365.'));
         if (field.type === 'table' || field.type === 'group') {
@@ -537,8 +541,7 @@
       labelInput.maxLength = 250;
       properties.append(fieldHeading(field, 'Field label', labelInput));
       if (field.type === 'instruction') {
-        const instructions = input(field.help, value => { field.help = value; }, 'textarea');
-        instructions.maxLength = 5000;
+        const instructions = window.ClassifireFormRichText.editor(copy('Instructions'), field.help, value => { field.help = value; });
         properties.append(labelled('Instructions', instructions));
       }
       if (model.mode === 'workflow' && model.settings.stages.length) {
@@ -607,7 +610,7 @@
       host.append(labelled('Choices (one per line)', choices));
     }
     function yesNoEditor(host, field, redraw) {
-      const choices = group('Available answers'), explanations = group('Require an explanation for');
+      const choices = group('Available answers'), explanations = group('Require a comment for');
       for (const value of yesNoOptions) {
         const available = valuesFor(field).includes(value);
         choices.append(check(value, available, on => {
@@ -715,7 +718,8 @@
         if (child.type === 'expiry_date') expiryReminder(card, child);
         if (choiceTypes.has(child.type)) optionEditor(card, child, list);
         if (child.type === 'person') card.append(check('Select multiple people', Boolean(child.multiple), on => { child.multiple = on; }));
-        if (child.type === 'instruction') card.append(labelled('Instructions', input(child.help, v => { child.help = v; }, 'textarea')));
+        if (child.type === 'instruction') card.append(labelled('Instructions',
+          window.ClassifireFormRichText.editor(copy('Instructions'), child.help, v => { child.help = v; })));
         conditionEditor(card, child, list.slice(0,index), redraw);
         card.append(arrangeTools(list, index, redraw, () => {
           if (!window.confirm(copy(table ? 'Remove this column and its prefilled values?' : 'Remove this field from the group?'))) return;
@@ -745,7 +749,8 @@
       }
       if (field.type === 'choice' || field.type === 'yes_no')
         return select(value, [['', copy('No default')], ...valuesFor(field).map(v => [v, v])], v => update(v || undefined));
-      const inputType = {number:'number', textarea:'textarea', date:'date', datetime:'datetime-local', time:'time'}[field.type] || 'text';
+      if (field.type === 'textarea') return window.ClassifireFormRichText.editor(field.label, value, v => update(v || undefined));
+      const inputType = {number:'number', date:'date', datetime:'datetime-local', time:'time'}[field.type] || 'text';
       const control = input(value, v => update(v === '' ? undefined : field.type === 'number' ? Number(v) : v), inputType);
       if (inputType === 'number') control.step = 'any';
       return control;

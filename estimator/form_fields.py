@@ -9,7 +9,9 @@ from uuid import uuid4
 
 from .catalog import ValidationError
 from .commercial_files import filename
+from .commercial_documents import validate_rich_text
 from .form_calculations import DERIVED, derive_tables, parse_formula
+from .form_rich_text import plain_form_text
 
 ROLES = {'viewer', 'editor', 'admin'}
 LAYOUT = {'instruction','section','page_break'}
@@ -27,6 +29,50 @@ MAX_TOTAL = 12 * 1024 * 1024
 MIME = re.compile(r'[a-zA-Z0-9.+_-]+/[a-zA-Z0-9.+_-]+')
 
 
+def is_person_group(field):
+    if field.get('type') != 'group':
+        return False
+    if 'person_rows' in field:
+        return field['person_rows'] is True
+    # Older versions stored the stock sign-on and multiple-signature presets as plain groups.
+    kinds = [child['type'] for child in field.get('children', [])]
+    return kinds in (['person', 'datetime', 'manual_signature'], ['person', 'manual_signature'])
+
+
+def _staff_row_values(fields, row, before, signer):
+    """Bind a new staff signature to the session and keep old sign-off details intact."""
+    person = next((f for f in fields if f['type'] == 'person'), None)
+    day = next((f for f in fields if f['type'] in ('date', 'datetime')), None)
+    signed, captures = [], []
+    for f in fields:
+        if f['type'] != 'manual_signature':
+            continue
+        key = f['id']
+        old, value = before.get(key), row.get(key)
+        if isinstance(old, str) and old or isinstance(old, dict) and old.get('at'):
+            signed.append(old)
+        elif isinstance(value, dict) and value.get('image'):
+            captures.append(key)
+    if signed:
+        for f in (person, day):
+            if f and row.get(f['id']) != before.get(f['id']):
+                raise ValidationError('The person and date of a signed row cannot be changed.')
+    if not captures:
+        return row
+    if not signer or any(not isinstance(old, dict) or old.get('captured_by') != signer['id'] for old in signed):
+        raise ValidationError('Add a separate row for a different signer.')
+    for key in captures:
+        row[key] = {**row[key], 'name': signer['full_name'], 'company': signer['company']}
+    if not signed:
+        if person:
+            row[person['id']] = [signer['id']] if person.get('multiple') else signer['id']
+        if day and not row.get(day['id']):
+            timestamp = signer['at']
+            row[day['id']] = (timestamp[:10] if day['type'] == 'date' else
+                              timestamp if day.get('timezone') else timestamp.removesuffix('Z'))
+    return row
+
+
 def text(value, limit, label, *, required=False):
     if (not isinstance(value,str) or len(value) > limit or required and not value.strip()
             or any(ord(c)<32 and c not in '\t\n\r' or 0xD800<=ord(c)<=0xDFFF for c in value)):
@@ -39,6 +85,16 @@ def identifier(value):
             or value in {'constructor','prototype','__proto__'}):
         raise ValidationError('Use a valid form field or stage identifier.')
     return value
+
+
+def rich_form_text(value, limit, label):
+    if isinstance(value, str):
+        return text(value, limit, label)
+    if not isinstance(value, dict) or set(value) != {'html'}:
+        raise ValidationError(f'Enter valid {label}.')
+    rich = {'html': validate_rich_text(value['html'], label, max_depth=32)}
+    plain = text(plain_form_text(rich), limit, label)
+    return rich if plain.strip() else ''
 
 
 def _roles(value, allowed):
@@ -154,7 +210,12 @@ def validate_template(body,staff=None):
             if not nested:
                 root_ids.add(key)
             text(field.get('label'),250,'field label',required=True)
-            text(field.get('help',''),5000,'field instructions')
+            if kind == 'instruction' and 'help' in field:
+                field['help'] = rich_form_text(field['help'], 5000, 'field instructions')
+            else:
+                text(field.get('help',''),5000,'field instructions')
+            if kind == 'textarea' and field.get('default') is not None:
+                field['default'] = rich_form_text(field['default'], 16000, 'form text')
             if 'required' in field and type(field['required']) is not bool:
                 raise ValidationError('Choose the required setting for this field.')
             stage_id = field.get('stage_id')
@@ -202,6 +263,8 @@ def validate_template(body,staff=None):
             if kind in ('table','group'):
                 if nested:
                     raise ValidationError('Groups and tables must be top-level fields.')
+                if 'person_rows' in field and (kind != 'group' or type(field['person_rows']) is not bool):
+                    raise ValidationError('Choose a valid group setting.')
                 children = field.get('columns' if kind=='table' else 'children',[])
                 check_fields(children, table=kind=='table', nested=True)
                 if status=='published' and not children:
@@ -214,6 +277,11 @@ def validate_template(body,staff=None):
                         raise ValidationError('Choose a valid table mode and prefilled rows.')
                     if mode=='fixed' and status=='published' and not preset:
                         raise ValidationError('Add a prefilled row to the fixed table.')
+                    rich_columns = [col['id'] for col in children if col['type'] == 'textarea']
+                    for row in preset:
+                        for column in rich_columns:
+                            if row.get(column) is not None:
+                                row[column] = rich_form_text(row[column], 16000, 'form text')
             previous[key]=field
             counts.append(key)
             if len(counts)>500:
@@ -324,7 +392,9 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
 
     def answer(field, value, old):
         kind = field['type']
-        if kind in ('text','textarea','weather','id_text'):
+        if kind == 'textarea':
+            return value
+        if kind in ('text','weather','id_text'):
             return text(value,16000,'form text')
         if kind=='number':
             number = _num(value)
@@ -355,7 +425,7 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                     raise ValueError
                 if isinstance(value,dict) or selected_answer in field.get('explanation_on',[]):
                     reason = value.get('explanation','') if isinstance(value,dict) else ''
-                    text(reason,4000,'answer explanation',required=complete and selected_answer in field.get('explanation_on',[]))
+                    text(reason,4000,'answer comment',required=complete and selected_answer in field.get('explanation_on',[]))
                 value_for_choice = selected_answer
             else:
                 value_for_choice = value
@@ -505,6 +575,8 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                     continue
             if kind in LAYOUT or kind in DERIVED:
                 continue
+            if kind == 'textarea' and val is not None:
+                val = rich_form_text(val, 16000, 'form text')
             if _blank(val) and (kind in ('signature','staff_wallet') and isinstance(old,dict)
                     or (kind=='profile' or kind.startswith('profile_')) and isinstance(old,str) and old
                     or kind=='manual_signature' and (isinstance(old,str) or isinstance(old,dict) and old.get('at'))):
@@ -542,7 +614,10 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                                 raise ValidationError('Choose an existing form row once or add a new row.')
                             former = old_rows[row_id]
                             seen.add(row_id)
-                        cleaned_row = fields_values(children,{k:v for k,v in row.items() if k!='_row_id'},former,False)
+                        answers = {k:v for k,v in row.items() if k!='_row_id'}
+                        if is_person_group(f):
+                            answers = _staff_row_values(children,answers,former,signer)
+                        cleaned_row = fields_values(children,answers,former,False)
                         if stamped:
                             cleaned_row['_row_id'] = row_id or str(uuid4())
                         rows.append(cleaned_row)

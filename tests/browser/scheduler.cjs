@@ -125,6 +125,8 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await modal.getByLabel('Email / sign-in').fill('jordan@example.test');
   await modal.getByLabel('Password',{exact:true}).fill(password);
   await modal.getByLabel('Base hourly rate (AUD)').fill('40');
+  await expect(modal.getByRole('button',{name:'Close',exact:true})).toHaveText('×');
+  await expect(modal.getByRole('button',{name:'Save member'})).toHaveClass(/primary/);
   await submit('Save member');
   await expect(page.locator('.scheduler-team')).toContainText('Jordan QA');
   checks.push('create team member and saved base rate');

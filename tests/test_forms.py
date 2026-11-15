@@ -37,6 +37,28 @@ def entry(t, values, **changes):
 
 
 class FormsTests(unittest.TestCase):
+    def test_rich_form_values_defaults_fixed_cells_and_legacy_text(self):
+        rich = {'html':'<b>One</b> &amp; <i>two</i>'}
+        fields = [field('note', 'textarea', required=True, default=rich), field('intro', 'instruction', help=rich),
+                  field('rows', 'table', table_mode='fixed', default=[{'cell':rich}],
+                        columns=[field('cell', 'textarea'), field('formula', 'formula', formula='=A1')])]
+        settings = {'summary_fields':['note'], 'summary_cells':[{'field_id':'rows','row':0,'column_id':'cell'}]}
+        t = self.store.save_template(self.editor, template(fields=fields, settings=settings))
+        values = {'note':rich, 'rows':[{'cell':rich}]}
+        result = self.store.save_entry(self.editor, entry(t, values, status='submitted'))
+        self.assertEqual(result['values']['note'],rich)
+        self.assertEqual(result['values']['rows'][0]['formula'],'One & two')
+        self.assertEqual(result['summary_values'],{'note':'One & two', 'rows:0:cell':'One & two'})
+        legacy = self.store.save_entry(self.editor, entry(t, {**values,'note':'<b>literal</b>'}))
+        self.assertEqual(legacy['summary_values']['note'],'<b>literal</b>')
+        for invalid in ('<a href="x">Link</a>', '<img src="x">', '<b>'*33+'a'+'</b>'*33):
+            with self.subTest(invalid=invalid), self.assertRaises(ValidationError):
+                self.store.save_template(self.editor, template(fields=[field('i','instruction',help={'html':invalid})]))
+            with self.assertRaises(ValidationError):
+                self.store.save_entry(self.editor, entry(t, {**values,'note':{'html':invalid}}))
+        with self.assertRaises(ValidationError):
+            self.store.save_entry(self.editor, entry(t,{**values,'note':{'html':'<p><br></p>'}},status='submitted'))
+
     def setUp(self):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -238,6 +260,25 @@ class FormsTests(unittest.TestCase):
         for invalid in ([row,row],[{**row,'digital':True}],[{**row,'manual':{**row['manual'],'name':'Different'}}]):
             with self.assertRaises(ValidationError):
                 self.store.save_entry(self.editor,entry(t,{'group':invalid},id=saved['id'],version=2))
+
+    def test_staff_sign_on_uses_authenticated_member_and_preserves_signed_rows(self):
+        self.store.personal = lambda *,owner_id: {'fields':{'name':'Sam Lincoln' if owner_id=='sam' else 'Alex Lee'}}
+        t = self.store.save_template(self.admin,template(fields=[field('crew','group',children=[
+            field('member','person',required=True),field('when','datetime',required=True),
+            field('ink','manual_signature')])]))
+        image = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\nfixture').decode()
+        saved = self.store.save_entry(self.editor,entry(t,{'crew':[{'member':'alex','ink':{
+            'name':'Alex','company':'Other company','image':image}}]}))
+        row = saved['values']['crew'][0]
+        self.assertEqual((row['member'],row['ink']['name'],row['ink']['company'],row['ink']['captured_by']),
+                         ('sam','Sam Lincoln','Example Co','sam'))
+        self.assertTrue(row['when'])
+        self.store.personal = lambda *,owner_id: {'fields':{'name':'Changed name'}}
+        for changed in ({**row,'member':'alex'},{**row,'when':'2026-01-01T12:00'}):
+            with self.assertRaisesRegex(ValidationError,'signed row'):
+                self.store.save_entry(self.editor,entry(t,{'crew':[changed]},id=saved['id'],version=1))
+        unchanged = self.store.save_entry(self.editor,entry(t,{'crew':[row]},id=saved['id'],version=1,status='submitted'))
+        self.assertEqual(unchanged['values']['crew'][0],row)
 
     def test_formula_conditions_dates_times_and_unselected_branch(self):
         fields = [field('table','table',columns=[

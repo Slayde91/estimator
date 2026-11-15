@@ -415,6 +415,7 @@ class DesktopPackagingTests(unittest.TestCase):
         supplied = {
             'sounds/mgs1-menu-move.mp3': (8313, 'ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0'),
             'sounds/mgs-confirm2.mp3': (32391, 'e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86'),
+            'sounds/shutter.mp3': (21733, '09d62171adf3e5286acfdcd9e290ebd746af4f5ffa13817276c9b87001d5f0e6'),
             # The retained logo URL serves the supplied flame_whoosh.mp3 bytes.
             'sounds/new-explosion.mp3': (161332, '42de6e27397a942bda71b98b9b564c6a4543ebe88473fac35c10e1335099a1b4'),
             'sounds/money.mp3': (71424, '6264bcc7b20d6282775c28bc8bc36cea7110c99b10d4c8602a69ff571b46a95b'),

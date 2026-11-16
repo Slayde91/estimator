@@ -16,7 +16,7 @@ from estimator.storage import Store
 from estimator.technical_discovery import SNAP_FILTER_SOURCE
 from estimator.technical_item_exports import prepare_technical_item
 from estimator.technical_library_edits import ManualTechnicalLibrary, SOURCE_IMAGE_PREFIX
-from scripts.install_snap_library import install
+from scripts.install_snap_library import install, variant_record_id
 from test_firestopping_library import editable_library
 
 
@@ -158,6 +158,159 @@ class SnapLibraryInstallTests(unittest.TestCase):
             tables = ('technical_library_items', 'technical_library_source_images', 'technical_library_links', 'snap_library_corrections')
             return {t: db.execute('SELECT * FROM ' + t + ' ORDER BY rowid').fetchall() for t in tables
                     if db.execute('SELECT 1 FROM sqlite_master WHERE name=?', (t,)).fetchone()}
+
+    def variation(self):
+        report = 'https://docs.snapcollars.com.au/FCO1234.pdf'
+        page = report + '#page=24'
+        parent = self.systems[0]['record']
+        parent['sources'] = [
+            {'label': 'SNAP selector', 'url': 'https://www.snapcollars.com.au/product-filter'},
+            {'label': 'Product', 'url': 'https://www.snapcollars.com.au/products/fire-collar/EXAMPLE'},
+            {'label': 'FCO1234', 'url': report}]
+        parent['fields'].append({'label': 'Report Number', 'value': 'FCO1234',
+                                 'report_links': [{'label': 'FCO1234', 'url': report}]})
+        old = self.root / 'old.json'
+        old.write_text(json.dumps({'systems': self.systems}), encoding='utf-8')
+        install(old, self.source, self.store.path, True)
+        systems = deepcopy(self.systems)
+        systems[0]['record']['title'] = 'Example 1, concrete'
+        child = deepcopy(self.systems[0])
+        key = variant_record_id(1, 'masonry-130')
+        child['record'].update(id=key, title='Example 1, masonry')
+        child['record']['fields'][0]['value'] = 'SNAP 1 / masonry-130'
+        child['record']['fields'].append({'label': 'Barrier Construction', 'value': '130 mm masonry wall'})
+        child['record']['sources'].append({'label': 'FCO1234 Table 3, p24', 'url': page})
+        drawing = self.root / 'masonry.png'
+        Image.new('RGB', (30, 32), 'blue').save(drawing)
+        child['drawings'].append({'path': drawing.name, 'sha256': hashlib.sha256(drawing.read_bytes()).hexdigest(),
+                                  'caption': 'Masonry configuration, assessment p24'})
+        systems.append(child)
+        addition = {'parent_system_id': 1, 'variant_key': 'masonry-130', 'record_id': key, 'evidence_urls': [page]}
+        after = {'systems': systems, 'variant_review': {'updated_record_ids': [parent['id']], 'additions': [addition]}}
+        target = self.root / 'variants.json'
+        args = {'manifest': target, 'library': self.source, 'database': self.store.path, 'previous_manifest': old,
+                'expected_previous_manifest_sha256': hashlib.sha256(old.read_bytes()).hexdigest(), 'variants': True}
+        return after, args
+
+    def variation_args(self, snapshot, args):
+        args['manifest'].write_text(json.dumps(snapshot), encoding='utf-8')
+        return {**args, 'expected_manifest_sha256': hashlib.sha256(args['manifest'].read_bytes()).hexdigest()}
+
+    def test_variant_release_preserves_parent_link_keeps_own_id_images_and_replays(self):
+        after, args = self.variation()
+        args = self.variation_args(after, args)
+        parent, untouched, child = [s['record']['id'] for s in after['systems']]
+        self.assertEqual(child, 'user-technical-' + uuid5(NAMESPACE_URL, 'Snap Fire Systems AU/system/1/variant/masonry-130').hex)
+        initial, _ = self.library.technical_edits.read()
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', parent, 'left', initial[parent]['source_sha256'], 1, 'before', 3))
+        before = self.state()
+        preview = install(**args)
+        self.assertEqual((preview['planned_updates'], preview['planned_additions'], preview['planned_drawings']), (1, 1, 1))
+        self.assertEqual((preview['reviewed_updated_ids'], preview['reviewed_added_ids']), ([parent], [child]))
+        self.assertEqual(before, self.state())
+        result = install(**args, apply=True)
+        self.assertEqual((result['updated'], result['added'], result['withdrawn'], result['systems']), (1, 1, 0, 3))
+        rows, _ = self.library.technical_edits.read()
+        self.assertEqual(rows[untouched], initial[untouched])
+        self.assertEqual(rows[parent]['revision'], initial[parent]['revision'] + 1)
+        self.assertEqual(rows[child]['revision'], 1)
+        self.assertEqual(len(rows[child]['record']['images']), 2)
+        self.assertEqual(rows[child]['record']['images'][0], rows[parent]['record']['images'][0])
+        final = self.state()
+        link = final['technical_library_links'][0]
+        self.assertEqual((link[1], link[3], link[6]), (parent, rows[parent]['source_sha256'], 4))
+        self.assertEqual(self.library.detail('technical', child)['title'], 'Example 1, masonry')
+        replay = install(**args, apply=True)
+        self.assertEqual((replay['replay'], replay['added'], replay['updated'], replay['already_verified']), (True, 0, 0, 3))
+        self.assertEqual(final, self.state())
+
+    def test_variant_release_rejects_unreviewed_changes_parentage_and_inexact_evidence(self):
+        original, args = self.variation()
+        before = self.state()
+        for mistake in ('omitted update', 'undeclared addition', 'removed parent', 'invalid parent', 'unstable key',
+                        'wrong display ID', 'missing source product', 'unlinked page', 'non-assessment page',
+                        'same configuration', 'repeated descriptor'):
+            with self.subTest(mistake=mistake):
+                after = deepcopy(original)
+                review = after['variant_review']
+                descriptor = review['additions'][0]
+                child = after['systems'][-1]['record']
+                if mistake == 'omitted update':
+                    review['updated_record_ids'].clear()
+                elif mistake == 'undeclared addition':
+                    extra = deepcopy(after['systems'][-1])
+                    extra['record']['id'] = variant_record_id(1, 'extra')
+                    after['systems'].append(extra)
+                elif mistake == 'removed parent':
+                    after['systems'].pop(1)
+                elif mistake == 'invalid parent':
+                    descriptor['parent_system_id'] = 3
+                elif mistake == 'unstable key':
+                    descriptor['variant_key'] = 'Masonry 130'
+                elif mistake == 'wrong display ID':
+                    child['fields'][0]['value'] = 'SNAP 2'
+                elif mistake == 'missing source product':
+                    child['sources'].pop(1)
+                elif mistake == 'unlinked page':
+                    descriptor['evidence_urls'][0] += '0'
+                elif mistake == 'non-assessment page':
+                    descriptor['evidence_urls'][0] = 'https://docs.snapcollars.com.au/Other.pdf#page=24'
+                    child['sources'][-1]['url'] = descriptor['evidence_urls'][0]
+                elif mistake == 'same configuration':
+                    child['fields'].pop()  # Compared to the parent, only the variant ID now differs.
+                else:
+                    review['additions'] *= 2
+                with self.assertRaises(ValueError):
+                    install(**self.variation_args(after, args), apply=True)
+                self.assertEqual(before, self.state())
+
+    def test_variant_collision_and_mid_transaction_failure_preserve_all_existing_state(self):
+        after, args = self.variation()
+        args = self.variation_args(after, args)
+        key = after['systems'][-1]['record']['id']
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', key, 'left', 'historical', 0, 'before', 1))
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'already owns'):
+            install(**args, apply=True)
+        self.assertEqual(before, self.state())
+        with self.store.connect() as db:
+            db.execute('DELETE FROM technical_library_links WHERE technical_id=?', (key,))
+            db.execute("CREATE TRIGGER reject_variant BEFORE INSERT ON technical_library_items "
+                       "BEGIN SELECT RAISE(ABORT, 'variant write failure'); END")
+        before = self.state()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'variant write failure'):
+            install(**args, apply=True)
+        self.assertEqual(before, self.state())
+        with self.store.connect() as db:
+            db.execute('DROP TRIGGER reject_variant')
+        install(**args, apply=True)
+        context = self.library.technical_edit(key)
+        self.library.technical_delete(key, {'revision': context['revision'], 'source_sha256': context['source_sha256']})
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'missing, edited, deleted'):
+            install(**args, apply=True)
+        self.assertEqual(before, self.state())
+
+    def test_unpinned_or_ordinary_import_cannot_publish_assessed_variants(self):
+        after, args = self.variation()
+        before = self.state()
+        pinned = self.variation_args(after, args)
+        for change in ({'variants': False, 'withdraw_system_ids': []}, {'withdraw_system_ids': []},
+                       {'previous_manifest': None}, {'expected_manifest_sha256': 'b' * 64},
+                       {'expected_previous_manifest_sha256': None}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                install(**{**pinned, **change}, apply=True)
+        with self.assertRaisesRegex(ValueError, 'explicit variant reconciliation'):
+            install(args['manifest'], self.source, self.store.path, True)
+        after.pop('variant_review')
+        args = self.variation_args(after, args)
+        with self.assertRaisesRegex(ValueError, 'explicit variant reconciliation'):
+            install(args['manifest'], self.source, self.store.path, True)
+        self.assertEqual(before, self.state())
 
     def test_correction_changes_hash_and_images_keeps_links_and_withdraws_once(self):
         args = self.correction()

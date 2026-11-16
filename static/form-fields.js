@@ -292,19 +292,40 @@
           });
           note.addEventListener('input',()=>set({answer:control.value,explanation:note.value}));
           verify=()=>needsNote()&&!note.value.trim()?'Enter a comment.':field.required&&!control.value?'Complete this required field.':'';
-        } else if (['choice','multichoice'].includes(type) && field.display === 'inline') {
-          const multiple=type==='multichoice', group=el('div','form-inline-choices'), controls=[];
+        } else if (type==='multichoice' || (type==='choice' && field.display==='inline')) {
+          const multiple=type==='multichoice', dropdown=multiple && field.display!=='inline';
+          const group=el('div',dropdown ? 'form-choice-list' : 'form-inline-choices'), controls=[];
           group.setAttribute('role',multiple?'group':'radiogroup');group.setAttribute('aria-labelledby',title.id);
+          if (field.help) group.setAttribute('aria-describedby',help.id);
           for(const choice of field.options || []) {
             const control=input(multiple?'checkbox':'radio',choice);
             control.checked=multiple ? Array.isArray(answer)&&answer.includes(choice) : answer===choice;
             control.name=title.id;controls.push(control);
             const label=el('label');label.append(control,document.createTextNode(choice));group.append(label);
-            control.addEventListener('change',()=>set(multiple ? controls.filter(c=>c.checked).map(c=>c.value) : control.value));
           }
-          body.append(group);
-        } else if (['choice','multichoice','person','lookup','relationship'].includes(type)) {
-          const many = type === 'multichoice' || (type === 'person' && field.multiple);
+          const selected=()=>controls.filter(control=>control.checked).map(control=>control.value);
+          group.addEventListener('change',event=>set(multiple ? selected() : event.target.value));
+          if (dropdown) {
+            const menu=el('details','form-choice-dropdown'), toggle=el('summary'), current=el('span');
+            current.id='form-choice-selection-'+ ++sequence;
+            toggle.setAttribute('aria-labelledby',title.id+' '+current.id);
+            if (field.help) toggle.setAttribute('aria-describedby',help.id);
+            const showSelection=()=>{current.textContent=selected().join(', ') || translate('Select…');};
+            showSelection();group.addEventListener('change',showSelection);
+            toggle.append(current);menu.append(toggle,group);body.append(menu);
+            menu.addEventListener('keydown',event=>{
+              if (event.key==='Escape' && menu.open) {
+                event.preventDefault();event.stopPropagation();menu.open=false;toggle.focus();
+              } else if ((event.key==='ArrowDown' || event.key==='ArrowUp') && controls.length) {
+                event.preventDefault();menu.open=true;
+                const index=controls.indexOf(event.target), next=event.key==='ArrowDown' ? index+1 : (index<0 ? controls.length-1 : index-1);
+                controls[(next+controls.length)%controls.length].focus();
+              }
+            });
+            menu.addEventListener('focusout',event=>{if (!menu.contains(event.relatedTarget)) menu.open=false;});
+          } else body.append(group);
+        } else if (['choice','person','lookup','relationship'].includes(type)) {
+          const many = type === 'person' && field.multiple;
           const reference = type==='lookup' || type==='relationship';
           let choices;
           if (type === 'person') choices=teamChoices(answer);
@@ -381,17 +402,33 @@
                 const signed=await window.ClassifireSignaturePad.choose(null,false,'document');
                 if (signed && root.contains(box)) {
                   const image = window.ClassifirePersonalSignature.png(signed);
-                  if (signerRow) {
-                    const profile = await options.signerProfile();
+                  let profile;
+                  if (signerRow || !signerInputs.name.value.trim() || !signerInputs.company.value.trim()) {
+                    try { profile = await options.signerProfile(); }
+                    catch(err) {
+                      if (!signerRow) {updateSigner('image',image);refresh();}
+                      throw err;
+                    }
                     if (profile.id !== member.id) throw Error('Your staff profile changed. Reopen the form.');
                     if (!root.isConnected || !root.contains(box)) return;
+                  }
+                  if (signerRow) {
                     signerInputs.name.value = profile.name;
                     signerInputs.company.value = profile.company;
                     signerRow.person?.(profile.id);
                     signerRow.date?.(profile.at);
                     set({name:profile.name, company:profile.company, image});
                     signerRow.lock();
-                  } else updateSigner('image',image);
+                  } else {
+                    const name=signerInputs.name.value.trim(), company=signerInputs.company.value.trim();
+                    // A visitor may sign on the same device. Only complete the session user's identity.
+                    if (profile && (!name || name.toLowerCase()===profile.name.toLowerCase()) &&
+                        (!company || company.toLowerCase()===profile.company.toLowerCase())) {
+                      if (!name) signerInputs.name.value=profile.name;
+                      if (!company) signerInputs.company.value=profile.company;
+                    }
+                    set({name:signerInputs.name.value,company:signerInputs.company.value,image});
+                  }
                 }
               }
               refresh();

@@ -13,6 +13,8 @@ _FLOOR_SUPPORT = re.compile(
     r'with a second support about 1,000 mm from the first where required\.'
     r'(?: See FCO3520 Rev D, Table (?:[6-9]|10)\.)?[ \t]*')
 _SNAP_SENTENCES = (
+    'Apply the specified annular seal at the top of the slab in accordance with FCO3520.',
+    'Apply the specified annular seal at both wall faces in accordance with FCO3520.',
     'Refer to Table 4 of FCO3520 for the general fixing requirements (excl. HDPE pipes).',
     'Refer to Table 5 of FCO3520 for the general fixing requirements with HDPE pipes.',
     'Support the pipe above the slab and keep the stack straight beneath the slab in the assessed configuration.',
@@ -38,6 +40,7 @@ def _value(value, snap, reports):
         result = result.replace(_GULLY_INSTRUCTION + ', with the pipe supported above the slab.', _GULLY_INSTRUCTION + '.')
     if result == value:
         return value
+    result = re.sub(r'[ \t]+(?=\r?$)', '', result, flags=re.M)
     return re.sub(r'(\r?\n)(?:[ \t]*\r?\n){2,}', r'\1\1', result).strip()
 
 

@@ -144,7 +144,9 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         raw.update(id=key, title='SNAP utility collar', source_label=SNAP_FILTER_SOURCE)
         coupling = 'The permitted fitting is a pipe coupling within the collar with the same wall thickness as the assessed pipe.'
         wall = 'Support the pipe on each side within 300 mm of the wall under section 3.2(b).'
-        install = ('Refer to Table 4 of FCO3520 for the general fixing requirements (excl. HDPE pipes).\n\n'
+        install = ('Fit the collar to the slab soffit. '
+                   'Apply the specified annular seal at the top of the slab in accordance with FCO3520.\n\n'
+                   'Refer to Table 4 of FCO3520 for the general fixing requirements (excl. HDPE pipes).\n\n'
                    'Seal the annular gap in accordance with Table 3 of FCO3520.\n\n'
                    'Keep the stack straight below the floor. Support the pipe above it within 500 mm along the service, '
                    'with a second support about 1,000 mm from the first where required. ' + coupling
@@ -157,7 +159,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
                          {'label': 'Service Size / Configuration', 'value': size}, report]
         raw['filter_values']['report'] = ['FCO3520']
         self.library.technical_edits.save(key, 0, 'a' * 64, raw, created=True)
-        expected = 'Seal the annular gap in accordance with FCO3520.\n\n' + coupling + ' See FCO3520 Rev D, Table 7.\n\n' + wall
+        expected = ('Fit the collar to the slab soffit.\n\n'
+                    'Seal the annular gap in accordance with FCO3520.\n\n' + coupling + ' See FCO3520 Rev D, Table 7.\n\n' + wall)
         detail = self.library.detail('technical', key)
         editor = self.library.technical_edit(key)['record']
         snapshot = prepare_technical_item({'id': key}, library=self.library)
@@ -167,6 +170,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
             self.assertEqual(fields['Service Size / Configuration']['value'], '50 mm. Fitting allowed: Yes.')
             self.assertEqual(fields['Report Number']['report_links'], report['report_links'])
         self.assertEqual(self.library.listing('technical', search='unclear')['total'], 0)
+        self.assertEqual(self.library.listing('technical', search='specified annular seal')['total'], 0)
         self.assertEqual(self.library.listing('technical', search='FCO3520 coupling')['total'], 1)
         pdf = ' '.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
         self.assertIn('FCO3520', pdf)
@@ -196,6 +200,7 @@ class TechnicalLibraryEditTests(unittest.TestCase):
                 (SNAP_FILTER_SOURCE, '', True), ('User-created Technical Library item', 'Snap', True),
                 ('Another supplier', 'Another manufacturer', False)):
             raw = (fitting + ', with the pipe supported above the slab. Support the stack above the slab. '
+                   'Apply the specified annular seal at both wall faces in accordance with FCO3520. '
                    'Refer to Table 5 of FCO3520 for the general fixing requirements with HDPE pipes. '
                    'Seal in accordance with Table 3 of FCO3520. Follow the types listed within Table 3 of this report. ' + tested)
             original = {'label': 'Installation Details', 'value': raw}

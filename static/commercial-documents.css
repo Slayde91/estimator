@@ -180,6 +180,7 @@
 .commercial-details>.commercial-follow-ups{grid-column:1/-1;min-width:0}
 .commercial-card .project-card-heading>.board-follow-up-due{position:static;flex:none;align-self:flex-start}
 .commercial-card .project-title-button{margin-inline-end:auto}
+.commercial-card.project-kanban-card .project-card-heading>.project-title-button{font-weight:700}
 
 .work-order-costs { margin: 0; padding: 14px; align-self: start; }
 .work-order-costs h3, .work-cost-estimate { margin: 0 0 .65rem; }

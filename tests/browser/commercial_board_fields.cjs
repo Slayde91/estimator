@@ -26,6 +26,8 @@ const column = (pane, status) => pane.getByRole('region', { name: status, exact:
 const dialog = () => page.getByRole('dialog', { name: 'Sign and move', exact: true });
 const order = kind => JSON.parse(fs.readFileSync(info.project, 'utf8')).commercial_documents?.documents.find(row => row.kind === kind);
 async function checkTable(pane, boardName, subject) {
+  const cardName = pane.locator('.project-kanban-card .project-card-heading > .project-title-button').first();
+  await expect(cardName).toHaveCSS('font-weight', '700');
   const view = pane.locator('.record-view-picker');
   const toggle = view.locator('summary');
   await toggle.click(); await toggle.press('Escape');
@@ -36,6 +38,9 @@ async function checkTable(pane, boardName, subject) {
   await expect(view.locator('summary')).toBeFocused();
   const row = pane.locator('tbody tr.commercial-card').first();
   await expect(row).toBeVisible();
+  const heading = row.locator('.project-card-heading');
+  await expect(heading.locator('.project-title-button')).toHaveCSS('font-weight',
+    await heading.evaluate(node => getComputedStyle(node).fontWeight));
   if (subject) {
     await expect(row).toContainText(subject);
     await pane.getByRole('searchbox').fill(subject);

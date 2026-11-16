@@ -92,8 +92,9 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
     orientation = 'Vertical' if is_wall or substrate == 'Concrete beam' else 'Horizontal'
     facets = {'manufacturer': ['Snap'], 'report': [report], 'orientation': [orientation],
               'substrate': [substrate], 'category': categories, 'services': [svc], 'frl': [effective]}
-    # A cast-in collar is formed with the element. Do not describe it as a drilled opening.
-    if 'Retrofit' in application or 'Gas' in application:
+    if application in ('Stack - Cast-in', 'Floor Waste & Shower - Cast-in'):
+        facets['type'] = ['Cast-in']
+    elif 'Retrofit' in application or 'Gas' in application:
         added_patch = 'PB Patch' in element or 'MGO Board' in element
         facets['type'] = ['Oversized core hole' if added_patch else 'Core hole']
 

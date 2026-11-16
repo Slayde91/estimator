@@ -26,7 +26,7 @@ class SnapSourceMappingTests(unittest.TestCase):
         fields = {f['label']: f['value'] for f in record['fields']}
         self.assertEqual(record['filter_values']['substrate'], ['Concrete beam'])
         self.assertEqual(record['filter_values']['orientation'], ['Vertical'])
-        self.assertNotIn('type', record['filter_values'])
+        self.assertEqual(record['filter_values']['type'], ['Cast-in'])
         self.assertEqual(record['filter_values']['frl'], ['-/120/120'])
         self.assertEqual(fields['FRL'], '-/120/120')
         self.assertIn('SNAP lists -/180/120', fields['Installation Details'])
@@ -34,6 +34,16 @@ class SnapSourceMappingTests(unittest.TestCase):
         self.assertNotIn('Generic slab', fields['Installation Details'])
         self.assertIn('on request', fields['Installation Details'])
         self.assertNotIn('report_links', record['fields'][-1])
+
+    def test_opening_type_matches_cast_in_and_retrofit_applications(self):
+        for application, element, expected in [
+                ('Floor Waste & Shower - Cast-in', 'Concrete Slab (150mm)', 'Cast-in'),
+                ('Stack - Retrofit', 'Concrete Slab (150mm)', 'Core hole'),
+                ('Wall - Retrofit', 'PB Wall + PB Patch', 'Oversized core hole')]:
+            with self.subTest(application=application):
+                row = {**self.row, 'application_name': application, 'element_name': element}
+                record = build_entry(row, self.assoc, self.product, {}, None, {})['record']
+                self.assertEqual(record['filter_values']['type'], [expected])
 
     def test_figure_link_preserves_its_page_and_literal_product_code(self):
         render = {'path': 'guide-drawings/images/page2.png', 'sha256': 'a' * 64,

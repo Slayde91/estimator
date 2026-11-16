@@ -6,8 +6,7 @@ const {openProjectSection}=require('./project_actions.cjs');
 
 async function workspaceTitleMeasurements(page, output) {
   const sizes=[1915,1254,631,390,351,350,320], measurements=[], reference=new Map();
-  const yellow='rgb(255, 216, 0)', red='rgb(237, 0, 27)';
-  const highlighted=new Set(['Takeoffs Steel','pricing library','penetration library','technical library','Firestopping','Duct','Estimate','documentation','quotes','quote','work-orders','purchase-orders','Leads','Scheduler, clocked out','Scheduler, clocked in']);
+  const yellow='rgb(255, 216, 0)', white='rgb(255, 255, 255)';
   async function record(name,selector) {
     const title=page.locator(selector);
     await expect(title).toBeVisible();
@@ -31,7 +30,7 @@ async function workspaceTitleMeasurements(page, output) {
       },selector);
       const geometry=await sample.jsonValue();
       await sample.dispose();
-      assert.equal(geometry.color===yellow,highlighted.has(name),name+' title color at '+width);
+      assert.equal(geometry.color,yellow,name+' title color at '+width);
       if(name==='Takeoffs Steel')reference.set(width,geometry);
       else {
         const peer=reference.get(width),context=name+' at '+width+': '+JSON.stringify(geometry);
@@ -61,14 +60,13 @@ async function workspaceTitleMeasurements(page, output) {
     await chooseCalculator(page,label);await record(label,label==='Firestopping'?'#penetration-heading':'#calculator-title');
   }
   await page.locator('#estimate-navigation-toggle').click();await record('Estimate','#estimate-heading');
-  for(const id of ['main-input-heading','summary-heading'])await expect(page.locator('#'+id)).toHaveCSS('color',red);
-  await expect(page.locator('#calculation-status')).not.toHaveCSS('color',red);
+  for(const id of ['main-input-heading','summary-heading'])await expect(page.locator('#'+id)).toHaveCSS('color',white);
   for(const selector of ['#view-settings > .page-heading h1','#forms-heading'])await expect(page.locator(selector)).toHaveCSS('color',yellow);
   const theme=await page.locator('html').getAttribute('data-theme');
   try {
     await page.evaluate(()=>document.documentElement.dataset.theme='ocean');
     await expect(page.locator('#estimate-heading')).not.toHaveCSS('color',yellow);
-    await expect(page.locator('#summary-heading')).not.toHaveCSS('color',red);
+    await expect(page.locator('#summary-heading')).not.toHaveCSS('color',white);
   } finally {
     await page.evaluate(theme=>{if(theme===null)document.documentElement.removeAttribute('data-theme');else document.documentElement.dataset.theme=theme;},theme);
   }

@@ -226,6 +226,7 @@ def self_test(data_directory, output_report):
                 assert probe.script('!!document.querySelector("[data-view=takeoffs]") || typeof window.CeasefireTakeoffs !== "undefined"') is False
                 assert probe.script('document.querySelector("#view-home").hidden') is False
                 report['checks'].append('Native standard UI rendered without TAKEOFFS')
+                probe.wait('window.ClassifireBoot?.state === "ready"', seconds=cold_remaining())
                 navigation_icons = probe.wait('''(() => {
                     const icons=[...document.querySelectorAll(".app-header nav .nav-icon svg, .app-header nav .nav-icon img")];
                     return icons.length === EXPECTED_ICON_COUNT && icons.map(icon=>{

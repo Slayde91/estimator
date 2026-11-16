@@ -241,8 +241,9 @@
       query = search.value; const needle = query.trim().toLocaleLowerCase();
       if(panel === 'records') {
         const matches = records.filter(row => [row.name,row.template_name,row.created_by_name,row.status].join(' ').toLocaleLowerCase().includes(needle));
-        body.replaceChildren(table(['Template','Created by','Status','Updated'],matches.map(row=>[
-          link(row.template_name || row.name || 'Form',()=>openRecord(row.id)),row.created_by_name,badge(row.status),date(row.updated_at)
+        body.replaceChildren(table(['Template','Created by','Status','Updated','Actions'],matches.map(row=>[
+          link(row.template_name || row.name || 'Form',()=>openRecord(row.id)),row.created_by_name,badge(row.status),date(row.updated_at),
+          deleteRecordAction(row)
         ]), needle ? 'No matching form records.' : 'No form records yet.'));
       } else {
         const matches = templates.filter(t=>[t.name,t.description,t.status,t.mode].join(' ').toLocaleLowerCase().includes(needle));
@@ -256,6 +257,28 @@
       }
     }
     search.addEventListener('input',filter); filter();
+  }
+  function deleteRecordAction(row) {
+    const actions = el('div', null, 'forms-delete-action');
+    const remove = window.ClassifireFormControls.iconButton('Delete form', 'remove', async () => {
+      if (pending || !await window.CeasefireDialogs.confirm('Delete form', 'Are you sure you want to delete this form?', 'Yes', 'Cancel')) return;
+      if (pending || !remove.isConnected) return;
+      const stamp = generation;
+      pending = true;
+      remove.disabled = true;
+      try {
+        await api('entry/delete', {id:row.id, version:row.version});
+        if (stamp === generation && remove.isConnected) await refresh();
+      } catch (error) {
+        if (stamp === generation && remove.isConnected) {
+          await refresh();
+          report(error);
+        }
+      } finally { pending = false; }
+    });
+    remove.disabled = !row.can_delete;
+    actions.append(remove);
+    return actions;
   }
   async function assignTemplate(template) {
     const dialog = modal('Assign');

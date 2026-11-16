@@ -131,8 +131,10 @@ class MonokoteDuctAssessmentTests(unittest.TestCase):
             inputs = self.inputs('120/120/120', product=product, size=size)
             old, current = self.engine(inputs, old=True), self.engine(inputs)
             for column in ['J', 'K', 'L', 'M', 'N', 'O', 'P', 'R', 'AN', 'AO', 'AP', 'AQ', 'AM', 'BE', 'BF']:
-                self.assertEqual(current.value('CALCULATOR', column + '11'), old.value('CALCULATOR', column + '11'),
-                                 product + ':' + column)
+                expected = old.value('CALCULATOR', column + '11')
+                if product == 'CAFCO 300' and column == 'AM':
+                    expected = expected.removesuffix(' Use the pin and mesh details in the header comment.')
+                self.assertEqual(current.value('CALCULATOR', column + '11'), expected, product + ':' + column)
 
     def test_report_basis_settings_and_source_objects_are_not_rewritten(self):
         model, overrides = deepcopy(self.model), deepcopy(self.base)

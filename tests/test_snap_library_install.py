@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from uuid import NAMESPACE_URL, uuid5
+import sqlite3
 
 from PIL import Image
 
@@ -36,11 +38,12 @@ class SnapLibraryInstallTests(unittest.TestCase):
         self.image_id = SOURCE_IMAGE_PREFIX + self.digest
         self.systems = []
         for number in (1, 2):
-            key = f'user-technical-{number:032x}'
+            key = 'user-technical-' + uuid5(NAMESPACE_URL, f'Snap Fire Systems AU/system/{number}').hex
             record = {'id': key, 'title': f'Example {number}', 'summary': '', 'subtitle': '',
                       'source_label': SNAP_FILTER_SOURCE, 'editable': True,
                       'sources': [{'label': 'Product', 'url': 'https://www.snapcollars.com.au/product/example'}],
-                      'fields': [{'label': 'Manufacturer', 'value': 'Snap'},
+                      'fields': [{'label': 'ID', 'value': f'SNAP {number}'},
+                                 {'label': 'Manufacturer', 'value': 'Snap'},
                                  {'label': 'System Products', 'value': 'Example collar'},
                                  {'label': 'Installation Details', 'value': 'Install as shown in the drawing.'},
                                  {'label': 'FRL', 'value': '-/120/90'}],
@@ -80,6 +83,23 @@ class SnapLibraryInstallTests(unittest.TestCase):
         with self.assertRaises(ReferenceNotFound):
             self.library.asset(self.image_id, pdf=False)
 
+    def test_snap_cast_in_is_selectable_and_exported_through_all_seven_inspection_filters(self):
+        filters = {'manufacturer': 'Snap', 'frl': '-/120/90', 'services': 'PEX-AL-PEX',
+                   'type': 'Cast-in', 'orientation': 'Horizontal', 'substrate': 'Concrete/masonry floor',
+                   'category': 'Plumbing & Hydraulic'}
+        for system, opening in zip(self.systems, ('Cast-in', 'Core hole')):
+            facets = {key: [value] for key, value in filters.items()}
+            system['record']['filter_values'] = {**facets, 'type': [opening]}
+        self.write_manifest(self.systems, True)
+        listing = self.library.listing('technical', inspection='1', **filters)
+        key = self.systems[0]['record']['id']
+        self.assertEqual([row['id'] for row in listing['items']], [key])
+        types = next(f['options'] for f in listing['filters'] if f['key'] == 'type')
+        self.assertIn('Cast-in', [option['value'] for option in types])
+        self.assertEqual(self.library.detail('technical', key)['inspection_options']['type'], ['Cast-in'])
+        item = prepare_technical_item({'id': key}, library=self.library, inspection_filters=filters)
+        self.assertIn(('Type', 'Cast-in'), [(field['label'], field['value']) for field in item['fields']])
+
     def test_conflict_rolls_back_earlier_row_and_preserves_existing_record(self):
         self.write_manifest([self.systems[1]], True)
         conflicts = deepcopy(self.systems)
@@ -115,3 +135,141 @@ class SnapLibraryInstallTests(unittest.TestCase):
         item = self.library.detail('technical', system['record']['id'])
         self.assertFalse(item['images'])
         self.assertIsNone(item['thumbnail_url'])
+
+    def correction(self):
+        old = self.root / 'previous.json'
+        old.write_text(json.dumps({'systems': self.systems}), encoding='utf-8')
+        install(old, self.source, self.store.path, True)
+        corrected = deepcopy(self.systems[:1])
+        corrected[0]['record']['title'] = 'Reviewed installation'
+        graphic = self.root / 'reviewed.png'
+        Image.new('RGB', (50, 40), 'blue').save(graphic)
+        digest = hashlib.sha256(graphic.read_bytes()).hexdigest()
+        corrected[0]['drawings'][0].update(path=graphic.name, sha256=digest, caption='Verified revised drawing')
+        new = self.root / 'corrected.json'
+        new.write_text(json.dumps({'systems': corrected}), encoding='utf-8')
+        return {'manifest': new, 'library': self.source, 'database': self.store.path, 'previous_manifest': old,
+                'expected_manifest_sha256': hashlib.sha256(new.read_bytes()).hexdigest(),
+                'expected_previous_manifest_sha256': hashlib.sha256(old.read_bytes()).hexdigest(),
+                'withdraw_system_ids': [2]}
+
+    def state(self):
+        with self.store.connect() as db:
+            tables = ('technical_library_items', 'technical_library_source_images', 'technical_library_links', 'snap_library_corrections')
+            return {t: db.execute('SELECT * FROM ' + t + ' ORDER BY rowid').fetchall() for t in tables
+                    if db.execute('SELECT 1 FROM sqlite_master WHERE name=?', (t,)).fetchone()}
+
+    def test_correction_changes_hash_and_images_keeps_links_and_withdraws_once(self):
+        args = self.correction()
+        key, removed = [s['record']['id'] for s in self.systems]
+        initial, _ = self.library.technical_edits.read()
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', key, 'penetration-source', initial[key]['source_sha256'], 1, 'earlier', 3))
+        before = self.state()
+        (self.root / 'drawing.png').unlink()  # The published source bytes remain in the DB.
+        preview = install(**args)
+        self.assertEqual((preview['planned_updates'], preview['planned_withdrawals'], preview['planned_drawings']), (1, 1, 1))
+        self.assertEqual(self.state(), before)
+        result = install(**args, apply=True)
+        self.assertEqual((result['updated'], result['withdrawn'], result['new_drawings']), (1, 1, 1))
+        rows, _ = self.library.technical_edits.read()
+        self.assertEqual(rows.keys(), initial.keys())
+        self.assertEqual(rows[removed]['record'], initial[removed]['record'])
+        self.assertEqual(rows[removed]['source_sha256'], initial[removed]['source_sha256'])
+        self.assertTrue(rows[removed]['deleted'])
+        self.assertEqual(rows[removed]['revision'], initial[removed]['revision'] + 1)
+        self.assertEqual(rows[key]['revision'], initial[key]['revision'] + 1)
+        self.assertNotEqual(rows[key]['source_sha256'], initial[key]['source_sha256'])
+        self.assertNotEqual(rows[key]['record']['images'], initial[key]['record']['images'])
+        self.assertEqual(self.library.detail('technical', key)['title'], 'Reviewed installation')
+        with self.assertRaises(ReferenceNotFound):
+            self.library.detail('technical', removed)
+        final = self.state()
+        link = final['technical_library_links'][0]
+        self.assertEqual((link[1], link[3], link[4], link[6]), (key, rows[key]['source_sha256'], 1, 4))
+        self.assertEqual(len(final['technical_library_source_images']), 2)
+        self.assertTrue(install(**args, apply=True)['replay'])
+        self.assertEqual(install(args['manifest'], self.source, self.store.path, True)['already_verified'], 1)
+        self.assertEqual(self.state(), final)
+
+    def test_correction_requires_verified_manifest_hashes_and_exact_authorized_stable_ids(self):
+        args = self.correction()
+        before = self.state()
+        for change in ({'expected_manifest_sha256': '1'*64}, {'expected_previous_manifest_sha256': '2'*64},
+                       {'expected_manifest_sha256': None}, {'expected_previous_manifest_sha256': None},
+                       {'withdraw_system_ids': None}, {'withdraw_system_ids': []}, {'withdraw_system_ids': [1, 2]},
+                       {'withdraw_system_ids': [2, 2]}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                install(**{**args, **change}, apply=True)
+        obj = json.loads(args['manifest'].read_bytes())
+        new = deepcopy(self.systems[0])
+        new['record']['fields'][0]['value'] = 'SNAP 3'
+        new['record']['id'] = 'user-technical-' + uuid5(NAMESPACE_URL, 'Snap Fire Systems AU/system/3').hex
+        obj['systems'].append(new)
+        args['manifest'].write_text(json.dumps(obj), encoding='utf-8')
+        args['expected_manifest_sha256'] = hashlib.sha256(args['manifest'].read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ValueError, 'cannot add'):
+            install(**args, apply=True)
+        new['record']['id'] = self.systems[1]['record']['id']
+        args['manifest'].write_text(json.dumps(obj), encoding='utf-8')
+        args['expected_manifest_sha256'] = hashlib.sha256(args['manifest'].read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ValueError, 'stable identity'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+
+    def test_correction_preserves_user_deletions_edits_and_active_withdrawal_links(self):
+        args = self.correction()
+        key, blocked = [s['record']['id'] for s in self.systems]
+        rows, _ = self.library.technical_edits.read()
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', blocked, 'penetration-source', rows[blocked]['source_sha256'], 1, 'old', 1))
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'active link'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+        with self.store.connect() as db:
+            db.execute('UPDATE technical_library_links SET linked=0')
+        edit = self.library.technical_edit(blocked)
+        self.library.technical_delete(blocked, {'revision': edit['revision'], 'source_sha256': edit['source_sha256']})
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'edited, deleted'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+        with self.store.connect() as db:
+            db.execute('UPDATE technical_library_items SET data=? WHERE id=?', (json.dumps({'title': 'Staff edit'}), key))
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'SNAP 1 .*edited'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+
+    def test_database_failure_rolls_back_changed_image_row_and_receipt(self):
+        args = self.correction()
+        with self.store.connect() as db:
+            db.execute("CREATE TRIGGER block_withdrawal BEFORE UPDATE ON technical_library_items WHEN NEW.deleted=1 "
+                       "BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END")
+        before = self.state()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, 'simulated storage failure'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+
+    def test_stale_active_link_and_post_migration_edit_are_not_repaired_by_replay(self):
+        args = self.correction()
+        key = self.systems[0]['record']['id']
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', key, 'penetration-source', 'stale', 1, 'old', 1))
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'active link'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+        with self.store.connect() as db:
+            db.execute('UPDATE technical_library_links SET linked=0')
+        install(**args, apply=True)
+        edit = self.library.technical_edit(key)
+        self.library.technical_delete(key, {'revision': edit['revision'], 'source_sha256': edit['source_sha256']})
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'edited, deleted'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)

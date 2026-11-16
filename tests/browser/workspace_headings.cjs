@@ -154,8 +154,11 @@ async function stateSnapshot(){return page.evaluate(()=>({calculators:window.Cea
   assert.ok(await page.locator('#library-pages').evaluate(nav=>getComputedStyle(nav).boxShadow!== 'none'));
   for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore(`#pricing-heading-slot [data-library-heading="${kind}"]`,'#library-pages');if(kind!=='pricing')assert.equal((await bounds(kind==='technical'?'#technical-library-heading':'#penetration-library-heading')).height,22);await noOverflow(`${kind}/${width}`);evidence.libraryLayouts.push({kind,width,geometry});}
  }
+ await page.evaluate(()=>document.documentElement.dataset.theme='ceasefire');
  for(const mode of ['Steel','Duct','Walls/Floors','Defect Reports','Service Plans']){
   await chooseTakeoff(page,mode);await idle();
+  await expect(page.locator('.takeoff-workspace-title')).toHaveText(mode);
+  await expect(page.locator('.takeoff-workspace-title')).toHaveCSS('color','rgb(255, 216, 0)');
   for(const width of [1915,631,390,320]){await page.setViewportSize({width,height:1000});await page.evaluate(()=>scrollTo(0,0));const geometry=await headingBefore('.takeoff-workspace-heading','#takeoff-pages');await noOverflow(`${mode}/${width}`);geometry.tabs=await checkWorkspaceTabs('takeoff-pages',width,mode==='Steel'&&[320,1915].includes(width));const controls=page.locator('.takeoff-document-tools .calculator-document-toggle:visible');assert.ok(await controls.count()>=2);for(const control of await controls.all())assert.equal((await control.boundingBox()).height,42);evidence.takeoffLayouts.push({mode,width,geometry});}
  }
  // Reproduce the hosted navigation-stack overflow boundary with native touch hit testing.

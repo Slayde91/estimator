@@ -1,6 +1,7 @@
 """Map the reviewed SNAP Product Filter capture to existing Technical Library fields."""
 import argparse
 from collections import Counter
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -12,6 +13,18 @@ EXCLUDED = {4110, 4112, 3767, 4033}  # Reviewed discrepancies with FAR3932, FSP2
 FILTER_URL = 'https://www.snapcollars.com.au/product-filter'
 SOURCE_LABEL = 'Snap Fire Systems product filter'
 RATING = r'-/\d+/\d+'
+# Test specimen descriptions give nominal C-PVC sizes in inches. The selector
+# appends a second unit to these published sizes. Keep the literal in Source Issues.
+CPVC_SIZE_REPORT_PAGES = {
+    ('FSP1748', '50R', '1.25 Inch mm'): 7,
+    ('FSP1902', '50R', '1.5 Inch mm'): 6,
+    ('FSP1978', '50R', '2 inch mm'): 6,
+    ('FSP2188', '32R', '1 inch mm'): 7,
+    ('FSP2188', '50R', '1.25 Inch mm'): 9,
+    ('FSP2188', '50R', '1.5 Inch mm'): 9,
+    ('FSP2206', '32R', '1 inch mm'): 8,
+    ('FSP2216', '50R', '2 inch mm'): 11,
+}
 SERVICE_GROUPS = {
     'C-PVC': 'CPVC pipe', 'HDPE': 'HDPE pipe', 'HDPE Geberit SuperTube': 'HDPE pipe',
     'HDPE Silent': 'HDPE pipe', 'PE100 SDR 7.4': 'HDPE pipe', 'PE100 SDR 11': 'HDPE pipe',
@@ -68,6 +81,12 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
             conditions.append(note)
     install = product.get('installation_by_system', {}).get(str(sid)) or product['installation_by_application'][application]
     issues = [*product.get('source_issues', []), *product.get('source_issues_by_system', {}).get(str(sid), [])]
+    size_page = CPVC_SIZE_REPORT_PAGES.get((report, code, size)) if service == 'C-PVC' else None
+    if size_page:
+        published_size = size
+        size = size.removesuffix(' mm').lower()
+        issues.append(f'SNAP’s selector gives the nominal pipe size as “{published_size}”. '
+                      f'{report}, page {size_page}, specifies {size} nominal.')
     details = [install]
     if effective != listed:
         details.append(f'SNAP lists {listed} for this row and specifies an effective FRL of {effective}.')
@@ -92,8 +111,9 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
     orientation = 'Vertical' if is_wall or substrate == 'Concrete beam' else 'Horizontal'
     facets = {'manufacturer': ['Snap'], 'report': [report], 'orientation': [orientation],
               'substrate': [substrate], 'category': categories, 'services': [svc], 'frl': [effective]}
-    # A cast-in collar is formed with the element. Do not describe it as a drilled opening.
-    if 'Retrofit' in application or 'Gas' in application:
+    if application in ('Stack - Cast-in', 'Floor Waste & Shower - Cast-in'):
+        facets['type'] = ['Cast-in']
+    elif 'Retrofit' in application or 'Gas' in application:
         added_patch = 'PB Patch' in element or 'MGO Board' in element
         facets['type'] = ['Oversized core hole' if added_patch else 'Core hole']
 
@@ -119,6 +139,8 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
         cite(guide_titles[url], url)
     if assoc['report_url']:
         cite(report, assoc['report_url'])
+        if size_page:
+            cite(f'{report}, nominal C-PVC pipe size, page {size_page}', assoc['report_url'] + f'#page={size_page}')
     for url in product.get('report_urls_by_system', {}).get(str(sid), []):
         cite(f'SNAP installation reference — {url.rsplit("/", 1)[-1]}', url)
     drawings = []
@@ -150,10 +172,62 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
     return {'record': record, 'drawings': drawings}
 
 
+def selector_digest(rows):
+    # Price is never part of a Technical Library system. Ordering from the selector varies.
+    evidence = [{k: v for k, v in rows[sid].items() if k != 'product_selling_price'} for sid in sorted(rows)]
+    canonical = json.dumps(evidence, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+    return sha256(canonical.encode()).hexdigest()
+
+
+def review_index(groups):
+    index = {}
+    for group in groups:
+        for sid in group['systems']:
+            if sid in index:
+                raise ValueError(f'Duplicate reviewed system {sid}.')
+            index[sid] = group
+    return index
+
+
+def apply_assessment(entry, review):
+    record = entry['record']
+    fields = {f['label']: f for f in record['fields']}
+    if config := review.get('service_configuration'):
+        fields['Service Size / Configuration']['value'] += ' ' + config
+    if installation := review.get('installation'):
+        fields['Installation Details']['value'] += '\n\n' + installation
+    if issue := review.get('source_issue'):
+        if 'Source Issues' in fields:
+            fields['Source Issues']['value'] += '\n\n' + issue
+        else:
+            record['fields'].append({'label': 'Source Issues', 'value': issue})
+    if rating := review.get('effective_frl'):
+        original = fields['FRL']['value']
+        if (not re.fullmatch(RATING, rating) or original == rating
+                or any(int(a) > int(b) for a, b in zip(rating.split('/')[1:], original.split('/')[1:]))
+                or not record['title'].endswith(' — ' + original) or not issue):
+            raise ValueError(f'Invalid assessed lower rating for {record["id"]}.')
+        fields['FRL']['value'] = rating
+        fields['Installation Details']['value'] += '\n\n' + issue
+        record['filter_values']['frl'] = [rating]
+        record['title'] = record['title'].removesuffix(original) + rating
+        record['summary'] = issue
+    for ref in review['references']:
+        if ref['url'] not in {s['url'] for s in record['sources']}:
+            record['sources'].append(dict(ref))
+
+
 def prepare(directory):
     source = directory / 'source'
     rows = by_id(read(source / 'FilterProduct.json')['data']['filterProduct'])
     associations = by_id(read(source / 'system-associations.json'))
+    review = read(Path(__file__).resolve().parents[1] / 'data' / 'snap-selector-review.json')
+    if selector_digest(rows) != review['selector_sha256']:
+        raise ValueError('The SNAP selector evidence differs from the reviewed snapshot.')
+    excluded = EXCLUDED | review_index(review['withdrawals']).keys()
+    conditions = review_index(review['conditions'])
+    if not excluded <= rows.keys() or not conditions.keys() <= rows.keys() - excluded:
+        raise ValueError('Reviewed conditions or withdrawals refer to an unexpected SNAP system.')
     products = read(directory / 'product-research' / 'product-installation.json')
     guide_dir = directory / 'product-research'
     guide_titles = {}
@@ -169,7 +243,7 @@ def prepare(directory):
         raise ValueError('Selector capture or excluded systems changed since review.')
     guide_index = read(source / 'guide-figures.json')
     guides = {int(k): {**g, **guide_index['guides'][g['guide']]} for k, g in guide_index['systems'].items()}
-    if not guides.keys() <= rows.keys() - EXCLUDED or any(associations[i]['drawing_url'] for i in guides):
+    if not guides.keys() <= rows.keys() or any(associations[i]['drawing_url'] for i in guides):
         raise ValueError('Installation guide selections conflict with the source capture.')
     screenshots = {}
     for folder in ('drawings', 'guide-drawings'):
@@ -186,8 +260,13 @@ def prepare(directory):
         if (render['url'], render['page'], render['pdf_sha256']) != (g['url'], g['page'], g['sha256']):
             raise ValueError(f'Figure does not match the reviewed guide: {g["image_key"]}')
         g['render'] = {**render, 'path': 'guide-drawings/' + render['path']}
-    systems = [build_entry(rows[k], associations[k], products[rows[k]['product_generic_code']],
-                           screenshots, guides.get(k), guide_titles) for k in sorted(rows.keys() - EXCLUDED)]
+    systems = []
+    for k in sorted(rows.keys() - excluded):
+        item = build_entry(rows[k], associations[k], products[rows[k]['product_generic_code']],
+                           screenshots, guides.get(k), guide_titles)
+        if k in conditions:
+            apply_assessment(item, conditions[k])
+        systems.append(item)
     return {'systems': systems}
 
 

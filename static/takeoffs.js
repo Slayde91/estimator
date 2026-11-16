@@ -559,7 +559,7 @@
     const root = $("takeoffs-workspace"); if (!root) return;
     const ui = state.ui = { root };
     state.drawingFonts ||= loadDrawingFonts().then(() => { if (state.viewport) renderOverlay(); });
-    ui.title = uiNode("h1", "takeoff-workspace-title", "Steel");
+    ui.title = uiNode("h1", "takeoff-workspace-title workspace-title-accent", "Steel");
     ui.documentMenu = registerDocumentMenu();
     ui.physicalDocumentHost = node("div", "takeoff-physical-document-host"); ui.physicalDocumentHost.hidden = true;
     const headingActions = node("div", "actions takeoff-document-tools"); headingActions.append(ui.documentMenu.root, ui.physicalDocumentHost, buildPDFToolsMenu());

@@ -279,10 +279,13 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 record = data['_technical_public_records'][key]
                 # These suppliers publish assessed values outside the original catalogue.
                 source = record.get('source_label')
+                values = data['_technical_discovery'][key].get(facet, [])
+                snap_option = source == SNAP_FILTER_SOURCE and (
+                    facet in ('substrate', 'frl', 'services') or (facet == 'type' and values == ['Cast-in']))
                 if (facet not in ('report', 'manufacturer') and source != ALLPROOF_MANUAL_SOURCE
-                        and not (source == SNAP_FILTER_SOURCE and facet in ('substrate', 'frl', 'services'))):
+                        and not snap_option):
                     continue
-                for value in data['_technical_discovery'][key].get(facet, []):
+                for value in values:
                     if value not in known and value != UNASSESSED_FRL:
                         definition['options'].append({'value': value, 'label': value})
                         known.add(value)

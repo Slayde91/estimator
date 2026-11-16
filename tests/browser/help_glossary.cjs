@@ -50,6 +50,9 @@ async function theme(id) { for (let index = 0; index < 5 && await page.locator('
   const projectFile = standard ? info.saved : info.project;
   const savedBytes = fs.readFileSync(projectFile), before = await snapshot();
   await page.getByRole('button', { name: 'Help', exact: true }).click();
+  const helpTitle = page.locator('#view-help > .page-heading');
+  await expect(helpTitle.getByRole('heading', {name: 'Help', exact: true, level: 1})).toHaveCSS('color', 'rgb(255, 216, 0)');
+  await expect(helpTitle).toHaveText('Help');
   const glossary = page.locator('.help-glossary'); await expect(glossary.getByRole('heading', { name: 'Button symbols, functions and shortcuts', exact: true })).toBeVisible();
   const search = page.locator('#help-glossary-search'), category = page.locator('#help-glossary-category'), visibleRows = () => glossary.locator('.help-glossary-entry:visible');
   const total = await visibleRows().count(); assert.ok(total >= (standard ? 25 : 80)); evidence.entries = total;

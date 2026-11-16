@@ -235,6 +235,8 @@ class Forms:
                 raise FormError('This team member cannot fill out this template.', 403)
             row = self._entry_row(db, key)
             if row:
+                if row['status'] == 'deleted':
+                    raise _missing()
                 if (row['requested_by'],row['owner'],row['template_id'],row['template_version']) != (
                         user['id'],member['id'],template['id'],template['version']):
                     raise FormError('This request already exists for a different assignment.', 409)
@@ -253,7 +255,15 @@ class Forms:
         return next((stage for stage in template['settings'].get('stages', [])
                      if stage['id'] == row['stage_id']), None)
 
+    @staticmethod
+    def _entry_counter(db, template_id, key):
+        # Assigned requests reserve a position. All versions and statuses of the template share the sequence.
+        return db.execute('SELECT count(*) FROM form_entries WHERE template_id=? AND rowid<= '
+                          '(SELECT rowid FROM form_entries WHERE id=?)', (template_id, key)).fetchone()[0]
+
     def _entry(self, db, user, row, *, answers, cache=None):
+        if row['status'] == 'deleted':
+            raise _missing()
         if cache is None:
             cache = {}
         def snapshot(version):
@@ -284,11 +294,17 @@ class Forms:
                   'created_by_name': row['requested_by_name'] or row['owner_name'], 'created_at': row['created_at'],
                   'updated_at': row['updated_at'], 'status': row['status'], 'stage_id': row['stage_id'],
                   'approvals': approvals, 'reversals':json.loads(row['reversals']),
-                  'can_edit': edit, 'can_approve': bool(edit and current), 'can_reopen':reopen}
+                  'can_edit': edit, 'can_approve': bool(edit and current), 'can_reopen':reopen,
+                  'can_delete': role == 'admin' or role == 'editor' and (own or row['requested_by'] == user['id'])}
         if row['requested_by']:
             result.update(assigned_to=row['owner'], assigned_to_name=row['owner_name'])
         if answers:
-            result.update(values=json.loads(row['answers']), template=template)
+            values = json.loads(row['answers'])
+            counter = next((values[f['id']] for f in template['fields']
+                            if f['type'] == 'counter' and f['id'] in values), None)
+            if counter is None and row['status'] != 'requested':
+                counter = self._entry_counter(db, row['template_id'], row['id'])
+            result.update(values=values, template=template, form_counter=counter)
         return result
 
     def entries(self, user, template_id=None):
@@ -298,7 +314,8 @@ class Forms:
                 self._template(db, user, _identity(template_id))
             rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,requested_by,requested_by_name,status,stage_id,'
                               'approvals,reversals,created_at,updated_at,summary_values,reminders,pdf_theme FROM form_entries '
-                              + ('WHERE template_id=? ' if template_id is not None else '')
+                              + "WHERE status != 'deleted' "
+                              + ('AND template_id=? ' if template_id is not None else '')
                               + 'ORDER BY updated_at DESC,id', (template_id,) if template_id is not None else ())
             result = []
             cache = {}
@@ -321,6 +338,27 @@ class Forms:
             if not row:
                 raise _missing()
             return self._entry(db, user, row, answers=True)
+
+    def delete_entry(self, user, body):
+        self._user(user, True)
+        if set(body) != {'id', 'version'}:
+            raise ValidationError('Include the form ID and current version.')
+        key, expected = _identity(body['id']), _version(body['version'])
+        request_key = _request_key('delete', user, body)
+        with self.connect(True) as db:
+            row = self._entry_row(db, key)
+            if not row:
+                raise _missing()
+            if row['status'] == 'deleted' and row['request_key'] == request_key:
+                return {'id': key, 'deleted': True}
+            if not self._entry(db, user, row, answers=False)['can_delete']:
+                raise FormError('You do not have permission to delete this form.', 403)
+            if row['version'] != expected:
+                raise FormError('This form changed. Check the latest version before deleting it.', 409)
+            # Keep the issued counter and record ID reserved, including across stale save retries.
+            db.execute("UPDATE form_entries SET status='deleted', version=version+1, updated_at=?, request_key=? WHERE id=?",
+                       (_now(), request_key, key))
+            return {'id': key, 'deleted': True}
 
     def save_entry(self, user, body):
         self._user(user, True)
@@ -366,8 +404,7 @@ class Forms:
             # Automatic numbers include both draft and submitted forms, allocated inside this write transaction.
             counter = db.execute('SELECT count(*)+1 FROM form_entries WHERE template_id=?',(template_id,)).fetchone()[0] if not row else None
             if row and any(f['type']=='counter' and f['id'] not in previous for f in template['fields']):
-                counter = db.execute('SELECT count(*) FROM form_entries WHERE template_id=? AND rowid<= '
-                                     '(SELECT rowid FROM form_entries WHERE id=?)',(template_id,key)).fetchone()[0]
+                counter = entry['form_counter'] or self._entry_counter(db, template_id, key)
             profile_fields = [field for parent in template['fields'] for field in (parent, *(
                 parent['children'] if parent['type']=='group' else parent['columns'] if parent['type']=='table' else []))]
             staff_rows = any(is_person_group(field) for field in template['fields'])

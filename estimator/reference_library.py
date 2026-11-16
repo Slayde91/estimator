@@ -25,6 +25,7 @@ from .technical_barrier_text import present_barrier_text
 from .technical_brand_presentation import present_manufacturer_fields
 from .technical_table_presentation import present_redundant_tables
 from .technical_installation_text import present_installation_fields
+from .technical_prose import public_prose_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
 from .library_facets import FACETS, classify_facets, facet_options
@@ -350,7 +351,7 @@ class ReferenceLibrary:
                     # Finish the shared display after those columns are removed.
                     present_manufacturer_fields(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
-                    text += field_text(item.get('fields', []), assets, projected=True)
+                    text += field_text(public_prose_fields(item), assets, projected=True)
                     for source in item.get('sources', []):
                         text.extend((source.get('label', ''), source.get('filename', '')))
                 else:
@@ -450,7 +451,7 @@ class ReferenceLibrary:
                 if key not in searches['technical'] or key in variant_projection.lineage:
                     searches['technical'][key] = ('\n'.join(str(item.get(name, '')) for name in ('id', 'title', 'subtitle', 'summary')) + '\n' + '\n'.join(
                         field.get('value', '') + '\n' + json.dumps([field.get('table'), field.get('tables')], ensure_ascii=False)
-                        for field in item.get('fields', []))).casefold()
+                        for field in public_prose_fields(item))).casefold()
             if variant_projection.aliases:
                 aliases = dict(aliases)
                 aliases.update(variant_projection.aliases)
@@ -705,7 +706,7 @@ class ReferenceLibrary:
                 item = present_technical(item)
                 if key not in data.get('_manual_technical_sources', {}):
                     item = present_reviewed_table_captions(item, data.get('_technical_variant_table_scopes', {}).get(key, {}))
-                fields = item.get('fields', [])
+                fields = item['fields'] = public_prose_fields(item)
                 present_redundant_tables(fields)
                 present_installation_fields(fields)
                 present_barrier_text(fields)

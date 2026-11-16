@@ -127,7 +127,7 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(self.request("GET", path)[0], 404)
         status, headers, body = self.request("GET", "/")
         self.assertEqual(status, 200)
-        self.assertIn(b"Ceasefire", body)
+        self.assertEqual(body, (ROOT / "static/index.html").read_bytes())
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
         status, headers, body = self.request("GET", "/fonts/Montserrat-Variable.ttf")
         self.assertEqual(status, 200)

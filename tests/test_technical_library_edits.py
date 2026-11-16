@@ -21,7 +21,8 @@ from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.storage import Store
 from estimator.technical_library_edits import ManualTechnicalLibrary, FACETS
 from estimator.technical_item_exports import prepare_technical_item, build_technical_item_xlsx, render_technical_item_pdf
-from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE
+from estimator.technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
+from estimator.technical_prose import public_prose_fields
 from estimator.server import create_server
 from estimator.library_classifications import classification_filters
 from estimator.technical_service_options import TECHNICAL_SERVICES
@@ -136,6 +137,86 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         with self.store.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM calculator_states').fetchone()[0], 0)
             self.assertEqual(db.execute('SELECT count(*) FROM quotes').fetchone()[0], 0)
+
+    def test_snap_prose_is_shared_by_search_editor_and_exports_and_retains_source_on_save(self):
+        key = 'snap-utility-test'
+        raw = self.library.technical_edit('report-a-v1', for_display=False)['record']
+        raw.update(id=key, title='SNAP utility collar', source_label=SNAP_FILTER_SOURCE)
+        coupling = 'The permitted fitting is a pipe coupling within the collar with the same wall thickness as the assessed pipe.'
+        wall = 'Support the pipe on each side within 300 mm of the wall under section 3.2(b).'
+        install = ('Refer to Table 4 of FCO3520 for the general fixing requirements (excl. HDPE pipes).\n\n'
+                   'Seal the annular gap in accordance with Table 3 of FCO3520.\n\n'
+                   'Keep the stack straight below the floor. Support the pipe above it within 500 mm along the service, '
+                   'with a second support about 1,000 mm from the first where required. ' + coupling
+                   + ' See FCO3520 Rev D, Table 7.\n\n' + wall)
+        size = ('50 mm. Fitting allowed: Yes. Confirm pipe wall thickness against FCO3520 Table 7; '
+                'the printed 50 mm PVC range is unclear.')
+        report = {'label': 'Report Number', 'value': 'FCO3520', 'report_links': [
+            {'label': 'FCO3520', 'url': 'https://docs.snapcollars.com.au/FCO3520.pdf'}]}
+        raw['fields'] = [{'label': 'Installation Details', 'value': install},
+                         {'label': 'Service Size / Configuration', 'value': size}, report]
+        raw['filter_values']['report'] = ['FCO3520']
+        self.library.technical_edits.save(key, 0, 'a' * 64, raw, created=True)
+        expected = 'Seal the annular gap in accordance with FCO3520.\n\n' + coupling + ' See FCO3520 Rev D, Table 7.\n\n' + wall
+        detail = self.library.detail('technical', key)
+        editor = self.library.technical_edit(key)['record']
+        snapshot = prepare_technical_item({'id': key}, library=self.library)
+        for item in (detail, editor, snapshot):
+            fields = {f['label']: f for f in item['fields']}
+            self.assertEqual(fields['Installation Details']['value'], expected)
+            self.assertEqual(fields['Service Size / Configuration']['value'], '50 mm. Fitting allowed: Yes.')
+            self.assertEqual(fields['Report Number']['report_links'], report['report_links'])
+        self.assertEqual(self.library.listing('technical', search='unclear')['total'], 0)
+        self.assertEqual(self.library.listing('technical', search='FCO3520 coupling')['total'], 1)
+        pdf = ' '.join(page.extract_text() for page in PdfReader(BytesIO(render_technical_item_pdf(snapshot))).pages)
+        self.assertIn('FCO3520', pdf)
+        self.assertNotIn('unclear', pdf)
+        workbook = load_workbook(BytesIO(build_technical_item_xlsx(snapshot)), read_only=True)
+        try:
+            self.assertIn(('Installation Details', expected), list(workbook['Item Details'].values))
+        finally:
+            workbook.close()
+        change = self.body(key)
+        change.update(title='Edited collar title', report={'number': 'FCO3520', 'url': report['report_links'][0]['url']})
+        self.library.technical_save(key, change)
+        stored = self.library.technical_edits.read()[0][key]['record']
+        stored_fields = {f['label']: f for f in stored['fields']}
+        self.assertEqual(stored_fields['Installation Details']['value'], install)
+        self.assertEqual(stored_fields['Service Size / Configuration']['value'], size)
+        self.assertEqual(stored_fields['Report Number'], report)
+        self.assertEqual(self.library.technical_edit(key)['record']['title'], change['title'])
+        self.assertEqual(self.library.detail('technical', key)['fields'][0]['value'], expected)
+        self.protected()
+
+    def test_prose_rules_preserve_other_manufacturers_and_conditional_table_references(self):
+        fitting = 'Use a P-trap, 4-way gully or gully trap on the exposed side'
+        tested = 'Support the stack 500 mm and 1500 mm above the floor as tested.'
+        report = {'label': 'Report Number', 'value': 'FCO3520'}
+        for source, manufacturer, snap in (
+                (SNAP_FILTER_SOURCE, '', True), ('User-created Technical Library item', 'Snap', True),
+                ('Another supplier', 'Another manufacturer', False)):
+            raw = (fitting + ', with the pipe supported above the slab. Support the stack above the slab. '
+                   'Refer to Table 5 of FCO3520 for the general fixing requirements with HDPE pipes. '
+                   'Seal in accordance with Table 3 of FCO3520. Follow the types listed within Table 3 of this report. ' + tested)
+            original = {'label': 'Installation Details', 'value': raw}
+            result = public_prose_fields({'source_label': source, 'fields': [
+                original, report, {'label': 'Manufacturer', 'value': manufacturer},
+                {'label': 'System Products', 'value': 'SNAP utility collar'}]})
+            expected = raw.replace('Table 3 of FCO3520', 'FCO3520')
+            if snap:
+                expected = fitting + '. Seal in accordance with FCO3520. Follow the types listed within Table 3 of this report. ' + tested
+            self.assertEqual(result[0]['value'], expected)
+            self.assertEqual(result[1], report)
+            self.assertEqual(original['value'], raw)
+
+        installation = ('Keep the stack straight below the floor. Support the pipe above it within 500 mm along the service, '
+                        'with a second support about 1,000 mm from the first where required. See FCO3520 Rev D, Table 10.')
+        assessed_size = 'Assessed pipe wall thickness 3.5 mm.'
+        record = {'filter_values': {'manufacturer': ['Snap']}, 'fields': [
+            {'label': 'Installation Details', 'value': 'Seal the floor.\n\n' + installation},
+            {'label': 'Service Size / Configuration', 'value': assessed_size + ' '
+             'Confirm pipe wall thickness against FCO3520 Table 38; the printed 50 mm PVC range is unclear.'}]}
+        self.assertEqual([field['value'] for field in public_prose_fields(record)], ['Seal the floor.', assessed_size])
 
     def install_alias(self):
         """A real source-bound group retains different descriptive wording."""

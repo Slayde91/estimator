@@ -33,6 +33,7 @@ class FormsHTTP:
             'template/save': self.store.save_template,
             'entry/assign': self.store.assign_entry,
             'entry/save': self.store.save_entry,
+            'entry/delete': self.store.delete_entry,
             'entry/approve': self.store.approve,
             'entry/reopen': self.store.reopen,
             'calculate': self.calculate,

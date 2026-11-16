@@ -240,6 +240,7 @@ def render_form_pdf(entry, theme, company, staff, reference):
     layout_values = {'workspace':company.get('name') or 'CLASSIFIRE','template_id':_joined('Template ID',settings.get('display_id') or template['id']),
                      'template_version':_joined('Template version',template['version']),'form_version':_joined('Form version',entry['version']),
                      'author':_joined('Created by',entry['created_by_name']),'record_id':_joined('Record ID',entry['id']),
+                     'counter':_joined('Form counter', entry.get('form_counter') or 'Assigned when saved.'),
                      'generated_at':_joined('Print date and time',_dated(timestamp)),'disclaimer':'Printed version is uncontrolled'}
     attachments = settings.get('attachments',[])
     def layout(key):

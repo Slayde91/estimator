@@ -227,6 +227,9 @@ const ready=new Promise((resolve,reject)=>{
   await post(admin,'/api/forms/template/save',{id:require('node:crypto').randomUUID(),version:0,name:templateName,
     status:'published',roles:['admin','editor'],mode:'timeline',settings:{},
     fields:[{id:'site',type:'text',label:'Site',required:true},
+      {id:'manual',type:'manual_signature',label:'Inspector signature'},
+      {id:'visitor',type:'manual_signature',label:'Visitor signature'},
+      {id:'zones',type:'multichoice',label:'Inspected zones',options:['North','South','West']},
       {id:'signers',type:'group',label:'Staff sign-on table',children:[
         {id:'person',type:'person',label:'Person'}, {id:'at',type:'datetime',label:'Date and time',timezone:true},
         {id:'ink',type:'manual_signature',label:'Manual signature'}]}]},me.id);
@@ -250,11 +253,46 @@ const ready=new Promise((resolve,reject)=>{
     const recipientPage = await recipient.newPage();
     await open(recipientPage);
     const records = recipientPage.locator('#forms-root');
+    async function sign(field) {
+      await field.getByRole('button',{name:'Draw signature',exact:true}).click();
+      const pad=recipientPage.locator('dialog[open] canvas'),rect=await pad.boundingBox();
+      await recipientPage.mouse.move(rect.x+20,rect.y+20);await recipientPage.mouse.down();
+      await recipientPage.mouse.move(rect.x+80,rect.y+35,{steps:4});await recipientPage.mouse.up();
+      await recipientPage.getByRole('button',{name:'Insert signature',exact:true}).click();
+      await expect(field.locator('img')).toBeVisible();
+    }
+    await records.getByRole('button',{name:templateName,exact:true}).click();
+    await records.getByRole('button',{name:'Preview',exact:true}).click();
+    const templatePreview=recipientPage.getByRole('dialog',{name:'Template preview'});
+    const previewSigner=templatePreview.locator('[data-field-id="manual"]');
+    await expect(previewSigner.getByLabel('Full name')).toHaveValue('');
+    await sign(previewSigner);
+    await expect(previewSigner.getByLabel('Full name')).toHaveValue('Fixture full name');
+    await expect(previewSigner.getByLabel('Company')).toHaveValue('Fixture company');
+    await templatePreview.getByRole('button',{name:'Close',exact:true}).click();
+    await records.getByRole('button',{name:'Back to templates',exact:true}).click();
     await records.getByRole('button',{name:'Records',exact:true}).click();
     const assignedRow = records.getByRole('row').filter({hasText:templateName});
     await expect(assignedRow.getByRole('cell',{name:'Requested',exact:true})).toBeVisible();
     await assignedRow.getByRole('button',{name:templateName,exact:true}).click();
     await records.getByLabel('Site',{exact:false}).fill('West wing');
+    const manual=records.locator('[data-field-id="manual"]'),visitor=records.locator('[data-field-id="visitor"]');
+    await sign(manual);
+    await expect(manual.getByLabel('Full name')).toHaveValue('Fixture full name');
+    await expect(manual.getByLabel('Company')).toHaveValue('Fixture company');
+    await visitor.getByLabel('Full name').fill('Visiting inspector');
+    await sign(visitor);
+    await expect(visitor.getByLabel('Full name')).toHaveValue('Visiting inspector');
+    await expect(visitor.getByLabel('Company')).toHaveValue('');
+    await visitor.getByLabel('Company').fill('Visitor company');
+    const zones=records.locator('[data-field-id="zones"]'),toggle=zones.locator('summary');
+    await toggle.focus();await toggle.press('ArrowDown');
+    const north=zones.getByRole('checkbox',{name:'North'}),south=zones.getByRole('checkbox',{name:'South'});
+    await expect(north).toBeFocused();await north.press('Space');
+    await north.press('ArrowDown');await expect(south).toBeFocused();await south.press('Space');
+    await expect(north).toBeChecked();await expect(south).toBeChecked();
+    await south.press('Escape');await expect(toggle).toBeFocused();await expect(south).toBeHidden();
+    await expect(toggle).toHaveText('North, South');
     const addPerson = records.getByRole('button',{name:'Add group',exact:true});
     await addPerson.click();await addPerson.click();
     const firstPerson = records.getByRole('group',{name:'Person 1',exact:true});
@@ -283,10 +321,31 @@ const ready=new Promise((resolve,reject)=>{
     await expect(firstPerson.locator('img')).toHaveCSS('background-color','rgb(255, 255, 255)');
     await records.getByRole('button',{name:'Save draft',exact:true}).click();
     await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('draft');
+    await expect(manual).toContainText('Fixture full name · Fixture company');
+    await expect(visitor).toContainText('Visiting inspector · Visitor company');
+    await toggle.click();await expect(north).toBeChecked();await expect(south).toBeChecked();
+    await zones.getByRole('checkbox',{name:'West'}).check();await north.uncheck();await toggle.click();
     await records.getByRole('button',{name:'Submit form',exact:true}).click();
     await expect(records.locator('.forms-entry-toolbar .helper')).toContainText('submitted');
     await expect(firstPerson).toContainText('Fixture full name · Fixture company');
     await expect(firstPerson.locator('img')).toHaveCSS('background-color','rgb(255, 255, 255)');
+    await expect(zones).toContainText('South, West');
   } finally { await recipient.close(); }
+  await b('Records').click();
+  const deleteRow = forms.getByRole('row').filter({has:page.getByRole('button',{name:templateName,exact:true})});
+  const trash = deleteRow.getByRole('button',{name:'Delete form',exact:true});
+  await trash.click();
+  const confirmation = page.getByRole('dialog').filter({hasText:'Are you sure you want to delete this form?'});
+  await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(deleteRow).toBeVisible();
+  await trash.click();
+  await confirmation.getByRole('button',{name:'Yes',exact:true}).click();
+  // The assignee submitted this form after the administrator loaded the register.
+  await expect(forms.getByRole('alert')).toContainText('This form changed.');
+  await expect(deleteRow).toContainText('submitted');
+  await trash.click();
+  await confirmation.getByRole('button',{name:'Yes',exact:true}).click();
+  await expect(deleteRow).toHaveCount(0);
+  await expect(forms.getByRole('button',{name:'Site QA inspection',exact:true}).first()).toBeVisible();
   assert.deepEqual(issues,[]);console.log('Forms browser checks passed. '+output);
 })().catch(error=>{console.error(error,stderr);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

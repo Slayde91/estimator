@@ -3,16 +3,20 @@ import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
 import unittest
 from uuid import uuid4
 
+from pypdf import PdfReader
+
 from estimator.catalog import ValidationError
 from estimator.crm_access import CRMAccess
 from estimator.forms import FormError, Forms
 from estimator.forms_http import FormsHTTP
+from estimator.forms_pdf import render_form_pdf
 from estimator.scheduler import SchedulerStore
 from estimator.server import create_server
 
@@ -194,10 +198,36 @@ class FormsTests(unittest.TestCase):
             first, retry, other = pool.map(save,[same,same,entry(t,{'name':'Second'})])
         self.assertEqual(first,retry)
         self.assertEqual(sorted([first['values']['index'],other['values']['index']]),[1,2])
+        self.assertEqual([first['form_counter'], other['form_counter']], [first['values']['index'], other['values']['index']])
         self.assertEqual(first['summary_values'],first['values'])
         with self.assertRaises(ValidationError):
             save(entry(t,{'index':99},id=first['id'],version=1))
         self.assertEqual(Forms(self.path,lambda: [],lambda: {}).entry(self.editor,first['id']),first)
+
+    def test_header_and_footer_counter_without_body_field_survives_revisions_and_prints(self):
+        settings = {'header_layout': [{'kind':'counter','align':'left'}], 'footer_layout': [{'kind':'counter','align':'right'}]}
+        original = template(settings=settings)
+        t = self.store.save_template(self.admin, original)
+        request_id = identifier()
+        self.store.assign_entry(self.admin, {'id': request_id, 'template_id': t['id'], 'template_version': t['version'],
+                                             'member_id': self.editor['id']})
+        requested = self.store.entry(self.editor, request_id)
+        self.assertIsNone(requested['form_counter'])
+        second = self.store.save_entry(self.editor, entry(t, {'site':'Second'}))
+        self.assertEqual(second['form_counter'], 2)
+        first = self.store.save_entry(self.editor, entry(t, {'site':'First'}, id=request_id, version=requested['version']))
+        self.assertEqual(first['form_counter'], 1)
+        revised = self.store.save_template(self.admin, {**original, 'version':t['version'], 'name':'Revised'})
+        third = self.store.save_entry(self.editor, entry(revised, {'site':'Third'}))
+        self.assertEqual(third['form_counter'], 3)
+        saved = self.store.save_entry(self.editor, entry(t, {'site':'Updated'}, id=second['id'], version=second['version']))
+        reopened = Forms(self.path, lambda:self.staff, lambda:{}).entry(self.editor, saved['id'])
+        self.assertEqual((reopened['form_counter'], reopened['template']['settings']['footer_layout']), (2,settings['footer_layout']))
+        pdf = PdfReader(BytesIO(render_form_pdf(reopened, 'ocean', {}, [], lambda _:{})))
+        lines = [line.strip() for page in pdf.pages for line in page.extract_text().splitlines()]
+        self.assertEqual(lines.count('Form counter · 2'), 2)
+        self.assertLess(lines.index('Form counter · 2'), lines.index('Inspection'))
+        self.assertEqual(lines[-1], 'Form counter · 2')
 
     def test_workflow_permissions_lock_and_approval_identity(self):
         stages = [{'id':'record','name':'On site','roles':['editor'],'member_ids':['sam']},

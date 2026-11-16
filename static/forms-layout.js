@@ -2,7 +2,7 @@
   'use strict';
   const labels = {logo:'Company logo', workspace:'Company name', text:'Custom text', image:'Attachment image',
     template_id:'Template ID',template_version:'Template version',form_version:'Form version',author:'Created by',
-    record_id:'Record ID',generated_at:'Print date and time',disclaimer:'Print disclaimer'};
+    record_id:'Record ID',counter:'Form counter',generated_at:'Print date and time',disclaimer:'Print disclaimer'};
   const el=(tag,text)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;return n;};
   function select(items,value,change,label) {
     const s=el('select');s.setAttribute('aria-label',label);
@@ -52,6 +52,7 @@
     const box=el('div');box.className='forms-layout-output';
     const values={workspace:document.getElementById('company-name')?.value || 'CLASSIFIRE',template_id:t.settings?.display_id || t.id,
       template_version:t.version || 'Draft',form_version:entry?.version || 'Draft',author:entry?.created_by_name || '—',record_id:entry?.id || '—',
+      counter:entry?.form_counter ?? (window.CeasefireI18n?.translate('Assigned when saved.') ?? 'Assigned when saved.'),
       generated_at:printedAt ? window.ClassifireDates.dateTime(printedAt) : '—',disclaimer:'Printed version is uncontrolled'};
     for(const item of items) {
       const row=el('div');row.className='forms-align-'+(['left','right','center'].includes(item.align)?item.align:'left');

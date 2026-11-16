@@ -527,6 +527,9 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await page.locator('#staff-login').getByLabel('Email',{exact:true}).fill('jordan@example.test');
   await page.getByLabel('Password',{exact:true}).fill(password);
   await page.getByRole('button',{name:'Sign in',exact:true}).click();
+  // The worker page's static Sign out button appears before its deferred
+  // handler is bound. Wait for the authenticated worker schedule to render.
+  await expect(page.locator('#staff-scheduler-page').getByRole('navigation',{name:'Scheduler pages'})).toBeVisible();
   await page.locator('#staff-portal-sign-out').click();await expect(signOutDialog).toContainText('Jordan QA');
   await signOutDialog.getByRole('button',{name:'Close',exact:true}).click();
   await expect(page.locator('.scheduler-tabs').getByRole('button',{name:'Settings',exact:true})).toHaveCount(0);

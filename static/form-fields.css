@@ -22,6 +22,13 @@
 .form-inline-choices{display:flex;gap:.5rem;flex-wrap:wrap}
 .form-inline-choices label{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px}
 .form-inline-choices input[type=radio]{width:1rem}
+.form-choice-dropdown{min-width:0;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.form-choice-dropdown summary{padding:.55rem .7rem;cursor:pointer;overflow-wrap:anywhere}
+.form-choice-dropdown summary:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.form-choice-list{display:grid;max-height:16rem;overflow:auto;border-top:1px solid var(--line)}
+.form-choice-list label{display:flex;align-items:center;gap:.65rem;padding:.45rem .7rem;cursor:pointer;overflow-wrap:anywhere}
+.form-choice-list label:focus-within{outline:2px solid currentColor;outline-offset:-2px}
+.form-choice-list input[type=checkbox]{flex:none;margin:0}
 .form-field-part:has(input[type=checkbox]){display:flex;align-items:center;gap:.6rem}
 .form-field-content input[type=checkbox]{width:1rem;height:1rem;order:-1}
 .form-field-parts{grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr));align-items:end;gap:.75rem}

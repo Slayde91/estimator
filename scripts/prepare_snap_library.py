@@ -5,8 +5,14 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import re
+import sys
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid5
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.snap_assessed_variations import assessed_manifest, wall_amendments
+from scripts.snap_rated_wall_variations import plan_rated_wall_variations
+from scripts.snap_slab_variations import plan_slab_variations
 
 
 EXCLUDED = {4110, 4112, 3767, 4033}  # Reviewed discrepancies with FAR3932, FSP2097 and FSP2289.
@@ -217,7 +223,7 @@ def apply_assessment(entry, review):
             record['sources'].append(dict(ref))
 
 
-def prepare(directory):
+def prepare(directory, *, assessed_variants=False):
     source = directory / 'source'
     rows = by_id(read(source / 'FilterProduct.json')['data']['filterProduct'])
     associations = by_id(read(source / 'system-associations.json'))
@@ -260,21 +266,32 @@ def prepare(directory):
         if (render['url'], render['page'], render['pdf_sha256']) != (g['url'], g['page'], g['sha256']):
             raise ValueError(f'Figure does not match the reviewed guide: {g["image_key"]}')
         g['render'] = {**render, 'path': 'guide-drawings/' + render['path']}
-    systems = []
+    entries = {}
     for k in sorted(rows.keys() - excluded):
         item = build_entry(rows[k], associations[k], products[rows[k]['product_generic_code']],
                            screenshots, guides.get(k), guide_titles)
         if k in conditions:
             apply_assessment(item, conditions[k])
-        systems.append(item)
-    return {'systems': systems}
+        entries[k] = item
+    if not assessed_variants:
+        return {'systems': list(entries.values())}
+    slabs, variants = plan_slab_variations(rows, entries)
+    walls = wall_amendments(rows, entries)
+    rated_walls, wall_variants = plan_rated_wall_variations(rows, entries)
+    if slabs.keys() & walls.keys() or rated_walls.keys() & (slabs.keys() | walls.keys()):
+        raise ValueError('Overlapping wall and floor assessment updates.')
+    return assessed_manifest(rows, entries, {**slabs, **walls, **rated_walls}, variants + wall_variants)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
+    parser.add_argument('--output', type=Path, help='Destination for the prepared manifest.')
+    parser.add_argument('--assessed-variants', action='store_true',
+                        help='Build the assessed variation release for install_snap_library.py --variants.')
     args = parser.parse_args()
-    manifest = prepare(args.directory)
-    output = args.directory / 'manifest.json'
+    manifest = prepare(args.directory, assessed_variants=args.assessed_variants)
+    name = 'manifest-variants.json' if args.assessed_variants else 'manifest.json'
+    output = args.output or args.directory / name
     output.write_text(json.dumps(manifest, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8')
     print(len(manifest['systems']), 'systems;', dict(Counter(len(s['drawings']) for s in manifest['systems'])), 'drawings per item')

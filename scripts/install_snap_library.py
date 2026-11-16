@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import sqlite3
 import sys
+from urllib.parse import urldefrag, urlsplit
 from uuid import NAMESPACE_URL, uuid5
 
 from PIL import Image
@@ -20,6 +21,7 @@ from estimator.technical_discovery import SNAP_FILTER_SOURCE
 from estimator.technical_fields import FIELD_ORDER
 from estimator.technical_library_edits import (FIELD_FACETS, SOURCE_IMAGE_PREFIX, SOURCE_IMAGE_TABLE,
                                                TechnicalEdits, text)
+from scripts.snap_variant_identity import variant_record_id
 
 
 def read_drawing(path, expected):
@@ -77,7 +79,14 @@ def check_record(record, labels):
         text(source['label'], 2000, blank=False)
 
 
-def prepare(manifest, drawing_root, library, expected_manifest_sha256=None, *, verify_files=True):
+def read_manifest(manifest, expected_sha256):
+    captured = manifest.read_bytes()
+    if expected_sha256 and sha256(captured).hexdigest() != expected_sha256:
+        raise ValueError('The manifest does not match the expected SNAP import.')
+    return json.loads(captured)
+
+
+def prepare_records(systems, drawing_root, library, *, verify_files=True, allow_variants=False):
     index_path = library / 'library.json'
     index_bytes = index_path.read_bytes()
     index_hash = sha256(index_bytes).hexdigest()
@@ -86,10 +95,6 @@ def prepare(manifest, drawing_root, library, expected_manifest_sha256=None, *, v
     labels.update(field['label'] for item in items for field in item['fields'])
     reserved = {item['id'] for item in items}
     del items, index_bytes
-    captured = manifest.read_bytes()
-    if expected_manifest_sha256 and sha256(captured).hexdigest() != expected_manifest_sha256:
-        raise ValueError('The manifest does not match the expected SNAP import.')
-    systems = json.loads(captured)['systems']
     if not isinstance(systems, list) or not systems:
         raise ValueError('The manifest contains no systems.')
     records = []
@@ -99,6 +104,9 @@ def prepare(manifest, drawing_root, library, expected_manifest_sha256=None, *, v
     for system in systems:
         record = system['record']
         check_record(record, labels)
+        if not allow_variants and any(field['label'] == 'ID' and
+                re.fullmatch(r'SNAP [1-9][0-9]* / .+', field['value']) for field in record['fields']):
+            raise ValueError('A variant manifest requires explicit variant reconciliation.')
         key = record['id']
         if key in reserved:
             raise ValueError(f'Duplicate or existing supplier record identity: {key}')
@@ -125,6 +133,13 @@ def prepare(manifest, drawing_root, library, expected_manifest_sha256=None, *, v
             raise ValueError(f'Duplicate screenshot in one system: {key}')
         records.append({**record, 'images': images})
     return records, paths, index_hash
+
+
+def prepare(manifest, drawing_root, library, expected_manifest_sha256=None, *, verify_files=True):
+    snapshot = read_manifest(manifest, expected_manifest_sha256)
+    if 'variant_review' in snapshot:
+        raise ValueError('A variant manifest requires explicit variant reconciliation.')
+    return prepare_records(snapshot['systems'], drawing_root, library, verify_files=verify_files)
 
 
 def verified_images(db, drawings, *, require_existing=False):
@@ -163,6 +178,80 @@ def reviewed_ids(records):
             raise ValueError(f'Invalid stable identity for SNAP {sid}')
         result[sid] = record
     return result
+
+
+def variant_configuration(record):
+    labels = {'System Products', 'Installation Type', 'Barrier Construction', 'Service',
+              'Service Size / Configuration', 'FRL', 'Installation Details', 'Orientation', 'Substrate'}
+    return tuple(sorted((f['label'], ' '.join(f['value'].split()).casefold())
+                        for f in record['fields'] if f['label'] in labels))
+
+
+def check_variant_evidence(child, parent, evidence_urls):
+    sources = {s['url'] for s in child['sources']}
+    parent_sources = {s['url'] for s in parent['sources']}
+    product_prefix = 'https://www.snapcollars.com.au/products/fire-collar/'
+    if ('https://www.snapcollars.com.au/product-filter' not in sources
+            or not any(url.startswith(product_prefix) for url in sources & parent_sources)):
+        raise ValueError(f'The variant must cite its parent selector and product: {child["id"]}')
+    reports = {urldefrag(link['url']).url for record in (parent, child) for field in record['fields']
+               if field['label'] == 'Report Number' for link in field.get('report_links', [])}
+    if not isinstance(evidence_urls, list) or not evidence_urls:
+        raise ValueError('Each assessed variant must cite its supporting report pages.')
+    seen = set()
+    for url in evidence_urls:
+        if not isinstance(url, str) or url not in sources or url in seen:
+            raise ValueError('Variant evidence must list distinct report page URLs from the item sources.')
+        parsed = urlsplit(url)
+        if (parsed.scheme != 'https' or parsed.netloc != 'docs.snapcollars.com.au' or parsed.query
+                or not parsed.path.lower().endswith('.pdf') or not re.fullmatch(r'page=[1-9][0-9]*', parsed.fragment)
+                or urldefrag(url).url not in reports):
+            raise ValueError(f'Variant evidence must identify a page in the cited SNAP assessment: {url}')
+        seen.add(url)
+
+
+def reviewed_variants(old, records, review):
+    if not isinstance(review, dict) or set(review) != {'updated_record_ids', 'additions'}:
+        raise ValueError('Supply the exact existing record updates and the assessed variant additions.')
+    previous = reviewed_ids(old)
+    proposed = {r['id']: r for r in records}
+    parent_ids = {r['id'] for r in old}
+    parents = [r for r in records if r['id'] in parent_ids]
+    current = reviewed_ids(parents)
+    if previous.keys() != current.keys():
+        raise ValueError('Variant publication must preserve every previously reviewed SNAP selector ID.')
+    changed = {record['id'] for sid, record in current.items() if record != previous[sid]}
+    updates = review['updated_record_ids']
+    if (not isinstance(updates, list) or not all(isinstance(k, str) for k in updates)
+            or len(updates) != len(changed) or set(updates) != changed):
+        raise ValueError('Existing record changes differ from the reviewed update IDs.')
+    if not isinstance(review['additions'], list) or not review['additions']:
+        raise ValueError('An assessed variant release requires explicit additions.')
+    additions = {}
+    configurations = {}
+    for item in review['additions']:
+        if not isinstance(item, dict) or set(item) != {'parent_system_id', 'variant_key', 'record_id', 'evidence_urls'}:
+            raise ValueError('Invalid reviewed variant metadata.')
+        sid, slug = item['parent_system_id'], item['variant_key']
+        key = variant_record_id(sid, slug)
+        if sid not in current or item['record_id'] != key or key not in proposed or key in parent_ids or key in additions:
+            raise ValueError(f'Unmatched parent or stable assessed variant identity: {key}')
+        child = proposed[key]
+        field_id = next((f['value'] for f in child['fields'] if f['label'] == 'ID'), None)
+        if field_id != f'SNAP {sid} / {slug}':
+            raise ValueError(f'Variant ID field does not identify its parent and assessed variant: {key}')
+        check_variant_evidence(child, previous[sid], item['evidence_urls'])
+        if sid not in configurations:
+            configurations[sid] = {variant_configuration(current[sid])}
+        options = configurations[sid]
+        configuration = variant_configuration(child)
+        if configuration in options:
+            raise ValueError(f'Duplicate assessed configuration for SNAP {sid}: {slug}')
+        options.add(configuration)
+        additions[key] = child
+    if proposed.keys() - parent_ids != additions.keys():
+        raise ValueError('New library IDs differ from the exact reviewed assessed variants.')
+    return parents, additions, sorted(changed)
 
 
 def reconcile(db, old, new, old_images, new_images, before_sha, after_sha, withdrawn_ids, apply):
@@ -225,20 +314,54 @@ def reconcile(db, old, new, old_images, new_images, before_sha, after_sha, withd
             'previous_manifest_sha256': before_sha, 'manifest_sha256': after_sha}
 
 
+def install_variants(db, old, new, old_images, new_images, before_sha, after_sha, review, apply):
+    parents, additions, updated_ids = reviewed_variants(old, new, review)
+    # The same transaction verifies every old image/record, preserves parent links,
+    # and records the signed manifest pair. A child failure rolls it all back.
+    result = reconcile(db, old, parents, old_images, new_images, before_sha, after_sha, (), apply)
+    replay = result['replay']
+    for key, child in additions.items():
+        digest = fingerprint(child)
+        state = db.execute('SELECT created,deleted,source_sha256,data FROM technical_library_items WHERE id=?',
+                           (key,)).fetchone()
+        links = db.execute('SELECT linked,technical_source FROM technical_library_links WHERE technical_id=?',
+                           (key,)).fetchall()
+        if replay:
+            if not state or state[:3] != (1, 0, digest) or json.loads(state[3]) != child:
+                raise ValueError(f'Published variant is missing, edited, deleted, or has an unexpected source: {key}')
+            if any(active and source != digest for active, source in links):
+                raise ValueError(f'Published variant has a stale active link: {key}')
+        elif state or links:
+            raise ValueError(f'An existing item or link already owns the proposed assessed variant ID: {key}')
+        elif apply:
+            TechnicalEdits.save_transaction(db, key, 0, digest, child, created=True)
+    return {**result, 'systems': len(new), 'already_verified': result['already_verified'] + (len(additions) if replay else 0),
+            'added' if apply else 'planned_additions': 0 if replay else len(additions),
+            'reviewed_added_ids': sorted(additions), 'reviewed_updated_ids': updated_ids}
+
+
 def install(manifest, library, database, apply=False, drawing_root=None, expected_manifest_sha256=None,
-            previous_manifest=None, expected_previous_manifest_sha256=None, withdraw_system_ids=None):
+            previous_manifest=None, expected_previous_manifest_sha256=None, withdraw_system_ids=None, *, variants=False):
     manifest, library, database = map(Path, (manifest, library, database))
     correction = previous_manifest is not None
+    if variants and (not correction or withdraw_system_ids is not None):
+        raise ValueError('Variant reconciliation requires a previous manifest and cannot withdraw selector records.')
     if correction:
         if (not all(isinstance(d, str) and re.fullmatch(r'[a-f0-9]{64}', d)
                     for d in (expected_manifest_sha256, expected_previous_manifest_sha256))
-                or withdraw_system_ids is None):
+                or (not variants and withdraw_system_ids is None)):
             raise ValueError('A correction requires both reviewed SHA-256 digests and explicit withdrawal IDs.')
         previous = Path(previous_manifest)
         old, old_images, old_index = prepare(previous, previous.parent, library, expected_previous_manifest_sha256, verify_files=False)
     elif expected_previous_manifest_sha256 is not None or withdraw_system_ids is not None:
         raise ValueError('Withdrawal IDs and a previous digest require a previous manifest.')
-    records, drawings, index_hash = prepare(manifest, Path(drawing_root or manifest.parent), library, expected_manifest_sha256)
+    root = Path(drawing_root or manifest.parent)
+    if variants:
+        snapshot = read_manifest(manifest, expected_manifest_sha256)
+        review = snapshot.get('variant_review')
+        records, drawings, index_hash = prepare_records(snapshot['systems'], root, library, allow_variants=True)
+    else:
+        records, drawings, index_hash = prepare(manifest, root, library, expected_manifest_sha256)
     # Open an existing database without initializing the commercial/application store.
     mode = 'rw' if apply else 'ro'
     with closing(sqlite3.connect(database.resolve().as_uri() + '?mode=' + mode, uri=True, timeout=30)) as db, db:
@@ -246,8 +369,12 @@ def install(manifest, library, database, apply=False, drawing_root=None, expecte
         if correction:
             if old_index != index_hash:
                 raise ValueError('The base library changed between manifest reviews.')
-            result = reconcile(db, old, records, old_images, drawings, expected_previous_manifest_sha256,
-                               expected_manifest_sha256, withdraw_system_ids, apply)
+            if variants:
+                result = install_variants(db, old, records, old_images, drawings, expected_previous_manifest_sha256,
+                                          expected_manifest_sha256, review, apply)
+            else:
+                result = reconcile(db, old, records, old_images, drawings, expected_previous_manifest_sha256,
+                                   expected_manifest_sha256, withdraw_system_ids, apply)
             if sha256((library / 'library.json').read_bytes()).hexdigest() != index_hash:
                 raise ValueError('The base library changed during the correction.')
             return {**result, 'supplier_index_sha256': index_hash}
@@ -284,5 +411,6 @@ if __name__ == '__main__':
     parser.add_argument('--previous-manifest', type=Path, help='Previously installed SNAP manifest for correction-only reconciliation.')
     parser.add_argument('--expected-previous-manifest-sha256', help='Required reviewed previous manifest digest when correcting.')
     parser.add_argument('--withdraw-system-ids', type=int, nargs='*', help='Explicit approved SNAP system numbers to withdraw; pass with no numbers for zero withdrawals.')
+    parser.add_argument('--variants', action='store_true', help='Reconcile a reviewed variant release against its previously published selector manifest.')
     parser.add_argument('--apply', action='store_true')
     print(json.dumps(install(**vars(parser.parse_args())), indent=2))

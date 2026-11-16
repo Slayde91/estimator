@@ -16,6 +16,7 @@ from .firefly_reference_review import fingerprint
 from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
 from .technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
+from .technical_prose import public_prose_fields
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
@@ -235,7 +236,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             data['_searches']['technical'][key] = '\n'.join([
                 *data['_groups'].get(key, [key]), record['title'],
                 display.get('source_code', ''), display.get('configuration', ''),
-                *(f.get('value', '') for f in record.get('fields', []))]).casefold()
+                *(f.get('value', '') for f in public_prose_fields(record))]).casefold()
             # Preserve the source-reviewed group when its canonical record
             # is edited. Only a newly authored record starts its own group.
             if edit['created']:
@@ -405,6 +406,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 record = deepcopy(data['_technical_public_records'][key])
                 record['filter_values'] = deepcopy(data['_technical_discovery'][key])
                 revision = saved.get(key, {}).get('revision', 0)
+                if for_display:
+                    record['fields'] = public_prose_fields(record)
                 if for_display and (display := variant_display(data, key)):
                     record.update(display)
                     for field in record.get('fields', []):
@@ -430,6 +433,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             if isinstance(body['revision'], bool) or body['revision'] != context['revision'] or body['source_sha256'] != context['source_sha256']:
                 raise LibraryConflict('This Technical Library item changed. Reopen it before saving.')
             original = context['record']
+            displayed_fields = {field['label']: field.get('value', '') for field in public_prose_fields(original)}
             display = variant_display(self._load(), original['id']) if key is not None else {}
             # An unchanged generated caption follows the selected configuration on
             # subsequent edits. Only a title explicitly changed in the form is stored.
@@ -449,8 +453,9 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 labels.add(label)
                 previous = deepcopy(old_fields.get(label, {'label': label}))
                 value = text(field['value'], 40000)
-                if not (display and label == 'ID' and previous.get('value') == original['id']
-                        and value == display['source_code']):
+                # An unchanged projected field must not rewrite the source text on an unrelated edit.
+                if value != displayed_fields.get(label) and not (
+                        display and label == 'ID' and previous.get('value') == original['id'] and value == display['source_code']):
                     previous['value'] = value
                 normalized.append(previous)
             facets = body['facets']
@@ -521,7 +526,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
         with self._lock:
             if not isinstance(body, dict) or set(body) != {'revision', 'source_sha256'}:
                 raise ValidationError('Reopen the Technical Library item before removing it.')
-            context = self.technical_edit(key)
+            context = self.technical_edit(key, for_display=False)
             if isinstance(body['revision'], bool) or body['revision'] != context['revision'] or body['source_sha256'] != context['source_sha256']:
                 raise LibraryConflict('This Technical Library item changed. Reopen it before removing it.')
             key = context['record']['id']

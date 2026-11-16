@@ -15,7 +15,7 @@ _HIDDEN_COLUMNS = {'id', 'configuration', 'source configuration'}
 _PARAGRAPHS = re.compile(r'\n\s*\n')
 
 
-def _manufacturer(item):
+def manufacturer_names(item):
     names = item.get('filter_values', {}).get('manufacturer', [])
     if not names:
         names = [f['value'] for f in item.get('fields', [])
@@ -190,7 +190,7 @@ def _promat_fields(fields):
 
 def present_manufacturer_fields(item):
     """Mutate an already-copied display item, never its retained source basis."""
-    manufacturer = _manufacturer(item)
+    manufacturer = manufacturer_names(item)
     if manufacturer == {'boss'}:
         construction = reviewed_boss_construction(item)
         for field in item.get('fields', []):

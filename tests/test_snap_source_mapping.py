@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.prepare_snap_library import build_entry, by_id, FILTER_URL
+from scripts.prepare_snap_library import apply_assessment, build_entry, by_id, FILTER_URL
 
 
 class SnapSourceMappingTests(unittest.TestCase):
@@ -55,7 +55,47 @@ class SnapSourceMappingTests(unittest.TestCase):
                       entry['record']['sources'])
         self.assertNotIn('Source Issues', [f['label'] for f in entry['record']['fields']])
 
+    def test_nominal_cpvc_inches_use_the_matching_report_and_retain_the_selector_value(self):
+        source_url = 'https://docs.snapcollars.com.au/FSP2188.pdf'
+        row = {**self.row, 'service_name': 'C-PVC', 'nominal_size': '1.25 Inch mm',
+               'product_generic_code': '50R', 'report_name': 'FSP2188', 'report_publish_status': 'Public'}
+        assoc = {**self.assoc, 'product_code': '50R', 'report_name': 'FSP2188',
+                 'report_url': source_url, 'report_status': 'Public'}
+        record = build_entry(row, assoc, self.product, {}, None, {})['record']
+        fields = {field['label']: field['value'] for field in record['fields']}
+        self.assertEqual(fields['Service Size / Configuration'], '1.25 inch. Fitting allowed: No.')
+        self.assertIn('1.25 inch C-PVC', record['title'])
+        self.assertIn('1.25 Inch mm', fields['Source Issues'])
+        self.assertIn('FSP2188, page 9', fields['Source Issues'])
+        self.assertIn(source_url + '#page=9', [s['url'] for s in record['sources']])
+        for change in [{'service_name': 'PVC-DWV'}, {'product_generic_code': '32R'}]:
+            with self.subTest(change=change):
+                other = {**row, **change}
+                other_assoc = {**assoc, 'product_code': other['product_generic_code']}
+                record = build_entry(other, other_assoc, self.product, {}, None, {})['record']
+                self.assertIn('1.25 Inch mm', record['title'])
+
     def test_source_ids_are_distinct_even_when_all_displayed_values_match(self):
         self.assertEqual(len(by_id([self.row, {**self.row, 'system_id': 11}])), 2)
         with self.assertRaises(ValueError):
             by_id([self.row, self.row])
+
+    def test_assessment_cap_matches_search_detail_and_export_fields(self):
+        self.row['note'] = []
+        entry = build_entry(self.row, self.assoc, self.product, {}, None, {})
+        issue = 'The selector lists -/180/120. The assessment supports -/120/120 in this assembly.'
+        ref = {'label': 'Assessment table', 'url': 'https://docs.snapcollars.com.au/example.pdf#page=8'}
+        apply_assessment(entry, {'effective_frl': '-/120/120', 'source_issue': issue,
+                                 'service_configuration': 'Assessed pipe wall thickness 4 mm.',
+                                 'references': [ref]})
+        record = entry['record']
+        fields = {f['label']: f['value'] for f in record['fields']}
+        self.assertEqual(record['filter_values']['frl'], ['-/120/120'])
+        self.assertEqual(fields['FRL'], '-/120/120')
+        self.assertIn(issue, fields['Installation Details'])
+        self.assertIn(issue, fields['Source Issues'])
+        self.assertTrue(record['title'].endswith(' — -/120/120'))
+        self.assertIn('4 mm', fields['Service Size / Configuration'])
+        self.assertIn(ref, record['sources'])
+        with self.assertRaisesRegex(ValueError, 'lower rating'):
+            apply_assessment(entry, {'effective_frl': '-/180/180', 'source_issue': issue, 'references': []})

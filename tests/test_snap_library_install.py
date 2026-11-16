@@ -253,3 +253,23 @@ class SnapLibraryInstallTests(unittest.TestCase):
         with self.assertRaisesRegex(sqlite3.IntegrityError, 'simulated storage failure'):
             install(**args, apply=True)
         self.assertEqual(self.state(), before)
+
+    def test_stale_active_link_and_post_migration_edit_are_not_repaired_by_replay(self):
+        args = self.correction()
+        key = self.systems[0]['record']['id']
+        with self.store.connect() as db:
+            db.execute('INSERT INTO technical_library_links VALUES (?,?,?,?,?,?,?)',
+                       ('penetration-example', key, 'penetration-source', 'stale', 1, 'old', 1))
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'active link'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)
+        with self.store.connect() as db:
+            db.execute('UPDATE technical_library_links SET linked=0')
+        install(**args, apply=True)
+        edit = self.library.technical_edit(key)
+        self.library.technical_delete(key, {'revision': edit['revision'], 'source_sha256': edit['source_sha256']})
+        before = self.state()
+        with self.assertRaisesRegex(ValueError, 'edited, deleted'):
+            install(**args, apply=True)
+        self.assertEqual(self.state(), before)

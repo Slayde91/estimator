@@ -14,7 +14,7 @@ const {chromium, expect} = require('@playwright/test');
     await page.goto('http://localhost/editor');
     for (const file of ['styles.css','forms-builder.css','form-fields.css'])
       await page.addStyleTag({path:path.resolve(__dirname,'../../static',file)});
-    for (const file of ['form-controls.js','form-rich-text.js','forms-builder.js'])
+    for (const file of ['form-controls.js','form-rich-text.js','forms-layout.js','forms-builder.js'])
       await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     await page.evaluate(() => {
       window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), null, {
@@ -51,6 +51,8 @@ const {chromium, expect} = require('@playwright/test');
     await expect(palette('scan_id')).toHaveCount(0);
     await expect(palette('staff_wallet')).toHaveCount(0);
     await expect(palette('id_text')).toHaveCount(0);
+    await expect(palette('weather')).toHaveCount(0);
+    await expect(palette('weather_table')).toBeVisible();
     await name.fill('Site inspection');
     await palette('choice').dragTo(page.locator('.form-builder-drop-empty'));
     await page.getByLabel('Field label').fill('Weather');
@@ -181,6 +183,21 @@ const {chromium, expect} = require('@playwright/test');
     await btn('Settings').click();
     await page.getByLabel('Viewer').check();
     await page.getByLabel('Template ID').fill('QC-01');
+    for (const label of ['Header elements', 'Footer elements']) {
+      const group = page.getByRole('group',{name:label,exact:true});
+      await group.getByLabel(label+' to add').selectOption({label:'Form counter'});
+      await group.getByRole('button',{name:'Add element'}).click();
+      await expect(group.locator('strong')).toHaveText('Form counter');
+    }
+    const rendered = await page.evaluate(() => {
+      const template = window.editor.snapshot();
+      return [null, {id:'form-id',version:3,form_counter:17}].map(entry => {
+        const host = document.createElement('div');
+        for (const key of ['header_layout', 'footer_layout']) window.ClassifireFormsLayout.render(host,key,template,entry);
+        return Array.from(host.children, section=>section.textContent);
+      });
+    });
+    assert.deepEqual(rendered, [Array(2).fill('Form counter · Assigned when saved.'), Array(2).fill('Form counter · 17')]);
     await page.getByLabel('Template type').selectOption('workflow');
     const stages = page.locator('.form-builder-stage');
     await checkRowIcons(stages.first());
@@ -253,6 +270,7 @@ const {chromium, expect} = require('@playwright/test');
         {id:'staff-check',type:'scan_id',label:'Badge scan',help:'Previously entered description.'},
         {id:'wallet',type:'staff_wallet',label:'Verified identity'},
         {id:'manual',type:'id_text',label:'Inspection ID'},
+        {id:'conditions',type:'weather',label:'Weather observation'},
         {id:'sign-in',type:'group',label:'Staff sign-in',children:[
           {id:'badge',type:'scan_id',label:'Badge'},{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'}]}
       ]};
@@ -267,10 +285,11 @@ const {chromium, expect} = require('@playwright/test');
     await expect(columns.last().getByLabel('Type',{exact:true})).toHaveValue('staff_wallet');
     await expect(columns.first().locator('option[value="staff_wallet"]')).toHaveCount(0);
     await btn('Save changes').click();
-    const [scan,wallet,manual,group] = await page.evaluate(() => window.saved.fields);
+    const [scan,wallet,manual,weather,group] = await page.evaluate(() => window.saved.fields);
     assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Staff badge',help:'Previously entered description.'});
     assert.deepEqual(wallet,{id:'wallet',type:'staff_wallet',label:'Verified identity'});
     assert.deepEqual(manual,{id:'manual',type:'id_text',label:'Inspection ID'});
+    assert.deepEqual(weather,{id:'conditions',type:'weather',label:'Weather observation'});
     assert.equal(group.children[0].type,'scan_id');
     assert.deepEqual(group.children[1],{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'});
     await palette('instruction').click();

@@ -23,11 +23,11 @@
       ['attachment', 'Attachment'], ['photo', 'Photo / video'], ['sketch', 'Sketch'],
       ['location', 'Location'], ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
       ['approval', 'Approval signature'], ['action', 'Action'], ['counter', 'Form counter'],
-      ['weather', 'Weather observation'],
     ],
   };
   // These field types remain readable and editable in existing templates.
-  const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet'], ['id_text', 'ID (manual entry)']]);
+  const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet'],
+    ['id_text', 'ID (manual entry)'], ['weather', 'Weather observation']]);
   const names = new Map([...Object.values(palette).flat(), ...legacyTypes]);
   const columnNames = new Map([...names, ['formula', 'Formula'], ['list_property', 'List property'], ['time', 'Time']]);
   const columnTypes = ['text', 'textarea', 'instruction', 'number', 'date', 'datetime', 'time', 'choice', 'list_property',

@@ -182,7 +182,7 @@ def validate_template(body,staff=None):
         raise ValidationError('Template reference files must total at most 1 MiB.')
     image_names = {item['name'] for item in references if item['type'] in ('image/png','image/jpeg','image/gif','image/webp')}
     kinds = ('logo','image','text','template_id','template_version','form_version','author','generated_at',
-             'disclaimer','workspace','record_id')
+             'disclaimer','workspace','record_id','counter')
     for key in ('header_layout','footer_layout'):
         layout = settings.get(key,[])
         if not isinstance(layout,list) or len(layout)>20:

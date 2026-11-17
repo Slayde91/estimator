@@ -14,7 +14,7 @@
     side1:newSide(sideId(nextNumber,1)), side2:newSide(sideId(nextNumber,2)),
     access:'', photos:[], comments:'', solution:'', signature:null});
   let entries = [], current = 0, placeholder = newEntry(), revision = 0, saved = 0;
-  let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect, removeEntry, exportButton;
+  let options, pending = false, exporting = false, hasRegister = false, message = '', entrySelect;
   const photoPixels = new Map();
   let fieldIndex = 0;
   const editedEntry = () => entries[current] || placeholder;
@@ -23,7 +23,7 @@
     hasRegister = true;
     revision++;
     window.CeasefireProject.changed();
-    if (removeEntry) removeEntry.disabled = false;
+    for (const button of root.querySelectorAll('[data-register-action="remove"]')) button.disabled = false;
     refreshEntryList();
   }
   function el(tag, className, label, args = []) {
@@ -128,11 +128,6 @@
   }
   function customFields(entry) {
     const grid = el('div','register-grid');
-    for (const [key, label] of [['seal_type','Seal Type'], ['installation_type','Installation Type']]) {
-      const wrap = editor(entry, key, label, options[key]);
-      wrap.querySelector('select').required = true;
-      grid.append(wrap);
-    }
     const report = editor(entry, 'report', 'Report/Assessment');
     const input = report.querySelector('input');
     const list = el('datalist');
@@ -140,26 +135,21 @@
     input.setAttribute('list', list.id);
     report.append(list);
     grid.append(report);
-    const fields = [grid];
-    for (const [key, label] of [['service_types','Service Type'], ['products','Products']]) {
-      const group = el('fieldset','register-choices');
-      group.append(el('legend','',label));
-      for (const value of options[key]) {
-        const wrap = el('label'), check = el('input');
-        check.type = 'checkbox';
-        check.value = value;
-        check.checked = (entry[key] || []).includes(value);
-        check.addEventListener('change', () => {
-          const checked = group.querySelectorAll('input:checked');
-          entry[key] = Array.from(checked, node => node.value);
-          changed();
-        });
-        wrap.append(check, document.createTextNode(value));
-        group.append(wrap);
-      }
-      fields.push(group);
+    const group = el('fieldset','register-choices');
+    group.append(el('legend','','Products'));
+    for (const value of options.products) {
+      const wrap = el('label'), check = el('input');
+      check.type = 'checkbox';
+      check.value = value;
+      check.checked = (entry.products || []).includes(value);
+      check.addEventListener('change', () => {
+        entry.products = Array.from(group.querySelectorAll('input:checked'), node => node.value);
+        changed();
+      });
+      wrap.append(check, document.createTextNode(value));
+      group.append(wrap);
     }
-    return fields;
+    return [grid, group];
   }
   async function readPhoto(file) {
     if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024)
@@ -265,10 +255,10 @@
   }
   async function download(button) {
     if (pending || exporting) return;
-    if (!entries.length) { setStatus(window.CeasefireI18n.translate('Entry {0} is incomplete.', [1])); return; }
+    if (!entries.length) { setStatus(window.CeasefireI18n.translate('Entry {0} is incomplete.', [penetrationIds(editedEntry())])); return; }
     const snapshot = capture().value;
     exporting = true;
-    button.disabled = true;
+    for (const control of root.querySelectorAll('[data-register-action="pdf"]')) control.disabled = true;
     try {
       const result = await window.CeasefireDownloads.save('/api/project/passive-fire-register.pdf',
         {register:snapshot, project_details:window.CeasefireProject.details(),
@@ -278,18 +268,12 @@
         window.CeasefireDialogs.message({i18nSource:'File saved to {0}.{1}', i18nArgs:[result.path, '']});
       }
     } catch(error) { setStatus(error.message); }
-    finally { exporting = false; exportButton.disabled = false; }
+    finally {
+      exporting = false;
+      for (const control of root.querySelectorAll('[data-register-action="pdf"]')) control.disabled = false;
+    }
   }
-  function render() {
-    if (!root || !options) return false;
-    fieldIndex = 0;
-    const entry = editedEntry(), form = el('fieldset','register-form');
-    form.disabled = pending;
-    const toolbar = el('div','register-toolbar card');
-    entrySelect = el('select');
-    entrySelect.addEventListener('change', () => { current = Number(entrySelect.value); message = ''; render(); });
-    refreshEntryList();
-    loadLegacyLabels();
+  function entryActions(entry) {
     const {iconButton} = window.ClassifireFormControls;
     const back = iconButton('Back', 'back', () => window.CeasefireProject.openDocumentation());
     const add = iconButton('Add entry', 'add', () => {
@@ -306,10 +290,23 @@
       hasRegister = true; revision++; window.CeasefireProject.changed(); message = ''; render();
     });
     remove.disabled = !entries.length;
-    removeEntry = remove;
-    exportButton = iconButton('Download PDF', 'pdf', e => download(e.currentTarget));
+    remove.dataset.registerAction = 'remove';
+    const exportButton = iconButton('Download PDF', 'pdf', e => download(e.currentTarget));
+    exportButton.dataset.registerAction = 'pdf';
     exportButton.disabled = exporting;
-    toolbar.append(field('Register entry',entrySelect), back, add, remove, exportButton);
+    return [back, add, remove, exportButton];
+  }
+  function render() {
+    if (!root || !options) return false;
+    fieldIndex = 0;
+    const entry = editedEntry(), form = el('fieldset','register-form');
+    form.disabled = pending;
+    const toolbar = el('div','register-toolbar register-actions card');
+    entrySelect = el('select');
+    entrySelect.addEventListener('change', () => { current = Number(entrySelect.value); message = ''; render(); });
+    refreshEntryList();
+    loadLegacyLabels();
+    toolbar.append(field('Register entry',entrySelect), ...entryActions(entry));
     const status = el('p','helper',message);
     status.setAttribute('role','status');
     if (pickerEntry !== entry) {
@@ -382,7 +379,9 @@
       buttons.append(clear);
     }
     sign.append(buttons);
-    form.append(sign, el('p','helper','Save the project to keep this register.'));
+    const footer = el('div','register-footer-actions register-actions');
+    footer.append(...entryActions(entry));
+    form.append(sign, el('p','helper','Save the project to keep this register.'), footer);
     root.replaceChildren(form);
     return true;
   }

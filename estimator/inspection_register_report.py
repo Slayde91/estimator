@@ -12,7 +12,7 @@ from .documentation_catalog import register_options
 from .passive_fire_register import JPEG_PREFIX, PHASES, _INSPECTION_RED, _ready, normalize_register
 from .pdf_fonts import FONT_REGULAR
 from .reference_library import ReferenceNotFound
-from .register_plans import append_plan_pages
+from .register_plans import append_plan_pages, penetration_ids
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .technical_item_exports import prepare_technical_item, technical_pdf_rows
 
@@ -46,7 +46,7 @@ def _system_cells(report, entry, library):
     try:
         item = prepare_technical_item({'id': key}, library=library, include_diagrams=False, inspection_filters=selected)
     except ReferenceNotFound as error:
-        raise ValidationError(f"The Technical Library item for entry {entry['number']} is unavailable. Select a replacement before downloading.") from error
+        raise ValidationError(f'Penetration ID {penetration_ids(entry)}: the Technical Library item is unavailable. Select a replacement before downloading.') from error
 
     # The inspection exporter resolves ambiguous historical facets explicitly and
     # preserves links on individual report numbers. Use those same source values.
@@ -95,7 +95,7 @@ def render_inspection_register(register, details, *, library, company, plan_sess
     completed = []
     for entry in normalize_register(register)['entries']:
         try:
-            _ready(entry, entry['number'], options)
+            _ready(entry, options)
         except ValidationError:
             continue
         completed.append(entry)

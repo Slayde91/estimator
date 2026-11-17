@@ -101,20 +101,26 @@ async function run() {
   await expect(signingDate).toHaveJSProperty('readOnly',true);
   await form.getByLabel('Level/Location').fill('North wall, Level 2');
   const toolbar = form.locator('.register-toolbar');
-  assert.deepEqual(await toolbar.locator('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))),
-    ['Back','Add entry','Remove entry','Download PDF']);
-  await expect(toolbar.getByRole('button',{name:'Add entry'})).toHaveClass(/add-icon-action/);
-  await expect(toolbar.getByRole('button',{name:'Remove entry'}).locator('.trash-artwork')).toHaveCount(1);
-  await expect(toolbar.getByRole('button',{name:'Download PDF'}).locator('.download-format')).toHaveText('PDF');
+  const footer = form.locator('.register-footer-actions:last-child');
+  for (const actions of [toolbar, footer]) {
+    assert.deepEqual(await actions.locator('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))),
+      ['Back','Add entry','Remove entry','Download PDF']);
+    await expect(actions.getByRole('button',{name:'Add entry'})).toHaveClass(/add-icon-action/);
+    await expect(actions.getByRole('button',{name:'Remove entry'}).locator('.trash-artwork')).toHaveCount(1);
+    await expect(actions.getByRole('button',{name:'Download PDF'}).locator('.download-format')).toHaveText('PDF');
+  }
   for (const width of [1915, 1160, 390]) {
     await page.setViewportSize({width, height:884});
-    const buttons = await toolbar.locator('button').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
-    assert.ok(buttons.every(box => box.width === 42 && box.height === 42 && box.y === buttons[0].y));
-    const icon = await toolbar.locator('.download-format-icon').boundingBox(), pdf = buttons[3];
-    assert.ok(icon.x > pdf.x && icon.x + icon.width < pdf.right && icon.y > pdf.top && icon.y + icon.height < pdf.bottom);
+    for (const actions of [toolbar, footer]) {
+      const buttons = await actions.locator('button').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON()));
+      assert.ok(buttons.every(box => box.width === 42 && box.height === 42 && box.y === buttons[0].y));
+      const icon = await actions.locator('.download-format-icon').boundingBox(), pdf = buttons[3];
+      assert.ok(icon.x > pdf.x && icon.x + icon.width < pdf.right && icon.y > pdf.top && icon.y + icon.height < pdf.bottom);
+      if (actions === footer) assert.equal(buttons[0].left, (await footer.boundingBox()).x);
+    }
   }
   await page.setViewportSize({width:1280,height:900});
-  await toolbar.getByRole('button',{name:'Back',exact:true}).click();
+  await footer.getByRole('button',{name:'Back',exact:true}).click();
   await expect(page.locator('#view-documentation')).toBeVisible();
   await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
@@ -137,10 +143,10 @@ async function run() {
   const custom = picker.getByLabel('Custom entry', {exact:true});
   await expect(custom).toBeChecked();
   await picker.getByLabel('Manufacturer name').fill('Independent works');
-  await picker.getByLabel('Seal Type',{exact:true}).selectOption('Fire Seal');
-  await picker.getByLabel('Installation Type',{exact:true}).selectOption('Collar');
+  for (const label of ['Seal Type', 'Installation Type', 'Service Type', 'Copper pipe(s)']) {
+    await expect(picker.getByText(label,{exact:true})).toHaveCount(0);
+  }
   await picker.getByLabel('Cast-In Collar',{exact:true}).check();
-  await picker.getByLabel('Copper pipe(s)',{exact:true}).check();
   await picker.getByLabel('Report/Assessment').fill('MAN-590');
   await expect(picker.locator('table')).toHaveCount(0);
   const savedManual = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
@@ -150,6 +156,9 @@ async function run() {
   const manualEntry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
   assert.equal(manualEntry.custom_entry, true);
   assert.equal(manualEntry.technical_filters.manufacturer, 'Independent works');
+  assert.equal(manualEntry.seal_type, '');
+  assert.equal(manualEntry.installation_type, '');
+  assert.deepEqual(manualEntry.service_types, []);
   assert.deepEqual(manualEntry.products, ['Cast-In Collar']);
   assert.equal(manualEntry.report, 'MAN-590');
   await page.evaluate(value => window.ClassifirePassiveRegister.applyProject(value),
@@ -243,11 +252,11 @@ async function run() {
     await route.continue();
   });
   const exportReceipt = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-register.pdf');
-  await form.getByRole('button',{name:'Download PDF'}).click();
+  await footer.getByRole('button',{name:'Download PDF'}).click();
   try {
     await started;
     await access.selectOption('Yes');
-    await expect(form.getByRole('button',{name:'Download PDF'})).toBeDisabled();
+    for (const actions of [toolbar, footer]) await expect(actions.getByRole('button',{name:'Download PDF'})).toBeDisabled();
     await access.selectOption('NA');
   } finally { releaseExport(); }
   const response = await exportReceipt;
@@ -323,14 +332,14 @@ async function run() {
   await expect(removePhoto.locator('.trash-artwork')).toHaveCount(1);
   await removePhoto.click();
   await expect(form.getByRole('img',{name:'Before Photo 1',exact:true})).toHaveCount(0);
-  await form.getByRole('button',{name:'Add entry'}).click();
+  await footer.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('002');
   await form.getByLabel('Level/Location').fill('South wall');
-  await form.getByRole('button',{name:'Remove entry'}).click();
+  await footer.getByRole('button',{name:'Remove entry'}).click();
   await page.locator('#discard-dialog [value="confirm"]').click();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
   await page.screenshot({path:path.join(output,'register-desktop.png')});
-  await form.getByRole('button',{name:'Add entry'}).click();
+  await toolbar.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('003');
   await downloadRegister(false);
   assert.deepEqual(errors,[]);

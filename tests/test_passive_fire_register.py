@@ -45,6 +45,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
                  'technical_filters': {'substrate':'Concrete/masonry wall', 'orientation':'Vertical',
                                        'manufacturer':'Independent supplier', 'type':'Core hole',
                                        'category':'Plumbing', 'services':'Copper Pipes', 'frl':'-/90/90'}}
+        historic = {key: entry.pop(key) for key in ('seal_type', 'installation_type', 'service_types')}
         draft = normalize_register({'entries':[entry]})
         self.assertEqual(normalize_register(draft), draft)
         for old_category in ('HVAC', 'Mechanical'):
@@ -58,6 +59,18 @@ class PassiveFireRegisterTests(unittest.TestCase):
             words = ' '.join(words.split())
             for value in ['Independent supplier', 'Plumbing', 'Copper Pipes', 'MAN-590', 'Concrete/masonry wall']:
                 self.assertIn(value, words)
+            for label in ('Seal type', 'Installation type', 'Service type'):
+                self.assertNotIn(label, words)
+        previous = normalize_register({'entries': [{**entry, **historic}]})
+        reopened = normalize_register(previous)
+        for key, value in historic.items():
+            self.assertEqual(reopened['entries'][0][key], value)
+        old_pdf = PdfReader(BytesIO(render_register_pdf(reopened, {}, company=DEFAULTS)))
+        old_text = ' '.join(' '.join(page.extract_text() for page in old_pdf.pages).split())
+        for key, label in [('seal_type', 'Seal type'), ('installation_type', 'Installation type'),
+                           ('service_types', 'Service type')]:
+            value = historic[key]
+            self.assertIn(label + ' ' + (', '.join(value) if isinstance(value, list) else value), old_text)
         for changes, message in [({'technical_item_id':'a-system'}, 'cannot also reference'),
                                  ({'custom_entry':'true'}, 'checkbox'),
                                  ({'products':[]}, 'Products'),
@@ -180,8 +193,12 @@ class PassiveFireRegisterTests(unittest.TestCase):
         self.assertEqual(normalize_register(draft), draft)
         self.assertIsNone(draft['entries'][0]['signature'])
         self.assertEqual(draft['entries'][0]['side2']['before'], [])
-        with self.assertRaisesRegex(ValidationError, 'entry 1.*Location.*Signature'):
+        with self.assertRaisesRegex(ValidationError, 'Penetration ID 001:.*Location.*Signature'):
             render_register_pdf(draft, {}, company=DEFAULTS)
+        after_deletion = normalize_register({'entries': [completed_entry(), {}, {'access': 'Yes'}]})
+        del after_deletion['entries'][1]
+        with self.assertRaisesRegex(ValidationError, 'Penetration ID 003 / 003-2:.*Location.*Signature'):
+            render_register_pdf(after_deletion, {}, company=DEFAULTS)
         with self.assertRaisesRegex(ValidationError, 'Add a register entry'):
             render_register_pdf({'entries': []}, {}, company=DEFAULTS)
 
@@ -267,7 +284,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
                     partial = {**entry, 'technical_filters': {**choices, facet: ''}}
                     saved = normalize_register({'entries': [partial]})
                     self.assertEqual(saved['entries'][0]['technical_filters'][facet], '')
-                    with self.assertRaisesRegex(ValidationError, 'Complete register entry'):
+                    with self.assertRaisesRegex(ValidationError, 'Penetration ID 001 / 001-2: complete'):
                         render_register_pdf(saved, {}, library=library, company=DEFAULTS)
             for facet in ('services', 'frl'):
                 with self.subTest(stale=facet), self.assertRaisesRegex(ValidationError, 'no longer matches'):
@@ -381,7 +398,7 @@ class PassiveFireRegisterHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('POST', route, changed, headers)[0], 409)
         status, _, error = self.request('POST', route, {'register': {'entries': [{}]}})
         self.assertEqual(status, 400)
-        self.assertIn('Complete register entry', json.loads(error)['error'])
+        self.assertIn('Penetration ID 001: complete', json.loads(error)['error'])
 
     def test_catalog_order_and_template_options_are_identical_for_both_editions(self):
         for edition in ('full', 'standard'):

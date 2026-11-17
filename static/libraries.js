@@ -143,6 +143,7 @@
     }
   }
   function renderFilterControls(container, filters, values, onChange) {
+    if (values.type === 'Cast-in') values.type = 'Core hole';
     const visible = (Array.isArray(filters) ? filters : []).filter(filter => typeof filter.key === "string" && !["search", "offset", "limit", "technical_reference"].includes(filter.key));
     const controls = new Map();
     const select = (key, value) => {

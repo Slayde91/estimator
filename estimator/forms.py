@@ -67,7 +67,8 @@ class Forms:
         with self.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS form_templates (
-                    id TEXT PRIMARY KEY, version INTEGER NOT NULL, owner TEXT NOT NULL, request_key TEXT NOT NULL);
+                    id TEXT PRIMARY KEY, version INTEGER NOT NULL, owner TEXT NOT NULL, request_key TEXT NOT NULL,
+                    deleted INTEGER NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS form_versions (
                     template_id TEXT NOT NULL REFERENCES form_templates(id), version INTEGER NOT NULL,
                     definition TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by_name TEXT NOT NULL,
@@ -82,6 +83,8 @@ class Forms:
                 CREATE INDEX IF NOT EXISTS form_entry_template ON form_entries(template_id,updated_at);
             """)
             db.execute('BEGIN IMMEDIATE')
+            if 'deleted' not in {row['name'] for row in db.execute('PRAGMA table_info(form_templates)')}:
+                db.execute('ALTER TABLE form_templates ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0')
             columns = {row['name'] for row in db.execute('PRAGMA table_info(form_entries)')}
             if 'requested_by' not in columns:
                 db.execute('ALTER TABLE form_entries ADD COLUMN requested_by TEXT')
@@ -130,25 +133,27 @@ class Forms:
 
     @staticmethod
     def _query():
-        return ('SELECT t.id,t.owner,v.version,v.definition,v.updated_at,v.updated_by_name FROM form_templates t '
+        return ('SELECT t.id,t.owner,t.deleted,v.version,v.definition,v.updated_at,v.updated_by_name FROM form_templates t '
                 'JOIN form_versions v ON v.template_id=t.id ')
 
-    def _template(self, db, user, identity, version=None, internal=False):
+    def _template(self, db, user, identity, version=None, internal=False, include_deleted=False):
         key = _identity(identity)
         row = db.execute(self._query() + 'WHERE t.id=? AND v.version=' + ('t.version' if version is None else '?'),
                          (key,) if version is None else (key, version)).fetchone()
-        if not row:
+        if not row or row['deleted'] and not (internal or include_deleted):
             raise _missing()
         data = self._view(row, user)
         if not internal and not (data['can_manage'] or
                 data['status'] == 'published' and user['role'] in data['roles']):
             raise _missing()
+        if row['deleted']:
+            data.update(deleted=True, can_manage=False, can_fill=False, can_assign=False)
         return data
 
     def templates(self, user):
         self._user(user)
         with self.connect() as db:
-            rows = db.execute(self._query() + 'WHERE v.version=t.version ORDER BY v.updated_at DESC,t.id')
+            rows = db.execute(self._query() + 'WHERE v.version=t.version AND t.deleted=0 ORDER BY v.updated_at DESC,t.id')
             result = []
             for row in rows:
                 data = self._view(row, user)
@@ -184,6 +189,8 @@ class Forms:
         with self.connect(True) as db:
             row = db.execute('SELECT * FROM form_templates WHERE id=?', (key,)).fetchone()
             if row:
+                if row['deleted']:
+                    raise _missing()
                 if row['owner'] != user['id'] and user['role'] != 'admin':
                     raise FormError('Only the template creator or an administrator can change this template.', 403)
                 if request_key == row['request_key']:
@@ -194,9 +201,29 @@ class Forms:
             if row:
                 db.execute('UPDATE form_templates SET version=?,request_key=? WHERE id=?', (version, request_key, key))
             else:
-                db.execute('INSERT INTO form_templates VALUES (?,?,?,?)', (key, version, user['id'], request_key))
+                db.execute('INSERT INTO form_templates (id,version,owner,request_key) VALUES (?,?,?,?)', (key, version, user['id'], request_key))
             db.execute('INSERT INTO form_versions VALUES (?,?,?,?,?)', (key, version, _json(definition), _now(), user['name']))
             return self._template(db, user, key)
+
+    def delete_template(self, user, body):
+        self._user(user, True)
+        if set(body) != {'id', 'version'}:
+            raise ValidationError('Include the template ID and current version.')
+        key, expected = _identity(body['id']), _version(body['version'])
+        request_key = _request_key('delete_template', user, body)
+        with self.connect(True) as db:
+            row = db.execute('SELECT * FROM form_templates WHERE id=?', (key,)).fetchone()
+            if not row:
+                raise _missing()
+            if row['deleted'] and row['request_key'] == request_key:
+                return {'id': key, 'deleted': True}
+            if not self._template(db, user, key)['can_manage']:
+                raise FormError('Only the template creator or an administrator can delete this template.', 403)
+            if row['version'] != expected:
+                raise FormError('This template changed. Check the latest version before deleting it.', 409)
+            # Entries and their access rules still use the last and pinned definitions.
+            db.execute('UPDATE form_templates SET deleted=1,request_key=? WHERE id=?', (request_key,key))
+            return {'id': key, 'deleted': True}
 
     @staticmethod
     def _eligible(stage,user):
@@ -283,9 +310,10 @@ class Forms:
         readable = own or not assigned_start and (stage_access or previously_signed or row['status']=='submitted')
         if not ((allowed and latest['status'] in ('published','archived') and readable) or role == 'admin'):
             raise _missing()
-        active = allowed and latest['status'] == 'published' and row['status'] in ('draft','requested') and role in ('editor','admin')
+        published = latest['status'] == 'published' and not latest.get('deleted')
+        active = allowed and published and row['status'] in ('draft','requested') and role in ('editor','admin')
         edit = bool(active and (own or not assigned_start) and (stage_access if current else own))
-        reopen = bool(approvals and latest['status']=='published' and (role=='admin' or allowed and role=='editor'
+        reopen = bool(approvals and published and (role=='admin' or allowed and role=='editor'
                       and approvals[-1]['member_id']==user['id']))
         result = {'id': row['id'], 'version': row['version'], 'template_id': row['template_id'],
                   'name':template['name'], 'summary_values':json.loads(row['summary_values']), 'pdf_theme':row['pdf_theme'],
@@ -311,7 +339,7 @@ class Forms:
         self._user(user)
         with self.connect() as db:
             if template_id is not None:
-                self._template(db, user, _identity(template_id))
+                self._template(db, user, _identity(template_id), include_deleted=True)
             rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,requested_by,requested_by_name,status,stage_id,'
                               'approvals,reversals,created_at,updated_at,summary_values,reminders,pdf_theme FROM form_entries '
                               + "WHERE status != 'deleted' "

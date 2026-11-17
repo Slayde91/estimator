@@ -200,20 +200,7 @@
     }
     const actions = [];
     if (window.ClassifireAccess.can('edit')) {
-      const file=el('input');file.type='file';file.accept='.json,application/json';file.hidden=true;
-      file.addEventListener('change',async()=>{
-        const selected=file.files[0];if(!selected)return;
-        try {
-          if(selected.size>2*1024*1024) throw Error('Choose a template JSON file smaller than 2 MiB.');
-          const source=JSON.parse(await selected.text());
-          if(!source || typeof source.name!=='string' || !Array.isArray(source.fields) || source.fields.length>500 || !source.fields.every(f=>f && typeof f.id==='string' && typeof f.type==='string' && typeof f.label==='string'))
-            throw Error('Choose a CLASSIFIRE form template JSON file.');
-          const model={...blank(source.mode),name:source.name,description:source.description || '',fields:source.fields,settings:source.settings || {}};
-          if(Array.isArray(source.roles)) model.roles=source.roles.filter(r=>roles.includes(r));
-          edit(model);
-        } catch(error){report(error);} finally{file.value='';}
-      });
-      actions.push(file,button('Import template',()=>file.click()),button('Create template',newTemplate,true));
+      actions.push(button('Create template',newTemplate,true));
     }
     box.append(heading(panel === 'templates' ? 'Form templates' : 'Form records',actions));
     const approvals=records.filter(row=>row.can_approve && row.status !== 'requested');
@@ -243,7 +230,7 @@
         const matches = records.filter(row => [row.name,row.template_name,row.created_by_name,row.status].join(' ').toLocaleLowerCase().includes(needle));
         body.replaceChildren(table(['Template','Created by','Status','Updated','Actions'],matches.map(row=>[
           link(row.template_name || row.name || 'Form',()=>openRecord(row.id)),row.created_by_name,badge(row.status),date(row.updated_at),
-          deleteRecordAction(row)
+          deleteAction(row, 'entry')
         ]), needle ? 'No matching form records.' : 'No form records yet.'));
       } else {
         const matches = templates.filter(t=>[t.name,t.description,t.status,t.mode].join(' ').toLocaleLowerCase().includes(needle));
@@ -252,22 +239,25 @@
           if (t.can_fill) actions.append(button('Fill out',()=>openTemplate(t.id,'fill'),true));
           if (t.can_manage) actions.append(button('Edit',()=>openTemplate(t.id,'edit')));
           if (t.can_assign) actions.append(button('Assign',()=>assignTemplate(t)));
+          actions.append(deleteAction(t, 'template'));
           return [link(t.name,()=>openTemplate(t.id,'detail')),t.mode === 'workflow' ? 'Workflow' : 'Timeline',t.version,badge(t.status),actions];
         }), needle ? 'No matching templates.' : 'No templates are available for your staff role.'));
       }
     }
     search.addEventListener('input',filter); filter();
   }
-  function deleteRecordAction(row) {
+  function deleteAction(row, resource) {
     const actions = el('div', null, 'forms-delete-action');
-    const remove = window.ClassifireFormControls.iconButton('Delete form', 'remove', async () => {
-      if (pending || !await window.CeasefireDialogs.confirm('Delete form', 'Are you sure you want to delete this form?', 'Yes', 'Cancel')) return;
+    const template = resource === 'template', title = template ? 'Delete template' : 'Delete form';
+    const question = template ? 'Are you sure you want to delete this template?' : 'Are you sure you want to delete this form?';
+    const remove = window.ClassifireFormControls.iconButton(title, 'remove', async () => {
+      if (pending || !await window.CeasefireDialogs.confirm(title, question, 'Yes', 'Cancel')) return;
       if (pending || !remove.isConnected) return;
       const stamp = generation;
       pending = true;
       remove.disabled = true;
       try {
-        await api('entry/delete', {id:row.id, version:row.version});
+        await api(resource+'/delete', {id:row.id, version:row.version});
         if (stamp === generation && remove.isConnected) await refresh();
       } catch (error) {
         if (stamp === generation && remove.isConnected) {
@@ -276,7 +266,7 @@
         }
       } finally { pending = false; }
     });
-    remove.disabled = !row.can_delete;
+    remove.disabled = template ? !row.can_manage : !row.can_delete;
     actions.append(remove);
     return actions;
   }

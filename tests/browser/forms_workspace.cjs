@@ -44,6 +44,7 @@ const ready=new Promise((resolve,reject)=>{
   const forms=page.locator('#forms-root'), b=(name)=>forms.getByRole('button',{name,exact:true});
   for (const tab of ['Records','Templates']) {
     await b(tab).click();
+    await expect(b('Import template')).toHaveCount(0);
     await page.mouse.move(0,0);
     for (const name of ['Templates','Records']) {
       const control = b(name);
@@ -148,6 +149,8 @@ const ready=new Promise((resolve,reject)=>{
   await forms.getByLabel('Template name',{exact:true}).fill('Site QA inspection revised');await b('Save changes').click();await expect(forms.getByRole('heading',{name:'Form templates',exact:true})).toBeVisible();await b('Records').click();await b('Site QA inspection').click();
   await expect(forms).toContainText('Template version 2');await expect(forms).toContainText('QA site, bay B');
   await open(view);await expect(viewRoot).toContainText('Site QA inspection revised');
+  await expect(viewRoot.getByRole('row').filter({hasText:'Site QA inspection revised'})
+    .getByRole('button',{name:'Delete template',exact:true})).toBeDisabled();
   await expect(viewRoot.getByRole('button',{name:'Fill out'})).toHaveCount(0);
   await viewRoot.getByRole('button',{name:'Records',exact:true}).click();
   await viewRoot.getByRole('button',{name:'Site QA inspection',exact:true}).click();await expect(viewRoot).toContainText('QA site, bay B');
@@ -347,5 +350,27 @@ const ready=new Promise((resolve,reject)=>{
   await confirmation.getByRole('button',{name:'Yes',exact:true}).click();
   await expect(deleteRow).toHaveCount(0);
   await expect(forms.getByRole('button',{name:'Site QA inspection',exact:true}).first()).toBeVisible();
+  await b('Templates').click();
+  const templateToDelete = forms.getByRole('row').filter({hasText:'Site QA inspection revised'});
+  const deleteTemplate = templateToDelete.getByRole('button',{name:'Delete template',exact:true});
+  assert.equal(await templateToDelete.locator('button').last().getAttribute('aria-label'), 'Delete template');
+  assert.ok(await deleteTemplate.evaluate(button => Math.abs(button.getBoundingClientRect().right -
+    button.closest('.forms-row-actions').getBoundingClientRect().right) < 1), 'The trash button is at the far right of the row actions');
+  await deleteTemplate.click();
+  const deleteTemplateDialog = page.getByRole('dialog').filter({hasText:'Are you sure you want to delete this template?'});
+  await deleteTemplateDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(templateToDelete).toBeVisible();
+  await deleteTemplate.click();
+  await deleteTemplateDialog.getByRole('button',{name:'Yes',exact:true}).click();
+  await expect(templateToDelete).toHaveCount(0);
+  await b('Records').click();
+  await b('Site QA inspection').click();
+  await expect(forms).toContainText('Template version 2');
+  await expect(forms).toContainText('QA site, bay B');
+  const historicalDownload = page.waitForEvent('download');
+  await b('Download PDF').click();
+  const historicalPdf = await historicalDownload;
+  assert.match(historicalPdf.suggestedFilename(), /^Site QA inspection.*\.pdf$/);
+  assert.equal(await historicalPdf.failure(), null);
   assert.deepEqual(issues,[]);console.log('Forms browser checks passed. '+output);
 })().catch(error=>{console.error(error,stderr);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

@@ -5,6 +5,7 @@
 .forms-heading .actions, .forms-row-actions, .forms-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:.5rem; }
 .forms-search { max-width:36rem; }
 .forms-delete-action { display:flex; justify-content:flex-end; }
+.forms-row-actions .forms-delete-action { margin-inline-start:auto; }
 #forms-root .forms-tabs .button.primary { background:var(--selected-tab-background,var(--theme-button)); color:white; }
 #forms-root .forms-tabs .button.primary:hover { background:var(--selected-tab-hover,var(--theme-button-hover)); }
 #forms-root .forms-tabs .button[aria-pressed="true"] { box-shadow:inset 0 -4px #fff; }

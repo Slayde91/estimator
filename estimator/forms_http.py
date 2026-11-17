@@ -31,6 +31,7 @@ class FormsHTTP:
         }
         writes = {
             'template/save': self.store.save_template,
+            'template/delete': self.store.delete_template,
             'entry/assign': self.store.assign_entry,
             'entry/save': self.store.save_entry,
             'entry/delete': self.store.delete_entry,

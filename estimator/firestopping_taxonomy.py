@@ -13,7 +13,7 @@ def _text(value):
 
 def canonical_opening_type(value):
     text = _text(value)
-    return {'core hole': OPENING_TYPES[0], 'oversized': OPENING_TYPES[1],
+    return {'core hole': OPENING_TYPES[0], 'cast-in': OPENING_TYPES[0], 'oversized': OPENING_TYPES[1],
             'oversized core hole': OPENING_TYPES[1]}.get(text.casefold(), text)
 
 

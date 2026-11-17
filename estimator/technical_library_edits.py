@@ -17,6 +17,7 @@ from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
 from .technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
 from .technical_prose import public_prose_fields
+from .library_opening_types import project_opening_types
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
                              SERVICE_DISCOVERY_GENERALIZATIONS)
@@ -270,6 +271,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     values.append({'kind': target_kind, 'id': target, 'title': target_record['title'], 'relationship': 'Manually linked.', 'origin': 'user'})
         for key, values in data['_technical_discovery'].items():
             values['category'] = discovery_categories(values.get('category', []), values.get('services', []))
+            if key in data['_technical_public_records']:
+                values['type'] = project_opening_types(data['_technical_public_records'][key], values.get('type', []))
         canonical = self._canonical(data)
         # New reports/manufacturers are user-authored metadata, not new
         # passive-fire classifications. Classification values stay canonical.
@@ -281,8 +284,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 # These suppliers publish assessed values outside the original catalogue.
                 source = record.get('source_label')
                 values = data['_technical_discovery'][key].get(facet, [])
-                snap_option = source == SNAP_FILTER_SOURCE and (
-                    facet in ('substrate', 'frl', 'services') or (facet == 'type' and values == ['Cast-in']))
+                snap_option = source == SNAP_FILTER_SOURCE and facet in ('substrate', 'frl', 'services')
                 if (facet not in ('report', 'manufacturer') and source != ALLPROOF_MANUAL_SOURCE
                         and not snap_option):
                     continue

@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from estimator.library_opening_types import OPENING_TYPES, opening_type, opening_type_evidence
+from estimator.library_opening_types import OPENING_TYPES, opening_type, opening_type_evidence, project_opening_types
 from estimator.library_substrates import substrate_options
 from estimator.reference_library import ReferenceLibrary
 from tests.test_reference_library import sample_library
@@ -18,6 +18,36 @@ def item(**fields):
 
 
 class OpeningTypeTests(unittest.TestCase):
+    def test_local_patch_is_core_hole_for_snap_and_allproof_with_batt_seals_still_oversized(self):
+        patches = (
+            ('Installation Details', '250mm x 250mm fire rated plasterboard patch is to be added to the Speedpanel wall.'),
+            ('Installation Details', 'For the tested plasterboard build-up, include a 600 × 600 × 13 mm patch on each side.'),
+            ('Barrier Construction', '75 mm Hebel Powerpanel wall with 13 mm fire-rated plasterboard patch'),
+            ('Barrier Construction', '64 mm steel studs with one 13 mm layer of fire-rated plasterboard plus a 13 mm fire-rated board patch on each face'),
+            ('Barrier Construction', 'Speedpanel Wall (78mm) + PB Patch 2x13mm each side'),
+        )
+        for manufacturer in ('Snap', 'Allproof'):
+            for label, patch in patches:
+                with self.subTest(manufacturer=manufacturer, patch=patch):
+                    record = {'filter_values': {'manufacturer': [manufacturer], 'type': ['Oversized core hole']},
+                              'fields': [{'label': label, 'value': patch}]}
+                    before = deepcopy(record)
+                    self.assertEqual(opening_type(record), 'Core hole')
+                    self.assertEqual(project_opening_types(record, ['Oversized core hole']), ['Core hole'])
+                    self.assertEqual(record, before)
+                    record['fields'].append({'label': 'Installation Details',
+                                             'value': 'Pack the annulus with 60 mm coated stone-wool batt.'})
+                    self.assertEqual(opening_type(record), 'Oversized core hole')
+                    self.assertEqual(project_opening_types(record, ['Oversized core hole']), ['Oversized core hole'])
+        manual = item(Manufacturer='Snap', Installation_Details='Apply sealant around the pipe.')
+        self.assertEqual(project_opening_types(manual, ['Oversized core hole']), ['Oversized core hole'])
+        for value in ('Raise the mortar patch at the wall face.',
+                      'Fix a plasterboard patch and install MgO board over the opening.',
+                      'Fit plasterboard across the opening and repair the adjacent mortar patch.',
+                      'Fit plasterboard across the opening and a plasterboard patch beside the service.'):
+            manual = item(Manufacturer='Snap', Installation_Details=value)
+            self.assertEqual(project_opening_types(manual, ['Oversized core hole']), ['Oversized core hole'])
+
     def test_selected_products_and_installed_components_count_from_attributed_fields(self):
         for label, value in (
             ('System Products', 'FyreBOARD Maxilite, sealant'),

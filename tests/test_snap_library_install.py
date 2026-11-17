@@ -83,9 +83,9 @@ class SnapLibraryInstallTests(unittest.TestCase):
         with self.assertRaises(ReferenceNotFound):
             self.library.asset(self.image_id, pdf=False)
 
-    def test_snap_cast_in_is_selectable_and_exported_through_all_seven_inspection_filters(self):
+    def test_legacy_snap_cast_in_resolves_to_core_hole_in_filters_editor_and_exports(self):
         filters = {'manufacturer': 'Snap', 'frl': '-/120/90', 'services': 'PEX-AL-PEX',
-                   'type': 'Cast-in', 'orientation': 'Horizontal', 'substrate': 'Concrete/masonry floor',
+                   'type': 'Core hole', 'orientation': 'Horizontal', 'substrate': 'Concrete/masonry floor',
                    'category': 'Plumbing & Hydraulic'}
         for system, opening in zip(self.systems, ('Cast-in', 'Core hole')):
             facets = {key: [value] for key, value in filters.items()}
@@ -93,12 +93,20 @@ class SnapLibraryInstallTests(unittest.TestCase):
         self.write_manifest(self.systems, True)
         listing = self.library.listing('technical', inspection='1', **filters)
         key = self.systems[0]['record']['id']
-        self.assertEqual([row['id'] for row in listing['items']], [key])
+        self.assertEqual({row['id'] for row in listing['items']}, {system['record']['id'] for system in self.systems})
         types = next(f['options'] for f in listing['filters'] if f['key'] == 'type')
-        self.assertIn('Cast-in', [option['value'] for option in types])
-        self.assertEqual(self.library.detail('technical', key)['inspection_options']['type'], ['Cast-in'])
+        self.assertNotIn('Cast-in', [option['value'] for option in types])
+        self.assertEqual(self.library.detail('technical', key)['inspection_options']['type'], ['Core hole'])
+        editor = self.library.technical_edit(key)
+        self.assertEqual(editor['record']['filter_values']['type'], ['Core hole'])
+        stored, _ = self.library.technical_edits.read()
+        self.assertEqual(stored[key]['record']['filter_values']['type'], ['Cast-in'])
         item = prepare_technical_item({'id': key}, library=self.library, inspection_filters=filters)
-        self.assertIn(('Type', 'Cast-in'), [(field['label'], field['value']) for field in item['fields']])
+        self.assertIn(('Type', 'Core hole'), [(field['label'], field['value']) for field in item['fields']])
+        legacy = {**filters, 'type': 'Cast-in'}
+        self.assertEqual(self.library.listing('technical', inspection='1', **legacy)['total'], 2)
+        item = prepare_technical_item({'id': key}, library=self.library, inspection_filters=legacy)
+        self.assertIn(('Type', 'Core hole'), [(field['label'], field['value']) for field in item['fields']])
 
     def test_conflict_rolls_back_earlier_row_and_preserves_existing_record(self):
         self.write_manifest([self.systems[1]], True)

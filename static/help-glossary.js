@@ -30,14 +30,19 @@
   function catalogue(registry, takeoffs = true) {
     const rows = [];
     const add = (group, name, description, icon, extra = {}) => rows.push({ group, name, description, icon, ...extra });
-    const nav = (name, view, detail) => add("Navigation", name, detail, { selector: `.app-header [data-view="${view}"]` });
+    const nav = (name, view, description, choices = []) =>
+      add("Navigation", name, description, { selector: `.app-header [data-view="${view}"]` }, { choices });
     nav("Home", "home", "Open the workspace starting page.");
-    nav("Estimates", "estimate", "Choose Estimate or Firestopping and review the estimate.");
-    nav("Calculators", "calculators", "Choose Firestopping, Steel Spray, Steel Board or Ductwork.");
-    if (takeoffs) nav("Takeoffs", "takeoffs", "Choose Steel, Duct, Penetrations, Defect Reports, Service Plans or Walls/Floors.");
-    nav("Libraries", "pricing", "Choose Pricing, Firestopping or Technical Library.");
-    nav("Projects", "projects", "Find, load and browse project files.");
+    nav("Contacts", "contacts", "Contacts", ["Leads", "Contacts", "Companies"]);
+    nav("Projects", "projects", "Find, load and browse project files.", ["Projects", "Quotes", "Work Orders", "Purchase Orders"]);
+    nav("Documents", "documents", "Documents", ["Documentation", "Forms"]);
+    nav("Estimates", "estimate", "Estimate");
+    nav("Calculators", "calculators", "Choose a calculator", ["Duct", "Firestopping", "Steel (spray)", "Steel (intumescent)", "Steel (board)", "Factor Calcs"]);
+    if (takeoffs) nav("Takeoffs", "takeoffs", "Choose a takeoff workspace", ["Steel", "Duct", "Walls/Floors", "Defect Reports", "Service Plans"]);
+    nav("Libraries", "pricing", "Choose a library", ["Pricing Library", "Firestopping Library", "Technical Library"]);
+    nav("Scheduler", "scheduler", "Scheduler", ["Schedule", "Time entries", "Reports"]);
     nav("Help", "help", "Open the guide and this button glossary.");
+    nav("Settings", "settings", "Settings", ["Settings", "Sign out"]);
     add("Navigation", "Theme", "Cycle through CLASSIFIRE, Midnight, Ocean, Forest and Slate.", { selector: "#theme-toggle" });
     add("Projects and files", "Save", "Choose a location for a new project, or update the selected .cf.json project file.", { selector: "#save-current-project" });
     add("Projects and files", "Link Project Folder", "Choose the folder Projects searches for .cf.json files.", { selector: "#link-project-folder" });
@@ -60,7 +65,7 @@
     add("Estimating and libraries", "Save pricing / Apply / Discard", "Save shared pricing, apply project pricing, or return the draft to its saved values.", { selector: "#save-pricing" });
     add("Estimating and libraries", "Add to Library", "Create a reusable Firestopping Library item from the current item's completed inputs.", { selector: "#penetration-add-to-library" });
     add("Estimating and libraries", "Link Library Item / Unlink", "Choose one or more filtered Technical Library references, or remove an association.", { path: "unlink" });
-    add("Estimating and libraries", "Add to Schedule", "Add the Firestopping Library item to the current schedule.", takeoffs ? { asset: "takeoff-transfer.png" } : { text: "+" });
+    add("Estimating and libraries", "Add to Schedule", "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.", takeoffs ? { asset: "takeoff-transfer.png" } : { text: "+" });
     if (takeoffs) {
       const tool = (name, action, detail, icon) => add("Drawing tools", name, detail, icon, { action });
       tool("Select", "select", "Select a markup, drag selected geometry or drag a selection rectangle.", { path: "select" });
@@ -123,7 +128,7 @@
     const words = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     const shortcuts = row.keys.flatMap(key => [key, key.replace(/Ctrl\s*\/\s*Cmd/g, "Ctrl"), key.replace(/Ctrl\s*\/\s*Cmd/g, "Cmd")]);
     const translate = value => root?.CeasefireI18n?.translate(value) || value;
-    const haystack = [row.name, row.description, row.group, translate(row.name), translate(row.description), translate(row.group), ...shortcuts].join(" ").toLowerCase();
+    const haystack = [row.name, row.description, row.group, translate(row.name), translate(row.description), translate(row.group), ...(row.choices || []).flatMap(value => [value, translate(value)]), ...shortcuts].join(" ").toLowerCase();
     return (!group || row.group === group) && words.every(word => haystack.includes(word));
   }
   function mount(document, registry) {
@@ -172,7 +177,16 @@
       const section = node("section", "help-glossary-group"), heading = uiNode("h3", "", group), list = node("ul", "help-glossary-list"); heading.id = `help-glossary-group-${index}`; section.setAttribute("aria-labelledby", heading.id);
       const entries = rows.filter(row => row.group === group).map(row => {
         const item = node("li", "help-glossary-entry"); item.dataset.glossaryName = row.name;
-        const copy = node("div", "help-glossary-copy"), name = uiNode("h4", "", row.name); copy.append(name, uiNode("p", "", row.description));
+        const copy = node("div", "help-glossary-copy"), name = uiNode("h4", "", row.name); copy.append(name);
+        if (row.description !== row.name || !row.choices?.length) copy.append(uiNode("p", "", row.description));
+        if (row.choices?.length) {
+          const choices = node("p");
+          row.choices.forEach((value, index) => {
+            if (index) choices.append(" · ");
+            choices.append(uiNode("span", "", value));
+          });
+          copy.append(choices);
+        }
         const keys = node("div", "help-glossary-keys"); if (row.keys.length) { const label = uiNode("span", "sr-only", "Shortcut: "); keys.append(label, ...row.keys.map(key => node("kbd", "", key))); } else keys.append(uiNode("span", "helper", "Button only"));
         item.append(icon(row.icon), copy, keys); list.append(item); return { item, row };
       });

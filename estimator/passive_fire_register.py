@@ -32,7 +32,7 @@ FIELDS = {
     'manufacturer': 'Manufacturer', 'report': 'Report', 'products': 'Products',
 }
 PHASES = {'before': 'Before', 'during': 'During', 'after': 'After', 'label': 'Label'}
-CUSTOM_FIELDS = ('seal_type', 'installation_type', 'service_types', 'products')
+LEGACY_CUSTOM_FIELDS = ('seal_type', 'installation_type', 'service_types')
 JPEG_PREFIX = 'data:image/jpeg;base64,'
 MAX_PHOTO_BYTES = 1_048_576
 MAX_ENCODED_PHOTOS = 10 * 1_048_576
@@ -226,7 +226,8 @@ def preserve_register_numbers(previous, incoming):
             raise ValidationError('Existing register side IDs cannot be reassigned or edited.')
 
 
-def _ready(entry, number, options):
+def _ready(entry, options):
+    ids = penetration_ids(entry)
     uses_library = 'technical_item_id' in entry
     custom = entry.get('custom_entry', False)
     reports = options['reports'].get(entry['manufacturer'], [])
@@ -234,7 +235,8 @@ def _ready(entry, number, options):
         required = [] if entry['location'] else ['Location']
         selected = entry.get('technical_filters', {})
         if custom:
-            required.extend(FIELDS[key] for key in CUSTOM_FIELDS if not entry[key])
+            if not entry['products']:
+                required.append(FIELDS['products'])
             known_reports = any(name.casefold() == selected.get('manufacturer', '').casefold() for name in options['reports'])
             if known_reports and not entry['report']:
                 required.append('Report/Assessment')
@@ -246,17 +248,17 @@ def _ready(entry, number, options):
                             for key in INSPECTION_FILTERS if not selected.get(key))
     else:
         required = [label for key, label in FIELDS.items()
-                    if not entry[key] and (key != 'report' or reports)]
+                    if key not in LEGACY_CUSTOM_FIELDS and not entry[key] and (key != 'report' or reports)]
     for key, choices in options.items():
-        if uses_library and key in FIELDS and not (custom and key in CUSTOM_FIELDS):
+        if key in LEGACY_CUSTOM_FIELDS or (uses_library and key in FIELDS and not (custom and key == 'products')):
             continue
         if key == 'reports' or (key == 'solution' and entry['access'] != 'NA'):
             continue
         values = entry[key] if isinstance(entry[key], list) else [entry[key]]
         if any(value and value not in choices for value in values):
-            raise ValidationError(f'Choose a listed {FIELDS.get(key, key)} for register entry {number}.')
+            raise ValidationError(f'Penetration ID {ids}: choose a listed {FIELDS.get(key, key)}.')
     if not uses_library and entry['report'] and entry['report'] not in reports:
-        raise ValidationError(f'Choose a report matching the manufacturer for register entry {number}.')
+        raise ValidationError(f'Penetration ID {ids}: choose a report matching the manufacturer.')
     for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):
         values = entry[side]
         for key, label in {'id_number': 'ID number', **PHASES}.items():
@@ -271,7 +273,7 @@ def _ready(entry, number, options):
     if not entry['signature']:
         required.append('Signature')
     if required:
-        raise ValidationError(f'Complete register entry {number}: ' + ', '.join(required) + '.')
+        raise ValidationError(f'Penetration ID {ids}: complete ' + ', '.join(required) + '.')
 
 
 def _append_evidence(report, title, groups, width):
@@ -319,7 +321,7 @@ def _inspection_fields(report, entry, item):
         selected = entry['technical_filters']
         labels = {'frl': 'FRL', 'services': 'Service'}
         rows.extend((labels.get(key, key.capitalize()), report.p(selected[key], 'cell')) for key in INSPECTION_FILTERS)
-        for key in (*CUSTOM_FIELDS, 'report'):
+        for key in (*LEGACY_CUSTOM_FIELDS, 'products', 'report'):
             value = entry[key]
             if value:
                 label = 'Report Number' if key == 'report' else FIELDS[key]
@@ -350,8 +352,8 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
     if not entries:
         raise ValidationError('Add a register entry before downloading the PDF.')
     options = register_options()
-    for index, entry in enumerate(entries, 1):
-        _ready(entry, index, options)
+    for entry in entries:
+        _ready(entry, options)
     _register_fonts()
     report = _Report({})
     report.styles['photo_caption'] = report.styles['subheading'].clone('InspectionPhotoCaption', alignment=TA_CENTER)
@@ -383,7 +385,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                 item = prepare_technical_item({'id': key}, library=library, include_diagrams=False,
                                               inspection_filters=entry.get('technical_filters', {}))
             except ReferenceNotFound as err:
-                raise ValidationError(f'The Technical Library item for entry {number} is unavailable. Select a replacement before downloading.') from err
+                raise ValidationError(f'Penetration ID {penetration_ids(entry)}: the Technical Library item is unavailable. Select a replacement before downloading.') from err
             append_technical_heading(report, item)
         report.story.append(report.table(None, _inspection_fields(report, entry, item),
                                          [content * .3, content * .7], compact=True,

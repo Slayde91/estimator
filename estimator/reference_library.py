@@ -16,6 +16,7 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_duplicates import reviewed_groups, consolidate_links
 from .technical_catalog_policy import public_records
 from .technical_table_navigation import validate_table_navigation
+from .technical_public_ids import public_caption, public_item
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import canonical_substrate, classify_substrates, substrate_options
 from .technical_record_corrections import correct_report_captions
@@ -569,6 +570,8 @@ class ReferenceLibrary:
         return f"/api/libraries/images/{images[0]['id']}/thumbnail" if images else None
 
     def listing(self, kind, **query):
+        from .technical_relevance import TechnicalQuery, tie_key
+
         with self._lock:
             if kind not in KINDS:
                 raise ReferenceNotFound()
@@ -602,9 +605,9 @@ class ReferenceLibrary:
                 chosen['services'] = 'Conduits'
             # Browsing may cross-list related products. An inspection requires the recorded service.
             browse_service = chosen.pop('services', None) if kind == 'technical' and not inspection else None
+            text_query = TechnicalQuery(search) if kind == 'technical' else None
             tokens = search.split()
-            shown = []
-            total = 0
+            matches = []
             if data:
                 for key in data['_visible'][kind]:
                     item = data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key]
@@ -620,18 +623,28 @@ class ReferenceLibrary:
                         continue
                     if any(value not in values.get(name, []) for name, value in chosen.items()):
                         continue
-                    if tokens:
-                        search_text = data['_searches'][kind][key]
-                        if kind == 'technical':
-                            search_text += '\n' + '\n'.join(values.get('frl', []))
-                        if any(token not in search_text for token in tokens):
-                            continue
-                    if offset <= total < offset + limit:
-                        shown.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
-                                      **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
-                                      **({'thumbnail_url': self._technical_thumbnail(item)} if kind == 'technical' else {}),
-                                      'related_count': len(data['_links'][kind][key])})
-                    total += 1
+                    if text_query is not None:
+                        score = text_query.rank(item, values, data.get('_technical_public_ids', {}).get(key),
+                                                data['_searches'][kind][key],
+                                                direct_service=bool(browse_service and browse_service in values.get('services', [])),
+                                                field_values=data.get('_technical_relevance_fields', {}).get(key))
+                        if score is not None:
+                            matches.append((score, tie_key(key), key))
+                    elif all(token in data['_searches'][kind][key] for token in tokens):
+                        matches.append(key)
+            total = len(matches)
+            if kind == 'technical':
+                matches.sort()
+                keys = [key for _, _, key in matches[offset:offset + limit]]
+            else:
+                keys = matches[offset:offset + limit]
+            shown = []
+            for key in keys:
+                item = data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key]
+                shown.append({**{name: item.get(name, '') for name in ('id', 'title', 'subtitle', 'summary', 'source_label')},
+                              **{name: deepcopy(item[name]) for name in ('library_id', 'price', 'editable') if name in item},
+                              **({'thumbnail_url': self._technical_thumbnail(item)} if kind == 'technical' else {}),
+                              'related_count': len(data['_links'][kind][key])})
             counts = {'total': len(data['_visible'][kind]) if data else 0,
                       'linked': sum(bool(data['_links'][kind][key]) for key in data['_visible'][kind]) if data else 0,
                       'unlinked': sum(not data['_links'][kind][key] for key in data['_visible'][kind]) if data else 0}
@@ -650,6 +663,7 @@ class ReferenceLibrary:
                 shown = [present_technical({**item, **variant_display(data, item['id'])},
                                            source_ratings=data['_records'][kind][item['id']]
                                            .get('filter_values', {}).get('frl', [])) for item in shown]
+                shown = [public_caption(data, item['id'], item) for item in shown]
             return {'items': shown, 'total': total, 'offset': offset, 'limit': limit,
                     'counts': counts, 'filters': filters,
                     'notice': data['libraries'][kind].get('notice', '') if data else 'No local reference library has been installed.'}
@@ -713,6 +727,7 @@ class ReferenceLibrary:
                 present_redundant_tables(fields)
                 present_installation_fields(fields)
                 present_barrier_text(fields)
+                item = public_item(data, key, item)
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])
             if kind == 'technical' and key in data['_technical_related_records']:
@@ -722,12 +737,15 @@ class ReferenceLibrary:
                          source_label=data['_technical_public_records'][target].get('source_label'),
                          known_ratings=data['_records']['technical'][target].get('filter_values', {}).get('frl', []))}
                     for target in data['_technical_related_records'][key]]
+                item['related_technical_records'] = [public_caption(data, link['id'], link)
+                                                     for link in item['related_technical_records']]
             for link in item['links']:
                 if link['kind'] == 'technical':
                     ratings = data['_records']['technical'][link['id']].get('filter_values', {}).get('frl', [])
                     title = variant_display(data, link['id']).get('title', link['title'])
                     link['title'] = present_frl_text(title, known_ratings=ratings,
                         source_label=data['_technical_public_records'][link['id']].get('source_label'))
+                    link.update(public_caption(data, link['id'], link))
             return item
 
     def image_replicas(self):

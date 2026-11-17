@@ -17,6 +17,7 @@ from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
 from .technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
 from .technical_prose import public_prose_fields
+from .technical_public_ids import bondek, install_public_ids, public_item
 from .library_opening_types import project_opening_types
 from .library_report_links import valid_manual_report_url
 from .library_facets import (MOVED_SERVICE_CATEGORIES, canonical_services,
@@ -326,6 +327,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 if facet in values:
                     values[facet] = list(dict.fromkeys(spellings.get(value.casefold(), value) for value in values[facet]))
             data['_records']['penetration'][key] = record
+        install_public_ids(data, self.technical_edits.store)
         self._manual_stamp, self._manual_data, self._manual_base = stamp, data, base
         return data
 
@@ -341,6 +343,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
 
     def listing(self, kind, **query):
         with self._lock:
+            if kind == 'technical':
+                query = {name: bondek(value) if isinstance(value, str) else value for name, value in query.items()}
             if 'category' in query:
                 query['category'] = display_category(query['category'])
             if kind == 'technical' and 'document' in query:
@@ -415,6 +419,8 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                     for field in record.get('fields', []):
                         if field['label'] == 'ID' and field.get('value') == key:
                             field['value'] = display['source_code']
+                if for_display:
+                    record = public_item(data, key, record)
             # A technical reference can document a test outside an assessment's scope.
             # This editor choice is deliberately absent from rated system searches.
             filters = deepcopy(data['_canonical_library_filters'])
@@ -435,11 +441,15 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             if isinstance(body['revision'], bool) or body['revision'] != context['revision'] or body['source_sha256'] != context['source_sha256']:
                 raise LibraryConflict('This Technical Library item changed. Reopen it before saving.')
             original = context['record']
-            displayed_fields = {field['label']: field.get('value', '') for field in public_prose_fields(original)}
-            display = variant_display(self._load(), original['id']) if key is not None else {}
+            data = self._load()
+            display = variant_display(data, original['id']) if key is not None else {}
+            displayed = {**original, **display, 'fields': public_prose_fields(original)}
+            if key is not None:
+                displayed = public_item(data, original['id'], displayed)
+            displayed_fields = {field['label']: field.get('value', '') for field in displayed['fields']}
             # An unchanged generated caption follows the selected configuration on
             # subsequent edits. Only a title explicitly changed in the form is stored.
-            title = (original['title'] if display and body['title'] == display['title']
+            title = (original['title'] if key is not None and body['title'] == displayed['title']
                      else text(body['title'], 1000, blank=False).strip())
             fields = body['fields']
             if not isinstance(fields, list) or len(fields) > 80:
@@ -453,8 +463,14 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 if label in labels:
                     raise ValidationError('Use each Technical Library field label once.')
                 labels.add(label)
-                previous = deepcopy(old_fields.get(label, {'label': label}))
                 value = text(field['value'], 40000)
+                if label == 'ID' and key is not None:
+                    code = data.get('_technical_public_ids', {}).get(original['id'], '')
+                    if code and (code.startswith('CF-') or value == code):
+                        if label in old_fields:
+                            normalized.append(deepcopy(old_fields[label]))
+                        continue
+                previous = deepcopy(old_fields.get(label, {'label': label}))
                 # An unchanged projected field must not rewrite the source text on an unrelated edit.
                 if value != displayed_fields.get(label) and not (
                         display and label == 'ID' and previous.get('value') == original['id'] and value == display['source_code']):
@@ -462,7 +478,7 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                 normalized.append(previous)
             # Display cleanup can omit source fields from the editor entirely.
             normalized.extend(deepcopy(field) for label, field in old_fields.items()
-                              if label not in labels and label not in displayed_fields)
+                              if label not in labels and (label not in displayed_fields or label == 'ID'))
             facets = body['facets']
             if not isinstance(facets, dict) or set(facets) != {key for key, _ in FACETS}:
                 raise ValidationError('Choose all Technical Library classifications.')

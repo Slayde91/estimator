@@ -10,10 +10,11 @@ async function checkRegisterLimits(browser) {
       body:'<section class="view"><div id="passive-register-root"></div></section>'}));
     await page.goto('http://localhost/register-test');
     await page.evaluate(() => {
-      window.CeasefireI18n = {text(element, value) { element.textContent = value; }, translate(value) { return value; }, attr() {}};
+      window.CeasefireI18n = {text(element, value) { element.textContent = value; return element; }, translate(value) { return value; }, attr() {}};
       window.CeasefireProject = {changed() {}};
     });
-    await page.route('**/api/libraries/technical?*', route => route.fulfill({json:{filters:[],items:[],total:0}}));
+    await page.route('**/api/libraries/technical?*', route => route.fulfill({json:{
+      filters:[{key:'type',label:'Type',options:[{value:'Core hole',label:'Core hole'}]}],items:[],total:0}}));
     for (const file of ['form-controls.js','libraries.js','library-detail-text.js','passive-register-library.js','passive-fire-register.js']) {
       await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     }
@@ -22,6 +23,16 @@ async function checkRegisterLimits(browser) {
       window.ClassifirePassiveRegister.open();
     }, require('../../data/passive-fire-register-options.json'));
     await page.getByLabel('Level/Location').fill('Register limits test');
+    await page.evaluate(() => {
+      const saved = window.ClassifirePassiveRegister.capture().value;
+      saved.entries[0].technical_filters.type = 'Cast-in';
+      window.ClassifirePassiveRegister.applyProject(saved);
+    });
+    const type = page.locator('.register-library-picker [data-library-filter="type"]');
+    await expect(type).toHaveValue('Core hole');
+    await expect(type.locator('option[value="Cast-in"]')).toHaveCount(0);
+    assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.capture().value.entries[0].technical_filters.type), 'Cast-in');
+    assert.equal(await page.evaluate(() => window.ClassifirePassiveRegister.hasProjectChanges()), false);
     const smallImage = await page.evaluate(() => {
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 2000;

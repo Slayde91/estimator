@@ -94,15 +94,21 @@ async function activeFilterPaint(scope,key,attribute='data-library-filter'){
  await setFilter(main(),'report','Promat synthetic report');const queried=await setFilter(main(),'frl','-/90/60');assert.equal(queried.total,2);await expect(main().locator('[data-library-record]')).toHaveCount(2);assert.deepEqual(await main().locator('[data-library-record]').evaluateAll(nodes=>nodes.map(node=>node.dataset.libraryRecord)),queried.items.map(item=>item.id));
  await main().locator('[data-library-record]').first().click();await main().getByRole('button',{name:'Back to results',exact:true}).click();await expect(main().locator('[data-library-filter="report"]')).toHaveValue('Promat synthetic report');await expect(main().locator('[data-library-filter="frl"]')).toHaveValue('-/90/60');
  evidence.exactGroupedQueriesAndBack=true;
- // Numeric supplier selector IDs are hidden; actual technical IDs are retained,
- // including Promat and Trafalgar records. All API identities remain exact.
- for(const [id,hidden]of [['technical-001',true],['technical-002',true],['technical-003',false],['technical-004',false],['technical-005',false],['technical-006',false]]){
-  const response=await page.request.get(`${origin}/api/libraries/technical/${id}`);assert.equal(response.status(),200);const data=await response.json();assert.equal(data.id,id);assert.ok(data.fields.some(field=>field.label==='ID'));
-  await page.evaluate(id=>window.CeasefireLibraries.open('technical',id),id);await expect(main().locator('h3')).toHaveText(data.title);
+ const expectedIds = [
+  ['technical-001','CF-01'], ['technical-002','CF-02'], ['technical-003','synthetic-source-3'],
+  ['technical-004','synthetic-source-4'], ['technical-005','CF-03'], ['technical-006','CF-04']
+ ];
+ for(const [id,expectedCode] of expectedIds){
+  const response=await page.request.get(`${origin}/api/libraries/technical/${id}`);assert.equal(response.status(),200);
+  const data=await response.json();assert.equal(data.id,id);assert.equal(data.source_code,expectedCode);
+  assert.equal(data.fields.find(field=>field.label==='ID').value,expectedCode);
+  await page.evaluate(id=>window.CeasefireLibraries.open('technical',id),id);
+  const expectedHeading = data.title.includes(expectedCode) ? data.title : `${expectedCode} — ${data.title}`;
+  await expect(main().locator('h3')).toHaveText(expectedHeading);
   const field=main().locator('.library-record-field').filter({has:page.locator('dt').filter({hasText:/^ID$/})});
-  await expect(field).toHaveCount(hidden?0:1);if(!hidden)await expect(field.locator('dd')).toHaveText(data.fields.find(field=>field.label==='ID').value);
+  await expect(field).toHaveCount(1);await expect(field.locator('dd')).toHaveText(data.source_code);
  }
- evidence.technicalIDFieldOnlyOmission=true;
+ evidence.managedAndNativePublicIdsVisible=true;
  await chooseLibrary(page,'penetration');const penetration=page.locator('#penetration-library-workspace');
  await expect(penetration.locator('[data-library-filter="service_type"]')).toBeVisible();
  evidence.firestoppingFilterGrid=await penetration.locator('.library-filters').evaluate(node=>{const s=getComputedStyle(node);return{display:s.display,columns:s.gridTemplateColumns,width:node.getBoundingClientRect().width};});assert.deepEqual(evidence.firestoppingFilterGrid,evidence.mainFilterGrid,'Both eight-filter bars use the same responsive grid');

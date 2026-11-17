@@ -79,11 +79,15 @@ async function reportLink(scope, label, url) {
     await route.continue();
   });
   await page.goto(origin); await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
-  const beforeDrafts = await drafts(), beforeDisk = diskSnapshot(), beforeSave = await page.locator('#project-save-state').textContent();
-  assert.equal(beforeDisk.raw_record_ids.length, info.raw_count); for (const id of info.removed_ids) assert.ok(beforeDisk.raw_record_ids.includes(id));
+  const beforeDrafts = await drafts(), beforeSave = await page.locator('#project-save-state').textContent();
   const all = await api('/api/libraries/technical?limit=100');
   assert.equal(all.total, info.public_count); assert.equal(all.counts.total, info.public_count);
   assert.deepEqual(all.items.map(item => item.id).sort(), [...familyIds, ...Object.keys(info.controls)].sort());
+  const assigned = all.items.filter(item => item.id.startsWith('trafalgar-selector-')).map(item => item.source_code);
+  assert.equal(assigned.length, 62);
+  assert.deepEqual(assigned.sort(), Array.from({length:62}, (_,i) => 'CF-' + String(i+1).padStart(2,'0')).sort());
+  const beforeDisk = diskSnapshot();
+  assert.equal(beforeDisk.raw_record_ids.length, info.raw_count); for (const id of info.removed_ids) assert.ok(beforeDisk.raw_record_ids.includes(id));
   for (const id of info.removed_ids) await api(`/api/libraries/technical/${id}`, 404);
   assert.equal((await api('/api/libraries/technical?search=FRSS')).total, 0);
   for (const id of familyIds) {
@@ -107,9 +111,11 @@ async function reportLink(scope, label, url) {
   await expect(technical.locator('[data-library-record]')).toHaveCount(50);
   evidence.checks.nativeReportGroupFilterAndFrssSearch = true; evidence.checks.familyLinks = [];
   for (const [family, ids] of Object.entries(info.family_ids)) {
-    await technical.locator(`[data-library-record="${ids[0]}"]`).click();
+    const sample = filtered.items.find(item => ids.includes(item.id));
+    assert.ok(sample, `Expected a visible ${family} record on the filtered page`);
+    await technical.locator(`[data-library-record="${sample.id}"]`).click();
     const detail = technical.locator('[data-library-detail="technical"]'); await expect(detail).toBeVisible();
-    evidence.checks.familyLinks.push({ family, id: ids[0], ...await reportLink(detail, info.report, info.report_url) });
+    evidence.checks.familyLinks.push({ family, id: sample.id, ...await reportLink(detail, info.report, info.report_url) });
     await page.screenshot({ path: path.join(output, `family-${evidence.checks.familyLinks.length}.png`) });
     await detail.getByRole('button', { name: 'Back to results', exact: true }).click(); await settled(technical);
     await expect(technical.locator('[data-library-filter="report"]')).toHaveValue(info.report);

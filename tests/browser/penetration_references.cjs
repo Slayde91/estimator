@@ -58,12 +58,33 @@ async function itemColumn(body, theme, width, entry='calculator') {
   evidence.sharedScheduleAndInheritedLinks = true;
   const original = await snapshot(); await choose('line-2'); assert.ok(requests.some(query => query.includes('orientation=Vertical')), 'Recorded orientation automatically filters the picker');
   await dialog().locator('[data-penetration-reference-clear]').click(); await expect(dialog().getByText('Showing 1–20 of 23 technical records', { exact: true })).toBeVisible();
-  await dialog().locator('[data-penetration-reference-choice="system-02"]').check();
+  const system = id => dialog().locator(`[data-penetration-reference-choice="${id}"]`);
+  async function switchResultPage() {
+    const forward = await dialog().getByRole('button', { name: 'Next', exact: true }).isEnabled();
+    await dialog().getByRole('button', { name: forward ? 'Next' : 'Previous', exact: true }).click();
+    const range = forward ? '21–23' : '1–20';
+    await expect(dialog().getByText(`Showing ${range} of 23 technical records`, { exact: true })).toBeVisible();
+  }
+  if (!await system('system-02').isVisible()) await switchResultPage();
+  await system('system-02').check();
   await dialog().locator('.penetration-reference-choice:has([data-penetration-reference-choice="system-02"])').getByRole('button', { name: 'View item', exact: true }).click();
   await expect(dialog().locator('.penetration-reference-preview').filter({ hasText: 'SYN-02 Rev A' })).toBeVisible();
-  await expect(dialog().locator('[data-penetration-reference-choice="system-02"]')).toBeChecked(); evidence.previewRetainsSelection = true;
-  await dialog().getByRole('button', { name: 'Next', exact: true }).click(); await expect(dialog().locator('[data-penetration-reference-choice="system-22"]')).toBeVisible();
-  await dialog().locator('[data-penetration-reference-choice="system-22"]').check(); await dialog().screenshot({ path: path.join(output, 'picker-multiple.png') });
+  await expect(system('system-02')).toBeChecked(); evidence.previewRetainsSelection = true;
+  await switchResultPage();
+  // Exercise selections on both pages even when the two named report fixtures rank together.
+  const otherId = await system('system-22').isVisible() ? 'system-22'
+    : await dialog().locator('[data-penetration-reference-choice]').first().inputValue();
+  await system(otherId).check();
+  await switchResultPage();
+  await expect(system('system-02')).toBeChecked();
+  await switchResultPage();
+  await expect(system(otherId)).toBeChecked();
+  if (otherId !== 'system-22') {
+    await system(otherId).uncheck();
+    await switchResultPage();
+    await system('system-22').check();
+  }
+  await dialog().screenshot({ path: path.join(output, 'picker-multiple.png') });
   await page.setViewportSize({ width: 390, height: 764 });
   assert.ok(await dialog().evaluate(element => element.scrollWidth <= element.clientWidth + 1), 'Picker stays within narrow screen width');
   await dialog().screenshot({ path: path.join(output, 'picker-narrow.png') }); await page.setViewportSize({ width: 1450, height: 960 }); evidence.narrowPicker = true;

@@ -74,8 +74,15 @@ async function existingReportLink(scope, id) {
     await route.continue();
   });
   await page.goto(origin); await page.waitForFunction(() => { const state = window.CeasefireDesktop?.status(); return state?.ready && !state.busy; });
-  const beforeDrafts = await drafts(), beforeDisk = diskSnapshot(), beforeSave = await page.locator('#project-save-state').textContent();
+  const beforeDrafts = await drafts(), beforeSave = await page.locator('#project-save-state').textContent();
   const all = await api('/api/libraries/technical?limit=100'); assert.equal(all.total, info.raw_count);
+  const promat = all.items.filter(item => item.id !== info.foreign_id);
+  assert.equal(promat.length, info.raw_count - 1);
+  assert.deepEqual(promat.map(item => item.source_code).sort(),
+    Array.from({ length: promat.length }, (_, i) => 'CF-' + String(i + 1).padStart(2, '0')).sort());
+  const foreign = all.items.find(item => item.id === info.foreign_id);
+  assert.ok(foreign && !foreign.source_code?.startsWith('CF-'));
+  const beforeDisk = diskSnapshot(); // First catalogue load has allocated the fixture's public IDs.
   const option = all.filters.find(field => field.key === 'report');
   assert.deepEqual(option.options.map(value => value.value).sort(), [info.report, 'SYN-KEEP Rev A'].sort(), 'Placeholders and another supplier must not gain report choices');
   assert.deepEqual(option.options.find(value => value.value === info.report), { value: info.report, label: info.report, group: 'Promat' });

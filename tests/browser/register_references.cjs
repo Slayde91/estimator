@@ -64,7 +64,10 @@ async function seed(scope){
     assert.deepEqual(await snapshot(),before);
     const choose=row(ids.filtered).locator('[data-physical-references]');await choose.click();
     const picker=page.getByRole('dialog',{name:'Choose Technical Library references',exact:true});await expect(picker).toBeVisible();await expect(picker.locator('[data-penetration-reference-choice]:checked')).toHaveCount(0);await picker.getByRole('button',{name:'Cancel',exact:true}).click();assert.deepEqual(await snapshot(),before);
-    await choose.click();await expect(picker).toBeVisible();await picker.locator('[data-penetration-reference-choice="synthetic-001"]').check();await picker.getByRole('button',{name:'Use selected references',exact:true}).click();await expect(picker).toHaveCount(0);await idle();
+    await choose.click();await expect(picker).toBeVisible();
+    await picker.getByRole('searchbox',{name:'Search Technical Library'}).fill('SYN-001 Rev A');
+    await expect(picker.locator('[data-penetration-reference-choice]')).toHaveCount(1);
+    await picker.locator('[data-penetration-reference-choice="synthetic-001"]').check();await picker.getByRole('button',{name:'Use selected references',exact:true}).click();await expect(picker).toHaveCount(0);await idle();
     await expect(row(ids.filtered).locator('[data-reference-report-id]')).toContainText('SYN-001 Rev A');await expect(row(ids.filtered).locator('[data-physical-references]')).toHaveText('Change reports');
     const chosen=await snapshot(),key=scope==='service_plans'?'service_plans':'physical';assert.deepEqual(chosen[key].barriers.find(value=>value.id===ids.filtered).technical_reference_ids,['synthetic-001']);
     const roundtrip=JSON.parse(JSON.stringify(chosen));await page.evaluate(async value=>{const takeoffs=window.CeasefireTakeoffs;takeoffs.applyProject(await takeoffs.prepareProject(value,takeoffs.sessionId()));await takeoffs.open();},roundtrip);await chooseTakeoff(page,scope==='service_plans'?'Service Plans':'Defect Reports');await idle();

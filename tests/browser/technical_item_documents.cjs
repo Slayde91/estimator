@@ -47,9 +47,11 @@ async function exported(extension){
   await page.evaluate(()=>window.CeasefirePenetrations.completeProjectSnapshot());
   const saved=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/project/save-as');
   await clickProjectControl(page,'Save');assert.equal((await saved).status(),200);await idle();
-  const projectHash=hash(info.project), libraryBefore=inventory(info.library), databaseBefore=database(info.database), before=await snapshot();
+  const projectHash=hash(info.project), libraryBefore=inventory(info.library), databaseAtSave=database(info.database), before=await snapshot();
   await chooseLibrary(page,'technical');await page.locator('[data-library-record="report-a-v1"]').click();
   const detail=page.locator('[data-library-detail="technical"]');await expect(detail).toBeVisible();
+  const databaseBefore=database(info.database);
+  assert.deepEqual(databaseBefore,{...databaseAtSave,technical_library_public_ids:[]},'Opening this native-ID fixture initializes an empty registry and preserves all existing data');
   const toggle=detail.getByRole('button',{name:'Document',exact:true}), menu=detail.locator('#technical-item-document-actions');
   assert.equal(await toggle.locator('img').getAttribute('src'),'/icons/document.png');
   await toggle.focus();await toggle.press('ArrowDown');await expect(menu.getByRole('button').first()).toBeFocused();
@@ -83,7 +85,12 @@ async function exported(extension){
   await page.route('**/api/technical/item.pdf',async route=>{started(JSON.parse(route.request().postData()));await new Promise(resolve=>{releaseHeld=resolve;});await route.continue();});
   await toggle.click();await menu.getByRole('button').first().click();const captured=await observed;assert.equal(captured.id,'report-a-v1');await expect(toggle).toBeDisabled();
   await detail.getByRole('button',{name:'Back to results',exact:true}).click();await page.locator('[data-library-record="report-a-v2"]').click();
-  await expect(detail.locator('h3')).not.toContainText('report-a-v2');await expect(detail.locator('dd').first()).toHaveText('Separate second item');await expect(toggle).toBeDisabled();
+  const nextItem = await (await page.request.get(`http://127.0.0.1:${info.port}/api/libraries/technical/report-a-v2`)).json();
+  assert.equal(nextItem.id,'report-a-v2');assert.equal(nextItem.source_code,nextItem.id);
+  await expect(detail.locator('h3')).toHaveText(`${nextItem.source_code} — ${nextItem.title}`);
+  const displayedField = label => detail.locator('.library-record-field').filter({has:page.getByText(label,{exact:true})}).locator('dd');
+  await expect(displayedField('ID')).toHaveText(nextItem.source_code);
+  await expect(displayedField('System Products')).toHaveText('Separate second item');await expect(toggle).toBeDisabled();
   const completed=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/technical/item.pdf');releaseHeld();releaseHeld=null;assert.equal((await completed).status(),200);
   await expect(toggle).toBeEnabled();await expect(page.locator('#technical-library-workspace>.message')).toBeHidden();await page.unroute('**/api/technical/item.pdf');checks.push('held export retains captured id and does not clobber newer item');
   await chooseLibrary(page,'penetration');await page.locator('[data-library-record="pkb-001"]').click();

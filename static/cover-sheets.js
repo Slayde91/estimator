@@ -164,7 +164,7 @@
     })();
     const endActivity=window.CeasefireActivity?.begin();
     try{return await state.opening;}
-    catch(error){message(status,'Cover sheets could not be loaded. Open Documentation again to retry.',true);return false;}
+    catch(error){message(status,'Cover sheets could not be loaded. Open Documents again to retry.',true);return false;}
     finally{state.opening=null;host.setAttribute('aria-busy','false');endActivity?.();}
   }
   window.CeasefireCoverSheets={open,attach,saveAll,leave,hasPendingOperation:()=>state.saving||!!state.opening||[...state.rows.values()].some(row=>row.reading||row.busy||row.pending),

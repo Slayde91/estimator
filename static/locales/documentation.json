@@ -419,12 +419,33 @@
     "تغيّر المشروع أثناء اختيار مستند حصر الكميات. حاول مجددًا.",
     "โครงการเปลี่ยนแปลงระหว่างเลือกเอกสารถอดปริมาณ ลองอีกครั้ง"
   ],
-  "The project changed while loading its documents. Open Documentation again.": [
-    "加载文档时项目已更改。请重新打开“项目文档”。",
-    "दस्तावेज़ लोड करते समय परियोजना बदल गई। दस्तावेज़ अनुभाग फिर खोलें।",
-    "El proyecto cambió mientras se cargaban sus documentos. Abra Documentación de nuevo.",
+  "The project changed while loading its documents. Open Documents again.": [
+    "加载文档时项目已更改。请重新打开“文档”。",
+    "दस्तावेज़ लोड करते समय परियोजना बदल गई। दस्तावेज़ फिर खोलें।",
+    "El proyecto cambió mientras se cargaban sus documentos. Abra Documentos de nuevo.",
     "تغيّر المشروع أثناء تحميل مستنداته. افتح المستندات مجددًا.",
     "โครงการเปลี่ยนแปลงระหว่างโหลดเอกสาร เปิดเอกสารอีกครั้ง"
+  ],
+  "Cover sheets could not be loaded. Open Documents again to retry.": [
+    "无法加载封面。请重新打开“文档”以重试。",
+    "कवर शीट लोड नहीं हो सकीं। दोबारा कोशिश करने के लिए दस्तावेज़ फिर खोलें।",
+    "No se pudieron cargar las portadas. Vuelva a abrir Documentos para intentarlo de nuevo.",
+    "تعذّر تحميل صفحات الغلاف. افتح المستندات مجددًا لإعادة المحاولة.",
+    "โหลดหน้าปกไม่สำเร็จ โปรดเปิดเอกสารอีกครั้งเพื่อลองใหม่"
+  ],
+  "Project document history changed while saving. Refresh Documents and save again.": [
+    "保存时项目文档历史记录已更改。请刷新“文档”并再次保存。",
+    "सहेजते समय परियोजना के दस्तावेज़ों का इतिहास बदल गया। दस्तावेज़ रीफ़्रेश करें और फिर सहेजें।",
+    "El historial de documentos del proyecto cambió mientras se guardaba. Actualice Documentos y vuelva a guardar.",
+    "تغيّر سجل مستندات المشروع أثناء الحفظ. حدّث المستندات واحفظ مجددًا.",
+    "ประวัติเอกสารโครงการเปลี่ยนไประหว่างบันทึก โปรดรีเฟรชเอกสารแล้วบันทึกอีกครั้ง"
+  ],
+  "Only authored PDF and XLSX files belong in Documents.": [
+    "“文档”仅接受编制的 PDF 和 XLSX 文件。",
+    "दस्तावेज़ में केवल तैयार की गई PDF और XLSX फ़ाइलें रखी जा सकती हैं।",
+    "En Documentos solo se admiten archivos PDF y XLSX elaborados.",
+    "لا يقبل قسم المستندات سوى ملفات PDF وXLSX المُعدّة.",
+    "เอกสารรองรับเฉพาะไฟล์ PDF และ XLSX ที่จัดทำขึ้นเท่านั้น"
   ],
   "The project changed while preparing the calculator document. Try again.": [
     "准备计算器文档时项目已更改。请重试。",

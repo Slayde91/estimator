@@ -299,10 +299,25 @@
     "Nagbago ang proyekto habang pinipili ang dokumento ng pagsukat. Subukang muli.",
     "Dự án đã thay đổi khi chọn tài liệu đo bóc khối lượng. Thử lại."
   ],
-  "The project changed while loading its documents. Open Documentation again.": [
+  "The project changed while loading its documents. Open Documents again.": [
     "문서를 불러오는 동안 프로젝트가 변경되었습니다. 문서를 다시 여세요.",
     "Nagbago ang proyekto habang nilo-load ang mga dokumento nito. Buksan muli ang Mga dokumento.",
     "Dự án đã thay đổi khi tải tài liệu. Mở lại Tài liệu."
+  ],
+  "Cover sheets could not be loaded. Open Documents again to retry.": [
+    "표지를 불러오지 못했습니다. 문서를 다시 열어 재시도하세요.",
+    "Hindi na-load ang mga pahina ng pabalat. Buksan muli ang Mga dokumento at subukang muli.",
+    "Không tải được các trang bìa. Mở lại Tài liệu để thử lại."
+  ],
+  "Project document history changed while saving. Refresh Documents and save again.": [
+    "저장 중 프로젝트 문서 기록이 변경되었습니다. 문서를 새로 고친 후 다시 저장하세요.",
+    "Nagbago ang kasaysayan ng mga dokumento ng proyekto habang nagse-save. I-refresh ang Mga dokumento at i-save muli.",
+    "Lịch sử tài liệu dự án đã thay đổi trong khi lưu. Làm mới Tài liệu và lưu lại."
+  ],
+  "Only authored PDF and XLSX files belong in Documents.": [
+    "문서에는 작성한 PDF 및 XLSX 파일만 포함할 수 있습니다.",
+    "Tanging mga ginawang PDF at XLSX file ang maaaring ilagay sa Mga dokumento.",
+    "Chỉ các tệp PDF và XLSX đã soạn mới được đưa vào Tài liệu."
   ],
   "The project changed while preparing the calculator document. Try again.": [
     "계산기 문서를 준비하는 동안 프로젝트가 변경되었습니다. 다시 시도하세요.",

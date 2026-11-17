@@ -213,7 +213,7 @@ async function noDownloadAudio() {
   await expect(formTab).toHaveAttribute('aria-pressed','true');
   const repeats = await pageCalls();
   await formTab.click(); assert.equal(await pageCalls(),repeats);
-  await documentTabs.getByRole('button',{name:'Documentation',exact:true}).click();
+  await documentTabs.getByRole('button',{name:'Documents',exact:true}).click();
   await expect(page.locator('#app-message')).toContainText('Create or load a project before creating documents.');
   await expect(formTab).toHaveAttribute('aria-pressed','true');
   assert.equal(await pageCalls(),repeats,'A blocked Documentation tab has no page sound');

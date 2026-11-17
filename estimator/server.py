@@ -213,7 +213,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 workspace, request_id = self._documentation_context
                 kind, logical_key = self._documentation_identity
                 if content_type not in {PDF, XLSX}:
-                    raise ValidationError('Only authored PDF and XLSX files belong in Documentation.')
+                    raise ValidationError('Only authored PDF and XLSX files belong in Documents.')
                 retained = documentation.record(workspace, kind, logical_key, filename, content_type,
                                                 payload, request_id, self._documentation_fingerprint)
                 self._documentation_receipt = retained

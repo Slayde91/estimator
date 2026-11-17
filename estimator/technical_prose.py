@@ -3,6 +3,7 @@ import re
 
 from .technical_brand_presentation import manufacturer_names
 from .technical_discovery import SNAP_FILTER_SOURCE
+from .library_opening_types import project_opening_types
 
 
 _PVC_CAVEAT = re.compile(
@@ -58,6 +59,7 @@ def public_prose_fields(record):
             fields.append(field)
             continue
         value = field.get('value', '')
-        public = _value(value, snap, reports)
+        public = ('\n'.join(project_opening_types(record, value.splitlines()))
+                  if field['label'] == 'Type' else _value(value, snap, reports))
         fields.append(field if public == value else {**field, 'value': public})
     return fields

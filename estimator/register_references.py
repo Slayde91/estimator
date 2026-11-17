@@ -158,7 +158,7 @@ class ReferenceIndex:
             item = self.records[identifier]
             values = deepcopy(item.get('filter_values', {}))
             discovery = data.get('_technical_discovery', {}).get(identifier, {})
-            for name in ('category', 'services'):
+            for name in ('category', 'services', 'type'):
                 if name in discovery:
                     values[name] = discovery[name]
             for name in ('category', 'services', 'substrate', 'orientation', 'type', 'frl'):

@@ -20,6 +20,7 @@ from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import canonical_substrate, classify_substrates, substrate_options
 from .technical_record_corrections import correct_report_captions
 from .library_opening_types import opening_type
+from .firestopping_taxonomy import canonical_opening_type
 from .library_display import display_subtitle, remove_resolved_source_notices
 from .technical_barrier_text import present_barrier_text
 from .technical_brand_presentation import present_manufacturer_fields
@@ -589,6 +590,8 @@ class ReferenceLibrary:
                 return number(int(raw), minimum, maximum)
             offset, limit = page_value('offset', 0, 0, 1000000), page_value('limit', 50, 1, 100)
             chosen = {key: string(query[key], 1000) for key in filter_keys if query.get(key)}
+            if kind == 'technical' and 'type' in chosen:
+                chosen['type'] = canonical_opening_type(chosen['type'])
             requested_rating = chosen.pop('frl', None) if kind == 'technical' else None
             if requested_rating:
                 assessed_rating = canonical_frl(requested_rating, source_label=ALLPROOF_MANUAL_SOURCE)

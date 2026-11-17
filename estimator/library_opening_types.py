@@ -5,6 +5,8 @@ records, their field labels, tables and fingerprints are never rewritten.
 """
 import re
 
+from .technical_brand_presentation import manufacturer_names
+
 
 OPENING_TYPES = ('Core hole', 'Oversized core hole')
 _REPORT_TYPES = {'FAS190234': OPENING_TYPES[1], 'FAS190235': OPENING_TYPES[1],
@@ -83,6 +85,19 @@ _APERTURE_LINING = re.compile(
 _BOARD_OVER_OPENING = re.compile(r'\b(?:over|across|into)\s+(?:the\s+)?(?:wall\s+)?(?:opening|aperture)\b', re.I)
 _CAVITY_INSULATION = re.compile(r'\b(?:cavity|insulation)\b', re.I)
 _BATT_SEAL = re.compile(r'\b(?:aperture|opening|annular|seal|bulkhead|infill|pattress|backing)\b', re.I)
+_PATCH_MANUFACTURERS = {'snap', 'snap fire systems', 'allproof'}
+_PATCH = re.compile(r'\bpatch(?:es)?\b', re.I)
+_PATCH_REFERENCE = re.compile(r'\b(?:PB|plaster\s*boards?|fire[- ]rated\s+boards?)\s+patch(?:es)?\b', re.I)
+_PLASTERBOARD_BUILDUP = re.compile(r'\bplaster\s*boards?\s+build[- ]up\b', re.I)
+_PATCH_BOARD = re.compile(r'plaster\s*boards?\Z', re.I)
+_FIRE_RATED_BOARD = re.compile(r'\bfire[- ]rated\s+', re.I)
+_PATCH_AFTER = re.compile(r'\s+patch(?:es)?\b', re.I)
+_BUILDUP_AFTER = re.compile(r'\s+build[- ]up\b', re.I)
+
+
+def _local_plasterboard_patch(clause):
+    return bool(_PATCH_REFERENCE.search(clause)
+                or _PLASTERBOARD_BUILDUP.search(clause) and _PATCH.search(clause))
 
 
 def _clauses(value):
@@ -181,6 +196,7 @@ def opening_type_evidence(item):
     """
     evidence = []
     seen = set()
+    patch_supplier = bool(manufacturer_names(item) & _PATCH_MANUFACTURERS)
     for field in item.get('fields', []):
         label = field.get('label')
         if label not in _COMPONENT_FIELDS | _BARRIER_FIELDS:
@@ -195,7 +211,18 @@ def opening_type_evidence(item):
             context = _clause_context(clause, matches)
             if context is None:
                 continue
+            local_patch = patch_supplier and _local_plasterboard_patch(clause)
+            patch_boards = _prefix_positions(_FIRE_RATED_BOARD, clause, matches) if local_patch else set()
             for match in matches:
+                if local_patch:
+                    supporting_board = (label in _BARRIER_FIELDS and match.start() not in context['direct']
+                                        and not context['aperture_lining']
+                                        and not _BOARD_OVER_OPENING.search(clause, match.end(), match.end() + 70))
+                    if (_PATCH_BOARD.fullmatch(match[0]) and (
+                            _PATCH_AFTER.match(clause, match.end()) or _BUILDUP_AFTER.match(clause, match.end())
+                            or supporting_board)
+                            or match.start() in patch_boards and _PATCH_AFTER.match(clause, match.end())):
+                        continue
                 key = (label, match[0].casefold(), clause)
                 if key in seen or not _positive(match, context) or not _installed_board(label, clause, match, context):
                     continue
@@ -205,7 +232,21 @@ def opening_type_evidence(item):
 
 
 def opening_type(item):
+    if 'Cast-in' in item.get('filter_values', {}).get('type', []):
+        return OPENING_TYPES[0]
     report = report_opening_type(item)
     if report is not None:
         return report['type']
     return OPENING_TYPES[bool(opening_type_evidence(item))]
+
+
+def project_opening_types(item, values):
+    """Resolve legacy saved types after supplier and source reviews have loaded."""
+    if 'Cast-in' in values:
+        return list(dict.fromkeys(OPENING_TYPES[0] if value == 'Cast-in' else value for value in values))
+    if (values == [OPENING_TYPES[1]] and manufacturer_names(item) & _PATCH_MANUFACTURERS
+            and any(_local_plasterboard_patch(clause)
+                    for field in item.get('fields', []) if field.get('label') in _COMPONENT_FIELDS | _BARRIER_FIELDS
+                    for clause in _clauses(field.get('value', '')))):
+        return [opening_type(item)]
+    return list(values)

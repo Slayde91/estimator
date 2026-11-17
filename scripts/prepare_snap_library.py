@@ -118,10 +118,9 @@ def build_entry(row, assoc, product, screenshots, guide, guide_titles):
     facets = {'manufacturer': ['Snap'], 'report': [report], 'orientation': [orientation],
               'substrate': [substrate], 'category': categories, 'services': [svc], 'frl': [effective]}
     if application in ('Stack - Cast-in', 'Floor Waste & Shower - Cast-in'):
-        facets['type'] = ['Cast-in']
+        facets['type'] = ['Core hole']
     elif 'Retrofit' in application or 'Gas' in application:
-        added_patch = 'PB Patch' in element or 'MGO Board' in element
-        facets['type'] = ['Oversized core hole' if added_patch else 'Core hole']
+        facets['type'] = ['Oversized core hole' if 'MGO Board' in element else 'Core hole']
 
     product_name = product['product_desc']
     if code == 'UC90+' and issues:

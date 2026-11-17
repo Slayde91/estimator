@@ -192,6 +192,32 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         self.assertEqual(self.library.detail('technical', key)['fields'][0]['value'], expected)
         self.protected()
 
+    def test_allproof_patch_type_is_consistent_in_detail_editor_and_saved_inspection_exports(self):
+        key = 'allproof-patch-test'
+        record = self.library.technical_edit('report-a-v1', for_display=False)['record']
+        record.update(id=key, source_label=ALLPROOF_MANUAL_SOURCE)
+        record['filter_values'].update(manufacturer=['Allproof'], type=['Oversized core hole'])
+        record['fields'] = [field for field in record['fields']
+                            if field['label'] not in {'Manufacturer', 'Barrier Construction', 'Type'}]
+        record['fields'].extend([
+            {'label': 'Manufacturer', 'value': 'Allproof'},
+            {'label': 'Barrier Construction', 'value': '75 mm Hebel wall with a 13 mm fire-rated plasterboard patch'},
+            {'label': 'Type', 'value': 'Oversized core hole'},
+        ])
+        self.library.technical_edits.save(key, 0, 'a' * 64, record, created=True)
+        self.assertEqual(self.library.detail('technical', key)['inspection_options']['type'], ['Core hole'])
+        for result in (self.library.detail('technical', key), self.library.technical_edit(key)['record'],
+                       prepare_technical_item({'id': key}, library=self.library,
+                                              inspection_filters={'type': 'Oversized core hole'})):
+            self.assertEqual(next(field['value'] for field in result['fields'] if field['label'] == 'Type'), 'Core hole')
+        change = self.body(key)
+        change['title'] = 'Edited patch title'
+        self.library.technical_save(key, change)
+        stored = self.library.technical_edits.read()[0][key]['record']
+        self.assertEqual(next(field['value'] for field in stored['fields'] if field['label'] == 'Type'), 'Core hole')
+        self.assertEqual(stored['filter_values']['type'], ['Core hole'])
+        self.protected()
+
     def test_prose_rules_preserve_other_manufacturers_and_conditional_table_references(self):
         fitting = 'Use a P-trap, 4-way gully or gully trap on the exposed side'
         tested = 'Support the stack 500 mm and 1500 mm above the floor as tested.'

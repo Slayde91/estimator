@@ -26,7 +26,8 @@ class SnapSourceMappingTests(unittest.TestCase):
         fields = {f['label']: f['value'] for f in record['fields']}
         self.assertEqual(record['filter_values']['substrate'], ['Concrete beam'])
         self.assertEqual(record['filter_values']['orientation'], ['Vertical'])
-        self.assertEqual(record['filter_values']['type'], ['Cast-in'])
+        self.assertEqual(record['filter_values']['type'], ['Core hole'])
+        self.assertEqual(fields['Installation Type'], 'Stack - Cast-in (High-top Cast-in)')
         self.assertEqual(record['filter_values']['frl'], ['-/120/120'])
         self.assertEqual(fields['FRL'], '-/120/120')
         self.assertIn('SNAP lists -/180/120', fields['Installation Details'])
@@ -37,13 +38,16 @@ class SnapSourceMappingTests(unittest.TestCase):
 
     def test_opening_type_matches_cast_in_and_retrofit_applications(self):
         for application, element, expected in [
-                ('Floor Waste & Shower - Cast-in', 'Concrete Slab (150mm)', 'Cast-in'),
+                ('Floor Waste & Shower - Cast-in', 'Concrete Slab (150mm)', 'Core hole'),
                 ('Stack - Retrofit', 'Concrete Slab (150mm)', 'Core hole'),
-                ('Wall - Retrofit', 'PB Wall + PB Patch', 'Oversized core hole')]:
-            with self.subTest(application=application):
+                ('Wall - Retrofit', 'Speedpanel Wall (78mm) + PB Patch 1x13mm each side', 'Core hole'),
+                ('Wall - Retrofit', 'PB Wall - 2x13mm each side + PB Patch (142 mm)', 'Core hole'),
+                ('Stack - Retrofit', 'Concrete Slab (150mm) + MGO Board (10mm) + Steel Plate (1mm)', 'Oversized core hole')]:
+            with self.subTest(application=application, element=element):
                 row = {**self.row, 'application_name': application, 'element_name': element}
                 record = build_entry(row, self.assoc, self.product, {}, None, {})['record']
                 self.assertEqual(record['filter_values']['type'], [expected])
+                self.assertEqual(next(f['value'] for f in record['fields'] if f['label'] == 'Barrier Construction'), element)
 
     def test_figure_link_preserves_its_page_and_literal_product_code(self):
         render = {'path': 'guide-drawings/images/page2.png', 'sha256': 'a' * 64,

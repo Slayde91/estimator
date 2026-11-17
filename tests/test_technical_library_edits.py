@@ -189,7 +189,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         self.assertEqual(stored_fields['Service Size / Configuration']['value'], size)
         self.assertEqual(stored_fields['Report Number'], report)
         self.assertEqual(self.library.technical_edit(key)['record']['title'], change['title'])
-        self.assertEqual(self.library.detail('technical', key)['fields'][0]['value'], expected)
+        self.assertEqual(next(field['value'] for field in self.library.detail('technical', key)['fields']
+                              if field['label'] == 'Installation Details'), expected)
         self.protected()
 
     def test_allproof_patch_type_is_consistent_in_detail_editor_and_saved_inspection_exports(self):
@@ -300,7 +301,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         draft = {'globals': {}, 'rows': [{'id': 'row-1', 'inputs': {}, 'technical_reference_ids': [alias]}]}
         references = resolve_schedule_references(draft, reopened)['row_references']['row-1']
         self.assertEqual(references['systems'], [{'id': canonical, 'title': body['title'], 'number': 1}])
-        self.assertEqual(reopened.listing('technical', search=alias)['total'], 1)
+        self.assertEqual(reopened.listing('technical', search=alias)['total'], 0)
+        self.assertEqual(reopened.detail('technical', alias)['id'], canonical)
         edit = reopened.technical_edit(alias)
         self.assertEqual(reopened.technical_delete(alias, {key: edit[key] for key in ('revision', 'source_sha256')})['id'], canonical)
         final = ManualTechnicalLibrary(self.root / 'library', self.store)
@@ -614,7 +616,8 @@ class TechnicalLibraryEditTests(unittest.TestCase):
         library.technical_delete(result['id'], {key:context[key] for key in ('revision','source_sha256')})
         schema, rows = snapshot()
         self.assertEqual(set(schema) - set(old_schema), {'technical_library_items', 'technical_library_links',
-                                                          'technical_library_diagrams', 'technical_library_source_images'})
+                                                          'technical_library_diagrams', 'technical_library_source_images',
+                                                          'technical_library_public_ids'})
         for name in old_schema:
             self.assertEqual(schema[name], old_schema[name]); self.assertEqual(rows[name], old_rows[name])
         self.protected()

@@ -205,8 +205,9 @@ class TechnicalVariantIntegrationTests(unittest.TestCase):
         self.assertEqual(reopened.technical_edit(key)['source_sha256'], edit['source_sha256'])
         detail = reopened.detail('technical', key)
         self.assertEqual(detail['title'], record['title'])
-        matches = reopened.listing('technical', search='V285 AAC ' + key)['items']
-        self.assertEqual([match['id'] for match in matches], [key])
+        matches = reopened.listing('technical', search='V285 AAC')['items']
+        self.assertIn(key, [match['id'] for match in matches])
+        self.assertEqual(reopened.listing('technical', search=key)['total'], 0)
         self.assertEqual(next(f['value'] for f in detail['fields'] if f['label'] == 'ID'), 'V285')
         draft = {'rows': [{'id': 'row-1', 'inputs': {}, 'technical_reference_ids': [key]}]}
         references = resolve_schedule_references(draft, reopened)['row_references']['row-1']['systems']

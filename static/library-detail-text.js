@@ -237,7 +237,7 @@
     || componentList(label, value) || label === "Service Size / Configuration" && String(value).startsWith("Fix a single layer of waterproofing panel"));
 
   const selectorRecord = record => /^(?:promat-|trafalgar-selector-)/i.test(String(record?.id || ""));
-  function displayTitle(record, format = String) {
+  function supplierTitle(record, format) {
     const id = String(record?.id || "");
     if (/^tv-[0-9a-f]{40}$/.test(id)) {
       if (record.title && !record.title.includes(id)) return record.title;
@@ -247,6 +247,12 @@
     // Only supplier selector numbers are presentation noise. Technical IDs,
     // dimensions and ratings remain literal, and navigation keeps record.id.
     return title && format(selectorRecord(record) ? title.replace(/^\s*(Promat|Trafalgar)(?:\s*:\s*|\s+)\d+\s*[—–-]\s*/i, "$1 — ") : title);
+  }
+  function displayTitle(record, format = String) {
+    const title = supplierTitle(record, format);
+    const code = String(record?.source_code || "");
+    if (!code || title.split(/[\s:—–·,;()]+/).includes(code)) return title;
+    return title ? `${code} — ${title}` : code;
   }
   function displaySubtitle(record, format = String) {
     const subtitle = String(record?.subtitle || "");

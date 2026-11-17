@@ -136,7 +136,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
   await openProjectSection(page,'quotes');
   await headerDestination('quotes');await headerDestination('certification');
   await page.locator('#documents-navigation-toggle').hover();await expect(documentsMenu).toBeVisible();
-  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documentation','Forms']);
+  assert.deepEqual(await documentsMenu.locator('button').allTextContents(),['Documents','Forms']);
   await page.locator('#documents-navigation-toggle').click();await expectDocumentDestination('certification');
   await headerDestination('certification');
   await home();assert.equal(await openProjectTools(page),'home');await expect(page.locator('#view-quotes')).toBeVisible();
@@ -150,6 +150,7 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await page.keyboard.press('Escape');await expect(choices).toBeHidden();await expect(toggle).toBeFocused();
   }
   await openProjectSection(page,'documentation');await idle();await headerDestination('documentation');
+  await expect(page.locator('#view-documentation').getByRole('heading',{name:'Documents',level:1,exact:true})).toBeVisible();
   await expect(page.locator('#view-documentation #cover-sheets-settings')).toBeVisible();
   await expect(page.locator('#view-settings #cover-sheets-settings')).toHaveCount(0);
   await openProjectSection(page,'scheduler');await expect(page.locator('#scheduler-navigation')).toHaveAttribute('aria-current','page');
@@ -161,11 +162,11 @@ async function snapshot() { return page.evaluate(()=>({configuration:window.Ceas
     await openPdfForm(section);
     await expect(documentTabs).toBeVisible();
     assert.ok(await documentTabs.evaluate(nav=>Math.abs(nav.getBoundingClientRect().right-nav.lastElementChild.getBoundingClientRect().right)<1 && getComputedStyle(nav).boxShadow!=='none'));
-    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documentation','Forms']);
+    assert.deepEqual(await documentTabs.locator('button').allTextContents(),['Documents','Forms']);
     assert.equal(await documentTabs.count(),1,'Only one document navigation element is retained');
     assert.equal(await documentTabs.evaluate(nav=>Boolean(nav.closest('#swms-root'))),false,'SWMS cannot replace its navigation when rendering');
     await expect(page.locator('#view-'+section+' .eyebrow').filter({hasText:'DOCUMENTS'})).toHaveCount(0);
-    const button=documentTabs.getByRole('button',{name:'Documentation',exact:true});await button.focus();await button.press('Enter');
+    const button=documentTabs.getByRole('button',{name:'Documents',exact:true});await button.focus();await button.press('Enter');
     await expectDocumentDestination('documentation');
   }
   await openPdfForm('swms');

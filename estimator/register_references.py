@@ -15,6 +15,7 @@ from .catalog import ValidationError
 from .firestopping_taxonomy import category_service, canonical_opening_type
 from .library_report_links import valid_report_url
 from .technical_variant_presentation import variant_display
+from .technical_public_ids import public_caption
 
 _DASHES = str.maketrans({value: '-' for value in '‐‑‒–—−'})
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
@@ -177,7 +178,12 @@ class ReferenceIndex:
                     self.facets[name, token(value)].add(identifier)
 
     def system_title(self, key):
-        return variant_display(self.data, key).get('title', self.records[key]['title'])
+        display = variant_display(self.data, key)
+        record = public_caption(self.data, key, {**display, 'title': display.get('title', self.records[key]['title'])})
+        code = record.get('source_code', '')
+        if code.startswith('CF-') and code not in record['title'].split():
+            return f"{code} — {record['title']}"
+        return record['title']
 
     def select(self, contexts):
         cache_key = _context_digest(contexts)
@@ -282,6 +288,7 @@ class ReferenceIndex:
             if display:
                 value['source_code'] = display['source_code']
                 value['configuration'] = display['configuration']
+            value = public_caption(self.data, key, value)
             size += len(_encoded(value)) + (2 if result['systems'] else 0); _bounded(size, MAX_RESPONSE_BYTES)
             if excel:
                 caption = _system_caption(value)

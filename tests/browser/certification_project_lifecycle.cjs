@@ -55,10 +55,10 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const unsavedStamp=await page.evaluate(()=>window.CeasefireCertification.projectFingerprint());
   const upperToolbar=page.getByRole('group',{name:'Certification',exact:true}),revisionsToolbar=page.getByRole('group',{name:'Certificate revisions',exact:true});
   for(const toolbar of [upperToolbar,revisionsToolbar]){
-    for(const name of ['Documentation','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name,exact:true})).toBeEnabled();
+    for(const name of ['Documents','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name,exact:true})).toBeEnabled();
     await expect(toolbar.getByRole('combobox')).toHaveCount(0);
   }
-  await revisionsToolbar.getByRole('button',{name:'Documentation',exact:true}).click();await expect(page.locator('#view-documentation')).toBeVisible();
+  await revisionsToolbar.getByRole('button',{name:'Documents',exact:true}).click();await expect(page.locator('#view-documentation')).toBeVisible();
   await certification();
   assert.equal(await page.evaluate(()=>window.CeasefireCertification.projectFingerprint()),unsavedStamp);
   await expect(page.locator('#certification-signature-preview')).toBeVisible();
@@ -76,11 +76,11 @@ async function continueDiscard(){await page.locator('#discard-dialog [value="con
   const localized=await page.evaluate(()=>{
     const i18n=window.CeasefireI18n;
     i18n.setLanguage('ar',false);
-    return Object.fromEntries(['Documentation','Save draft','New','Generate Certificate'].map(key=>[key,i18n.translate(key)]));
+    return Object.fromEntries(['Documents','Save draft','New','Generate Certificate'].map(key=>[key,i18n.translate(key)]));
   });
   await expect(page.locator('html')).toHaveAttribute('dir','rtl');
   for(const toolbar of await page.locator('#certification-editor .certification-editor-toolbar').all()){
-    for(const name of ['Documentation','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name:localized[name],exact:true})).toBeVisible();
+    for(const name of ['Documents','Save draft','New','Generate Certificate'])await expect(toolbar.getByRole('button',{name:localized[name],exact:true})).toBeVisible();
     await expect(toolbar.getByRole('combobox')).toHaveCount(0);
   }
   await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));

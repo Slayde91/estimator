@@ -442,7 +442,7 @@ class ProjectDocumentation:
             db.execute('BEGIN')
             rows = self._rows(db)
             if len(rows) != expected:
-                raise DocumentationConflict('Project document history changed while saving. Refresh Documentation and save again.')
+                raise DocumentationConflict('Project document history changed while saving. Refresh Documents and save again.')
             metadata, blobs = self._validate_rows(current['project_id'], rows)
         for digest, (size, media_type) in blobs.items():
             _verified(self.root / 'blobs' / (digest + EXTENSIONS[media_type]), digest, size, MAX_ARTIFACT_BYTES)

@@ -51,7 +51,9 @@ test('Help covers the header workspaces and the six available calculator choices
   assert.equal(choices.length, 6);
   assert.deepEqual([...calculators.choices].sort(), choices.sort());
   assert.ok(glossary.matches(calculators, 'intumescent', 'Navigation'));
-  assert.ok(glossary.matches(nav.find(row => row.name === 'Documents'), 'Forms', 'Navigation'));
+  const documents = nav.find(row => row.name === 'Documents');
+  assert.deepEqual(documents.choices, ['Documents', 'Forms']);
+  assert.ok(glossary.matches(documents, 'Forms', 'Navigation'));
   assert.ok(!glossary.matches(nav.find(row => row.name === 'Estimates'), 'Firestopping', 'Navigation'));
 });
 

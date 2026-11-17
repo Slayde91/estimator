@@ -35,7 +35,7 @@
     nav("Home", "home", "Open the workspace starting page.");
     nav("Contacts", "contacts", "Contacts", ["Leads", "Contacts", "Companies"]);
     nav("Projects", "projects", "Find, load and browse project files.", ["Projects", "Quotes", "Work Orders", "Purchase Orders"]);
-    nav("Documents", "documents", "Documents", ["Documentation", "Forms"]);
+    nav("Documents", "documents", "Documents", ["Documents", "Forms"]);
     nav("Estimates", "estimate", "Estimate");
     nav("Calculators", "calculators", "Choose a calculator", ["Duct", "Firestopping", "Steel (spray)", "Steel (intumescent)", "Steel (board)", "Factor Calcs"]);
     if (takeoffs) nav("Takeoffs", "takeoffs", "Choose a takeoff workspace", ["Steel", "Duct", "Walls/Floors", "Defect Reports", "Service Plans"]);

@@ -71,10 +71,10 @@
     const epoch=state.epoch;
     const task=(async()=>{
       const scope=checkedScope(await window.CeasefireCertification.projectWorkspace());
-      if(epoch!==state.epoch)throw new Error("The project changed while loading its documents. Open Documentation again.");
+      if(epoch!==state.epoch)throw new Error("The project changed while loading its documents. Open Documents again.");
       const model=await readHistory(scope);
       if(epoch!==state.epoch||window.CeasefireCertification.sessionId()!==scope.workspace_id)
-        throw new Error("The project changed while loading its documents. Open Documentation again.");
+        throw new Error("The project changed while loading its documents. Open Documents again.");
       state.scope=scope;state.model=model;state.baseline=model.workspace_revision;return scope;
     })();
     state.opening=task;

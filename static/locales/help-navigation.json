@@ -1,0 +1,51 @@
+{
+  "When reporting a Technical Library error, include the system ID and report number.": [
+    "报告技术资料库错误时，请注明系统 ID 和报告编号。",
+    "तकनीकी लाइब्रेरी में त्रुटि की सूचना देते समय सिस्टम आईडी और रिपोर्ट संख्या शामिल करें।",
+    "Al informar de un error en la biblioteca técnica, incluya el ID del sistema y el número de informe.",
+    "عند الإبلاغ عن خطأ في المكتبة الفنية، اذكر معرّف النظام ورقم التقرير.",
+    "เมื่อแจ้งข้อผิดพลาดในคลังข้อมูลทางเทคนิค ให้ระบุรหัสระบบและหมายเลขรายงาน"
+  ],
+  "Open Calculators and choose Duct, Firestopping or Steel. The Steel menu includes spray, intumescent, board and Factor Calcs.": [
+    "打开计算器，选择风管、防火封堵或钢结构。钢结构菜单包含喷涂、膨胀型涂层、板材和截面系数计算。",
+    "कैलकुलेटर खोलें और डक्ट, फायरस्टॉपिंग या स्टील चुनें। स्टील मेनू में स्प्रे, इंट्यूमेसेंट कोटिंग, बोर्ड और फ़ैक्टर गणना हैं।",
+    "Abra Calculadoras y elija Conductos, Sellado cortafuegos o Acero. El menú Acero incluye proyección, pintura intumescente, placas y cálculo de factores.",
+    "افتح الحاسبات واختر مجاري الهواء أو سد الاختراقات أو الفولاذ. تشمل قائمة الفولاذ الرش والطلاء المنتفخ والألواح وحساب العوامل.",
+    "เปิดเครื่องคำนวณแล้วเลือกท่อลม การอุดช่องเปิดป้องกันไฟ หรือเหล็ก เมนูเหล็กมีแบบพ่น สีบวมตัว แผ่นบอร์ด และการคำนวณค่าปัจจัย"
+  ],
+  "Filter systems by Type using Core hole or Oversized core hole. Read Installation Details for the fitting method and any required patch.": [
+    "按类型筛选系统时，选择芯钻孔或超大芯钻孔。安装详情说明了安装方式以及所需的补板。",
+    "प्रकार फ़िल्टर में कोर होल या बड़ा कोर होल चुनें। लगाने की विधि और आवश्यक पैच के लिए स्थापना विवरण पढ़ें।",
+    "Filtre los sistemas por tipo seleccionando perforación o perforación sobredimensionada. Consulte los detalles de instalación para conocer el montaje y los parches necesarios.",
+    "صفّ الأنظمة حسب النوع باختيار ثقب لُبي أو ثقب لُبي كبير الحجم. راجع تفاصيل التركيب لمعرفة طريقة التثبيت وأي رقعة مطلوبة.",
+    "กรองระบบตามประเภทโดยเลือกรูเจาะคอร์หรือรูเจาะคอร์ขนาดใหญ่ อ่านรายละเอียดการติดตั้งเพื่อดูวิธีติดตั้งและแผ่นปะที่ต้องใช้"
+  ],
+  "Open Documents, then Forms, to fill out a template or view its records. The template creator or an administrator can confirm deletion of a template. Existing records keep their template version.": [
+    "依次打开文档和表单，可填写模板或查看其记录。模板创建者或管理员可以确认删除模板。已有记录保留原模板版本。",
+    "टेम्पलेट भरने या उसके रिकॉर्ड देखने के लिए दस्तावेज़ में फ़ॉर्म खोलें। टेम्पलेट बनाने वाला व्यक्ति या प्रशासक उसे हटाने की पुष्टि कर सकता है। मौजूदा रिकॉर्ड अपने टेम्पलेट का संस्करण बनाए रखते हैं।",
+    "Abra Documentos y después Formularios para rellenar una plantilla o ver sus registros. El creador de la plantilla o un administrador puede confirmar su eliminación. Los registros existentes conservan su versión de la plantilla.",
+    "افتح المستندات ثم النماذج لتعبئة قالب أو عرض سجلاته. يمكن لمنشئ القالب أو للمسؤول تأكيد حذفه. تحتفظ السجلات القائمة بإصدار القالب الخاص بها.",
+    "เปิดเอกสารแล้วเลือกแบบฟอร์มเพื่อกรอกแบบตามแม่แบบหรือดูรายการที่บันทึกไว้ ผู้สร้างแม่แบบหรือผู้ดูแลระบบสามารถยืนยันการลบแม่แบบได้ รายการเดิมยังคงใช้แม่แบบรุ่นเดิม"
+  ],
+  "Open Projects to create or open a project. Use Project Details to review its number, client and site address.": [
+    "打开项目可创建或打开项目。在项目详情中查看项目编号、客户和现场地址。",
+    "प्रोजेक्ट बनाने या खोलने के लिए प्रोजेक्ट अनुभाग खोलें। प्रोजेक्ट विवरण में उसकी संख्या, ग्राहक और साइट का पता देखें।",
+    "Abra Proyectos para crear o abrir un proyecto. Consulte su número, cliente y dirección de la obra en Detalles del proyecto.",
+    "افتح المشاريع لإنشاء مشروع أو فتحه. راجع رقمه واسم العميل وعنوان الموقع في تفاصيل المشروع.",
+    "เปิดโครงการเพื่อสร้างหรือเปิดโครงการ ดูหมายเลขโครงการ ลูกค้า และที่อยู่หน้างานในรายละเอียดโครงการ"
+  ],
+  "Link Library Item connects a Firestopping record to a Technical Library reference. The trash button on a library card removes the item after confirmation. Unlink beside a related record removes only that link.": [
+    "“关联资料库条目”将防火封堵记录与技术资料库参考记录关联。确认后，资料卡上的垃圾桶按钮会删除该条目。相关记录旁的“取消关联”仅删除关联。",
+    "लाइब्रेरी आइटम लिंक करें से फायरस्टॉपिंग रिकॉर्ड तकनीकी लाइब्रेरी के संदर्भ से जुड़ता है। लाइब्रेरी कार्ड पर कूड़ेदान बटन पुष्टि के बाद आइटम हटाता है। संबंधित रिकॉर्ड के पास अनलिंक केवल उसका लिंक हटाता है।",
+    "Vincular elemento de la biblioteca conecta un registro de sellado cortafuegos con una referencia técnica. La papelera de la tarjeta elimina el elemento tras confirmarlo. Desvincular, junto a un registro relacionado, solo quita ese vínculo.",
+    "يربط زر ربط عنصر المكتبة سجل سد الاختراقات بمرجع في المكتبة الفنية. يحذف زر السلة على بطاقة المكتبة العنصر بعد التأكيد. أما إلغاء الربط بجوار سجل ذي صلة فيزيل الرابط وحده.",
+    "ใช้เชื่อมโยงรายการคลังเพื่อเชื่อมรายการอุดช่องเปิดป้องกันไฟกับข้อมูลอ้างอิงในคลังเทคนิค ปุ่มถังขยะบนการ์ดจะลบรายการเมื่อยืนยันแล้ว ส่วนยกเลิกการเชื่อมโยงข้างรายการที่เกี่ยวข้องจะลบเฉพาะลิงก์"
+  ],
+  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": [
+    "在防火封堵资料库中，将条目添加到明细表。在技术资料库中，选择要添加该参考的现有明细表条目。",
+    "फायरस्टॉपिंग लाइब्रेरी से शेड्यूल में आइटम जोड़ें। तकनीकी लाइब्रेरी में उन मौजूदा शेड्यूल आइटम को चुनें जिनमें संदर्भ जोड़ना है।",
+    "En la biblioteca de sellado cortafuegos, añada un elemento al listado. En la biblioteca técnica, elija los elementos existentes del listado que recibirán la referencia.",
+    "في مكتبة سد الاختراقات، أضف عنصرًا إلى الجدول. وفي المكتبة الفنية، اختر عناصر الجدول الحالية التي تريد إضافة المرجع إليها.",
+    "ในคลังอุดช่องเปิดป้องกันไฟ ให้เพิ่มรายการลงในตาราง ในคลังเทคนิค ให้เลือกรายการที่มีอยู่ในตารางเพื่อเพิ่มข้อมูลอ้างอิง"
+  ]
+}

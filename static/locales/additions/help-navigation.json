@@ -1,0 +1,37 @@
+{
+  "When reporting a Technical Library error, include the system ID and report number.": [
+    "기술 라이브러리 오류를 신고할 때 시스템 ID와 보고서 번호를 알려 주세요.",
+    "Kapag nag-uulat ng error sa Teknikal na Aklatan, isama ang ID ng sistema at numero ng ulat.",
+    "Khi báo lỗi trong Thư viện kỹ thuật, hãy cung cấp mã hệ thống và số báo cáo."
+  ],
+  "Open Calculators and choose Duct, Firestopping or Steel. The Steel menu includes spray, intumescent, board and Factor Calcs.": [
+    "계산기를 열고 덕트, 방화 충전 또는 강재를 선택하세요. 강재 메뉴에는 뿜칠, 팽창성 도료, 보드 및 계수 계산이 있습니다.",
+    "Buksan ang Mga Calculator at piliin ang Duct, Firestopping o Steel. Kasama sa menu ng Steel ang spray, intumescent, board at Factor Calcs.",
+    "Mở Máy tính và chọn Ống gió, Bịt kín chống cháy hoặc Thép. Menu Thép có các mục phun phủ, sơn trương nở, tấm bảo vệ và tính hệ số."
+  ],
+  "Filter systems by Type using Core hole or Oversized core hole. Read Installation Details for the fitting method and any required patch.": [
+    "유형 필터에서 코어 구멍 또는 대형 코어 구멍을 선택하세요. 장착 방법과 필요한 덧댐은 설치 상세 정보를 확인하세요.",
+    "Salain ang mga sistema ayon sa Uri gamit ang Core hole o Oversized core hole. Basahin ang Mga Detalye ng Pagkakabit para sa paraan ng pag-install at anumang kailangang pantapal.",
+    "Lọc hệ thống theo Loại bằng cách chọn lỗ khoan lõi hoặc lỗ khoan lõi quá cỡ. Xem Chi tiết lắp đặt để biết cách lắp và miếng vá cần dùng."
+  ],
+  "Open Documents, then Forms, to fill out a template or view its records. The template creator or an administrator can confirm deletion of a template. Existing records keep their template version.": [
+    "문서에서 양식을 열어 템플릿을 작성하거나 기록을 확인하세요. 템플릿 작성자나 관리자가 템플릿 삭제를 확인할 수 있습니다. 기존 기록에는 원래 템플릿 버전이 유지됩니다.",
+    "Buksan ang Mga Dokumento, pagkatapos ang Mga Form, upang punan ang isang template o tingnan ang mga tala nito. Ang gumawa ng template o isang administrator ang maaaring magkumpirma ng pagtanggal nito. Mananatili ang bersiyon ng template sa mga kasalukuyang tala.",
+    "Mở Tài liệu rồi chọn Biểu mẫu để điền theo mẫu hoặc xem các bản ghi. Người tạo mẫu hoặc quản trị viên có thể xác nhận xóa mẫu. Các bản ghi hiện có giữ nguyên phiên bản mẫu của chúng."
+  ],
+  "Open Projects to create or open a project. Use Project Details to review its number, client and site address.": [
+    "프로젝트 메뉴에서 프로젝트를 만들거나 여세요. 프로젝트 상세 정보에서 번호, 고객 및 현장 주소를 확인하세요.",
+    "Buksan ang Mga Proyekto upang gumawa o magbukas ng proyekto. Tingnan ang numero, kliyente at address ng site sa Mga Detalye ng Proyekto.",
+    "Mở mục Dự án để tạo hoặc mở dự án. Xem số dự án, khách hàng và địa chỉ công trường trong Chi tiết dự án."
+  ],
+  "Link Library Item connects a Firestopping record to a Technical Library reference. The trash button on a library card removes the item after confirmation. Unlink beside a related record removes only that link.": [
+    "라이브러리 항목 연결은 방화 충전 기록을 기술 라이브러리 참조에 연결합니다. 라이브러리 카드의 휴지통 버튼은 확인 후 항목을 삭제합니다. 관련 기록 옆의 연결 해제는 해당 연결만 제거합니다.",
+    "Ikinokonekta ng I-link ang Item sa Aklatan ang tala ng firestopping sa isang teknikal na sanggunian. Inaalis ng basurahan sa card ang item pagkatapos ng kumpirmasyon. Ang Alisin ang link sa tabi ng kaugnay na tala ay nag-aalis lamang ng ugnayang iyon.",
+    "Liên kết mục thư viện nối bản ghi bịt kín chống cháy với tài liệu tham chiếu trong Thư viện kỹ thuật. Nút thùng rác trên thẻ xóa mục sau khi xác nhận. Hủy liên kết cạnh bản ghi liên quan chỉ xóa liên kết đó."
+  ],
+  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": [
+    "방화 충전 라이브러리에서는 항목을 일람표에 추가합니다. 기술 라이브러리에서는 참조를 연결할 기존 일람표 항목을 선택합니다.",
+    "Sa Aklatan ng Firestopping, magdagdag ng item sa iskedyul. Sa Teknikal na Aklatan, piliin ang mga kasalukuyang item sa iskedyul na lalagyan ng sanggunian.",
+    "Trong thư viện bịt kín chống cháy, thêm một mục vào bảng kê. Trong thư viện kỹ thuật, chọn các mục đã có trong bảng kê để gắn tài liệu tham chiếu."
+  ]
+}

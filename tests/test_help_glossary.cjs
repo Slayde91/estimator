@@ -38,6 +38,23 @@ test('navigation glossary artwork points to an actual header control with a glyp
   }
 });
 
+test('Help covers the header workspaces and the six available calculator choices', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../static/index.html'), 'utf8');
+  const header = html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0];
+  const nav = glossary.catalogue(registry).filter(row => row.group === 'Navigation');
+  for (const match of header.matchAll(/<button\b[^>]*data-view="([^"]+)"/g)) {
+    assert.ok(nav.some(row => row.icon.selector === `.app-header [data-view="${match[1]}"]`), match[1]);
+  }
+  const tabs = html.match(/<nav id="calculator-kind-pages"[\s\S]*?<\/nav>/)[0];
+  const choices = [...tabs.matchAll(/data-calculator-id="[^"]+"[^>]*data-i18n="([^"]+)"/g)].map(match => match[1]);
+  const calculators = nav.find(row => row.name === 'Calculators');
+  assert.equal(choices.length, 6);
+  assert.deepEqual([...calculators.choices].sort(), choices.sort());
+  assert.ok(glossary.matches(calculators, 'intumescent', 'Navigation'));
+  assert.ok(glossary.matches(nav.find(row => row.name === 'Documents'), 'Forms', 'Navigation'));
+  assert.ok(!glossary.matches(nav.find(row => row.name === 'Estimates'), 'Firestopping', 'Navigation'));
+});
+
 test('PDF graphics and the icon-bearing Tools menu keep their actual artwork and shortcuts', () => {
   const rows = glossary.catalogue(registry), graphics = require('../static/takeoff-graphics.js');
   for (const kind of ['cloud','textbox','stamp','polyline','arrow','rectangle','circle','polygon']) {

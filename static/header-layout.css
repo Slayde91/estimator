@@ -21,19 +21,6 @@
     height: auto;
     object-fit: contain;
   }
-  /* Use the transparent space below the logo ink. The credit never
-     participates in layout or changes the home link's hit target. */
-  #brand-credit {
-    position: absolute;
-    /* The letters run from x=446 to x=2133 on the 2172px logo canvas. */
-    left: 59.37%;
-    transform: translateX(-50%);
-    top: 73%;
-    z-index: 1;
-    font: 600 10px/11px "Courier New", monospace;
-    white-space: pre;
-    pointer-events: none;
-  }
   .app-header .header-status-row {
     grid-column:1/-1; display:flex; align-items:center; gap:12px; min-width:0;
     /* Match the visible mark, inset 45 pixels in the 2172-pixel logo asset. */
@@ -202,14 +189,11 @@
     #header-project-actions .icon-only { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 9px; }
   }
   @media (max-width: 420px) {
-    /* Reserve room for the full credit beside the smaller wordmark. */
-    .app-header .brand-stack { column-gap: 36px; }
     .app-header { --header-logo-width: 100px; }
     .app-header .header-status-row .status-label { font-size: 10px; }
   }
 }
 @media print {
-  #brand-credit { display: none; }
   #header-project-actions { display: none !important; }
   .app-header { grid-template-columns: minmax(0, 1fr) minmax(0, 200px); }
   .app-header .brand-stack { width: 100%; max-width: 430px; }

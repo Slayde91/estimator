@@ -186,53 +186,6 @@
 // HEADER_TAGLINE:END
 
 (() => {
-  const brand = document.querySelector(".app-header .brand");
-  const credit = document.getElementById("brand-credit");
-  const phrase = document.getElementById("brand-credit-description")?.textContent;
-  if (!brand || !credit || !phrase) return;
-  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const alphabet = "0123456789@#$%&*+=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  const step = 58, hold = 1600, reveal = phrase.length * step;
-  let timer;
-  function clear() {
-    clearTimeout(timer);
-    credit.textContent = "";
-  }
-  function play() {
-    clear();
-    if (motion.matches) {
-      credit.textContent = phrase;
-      timer = setTimeout(clear, hold);
-      return;
-    }
-    const start = performance.now();
-    function frame() {
-      const elapsed = performance.now() - start;
-      if (elapsed >= 2 * reveal + hold) { clear(); return; }
-      if (elapsed >= reveal && elapsed < reveal + hold) {
-        credit.textContent = phrase;
-        timer = setTimeout(frame, reveal + hold - elapsed);
-        return;
-      }
-      const forward = elapsed < reveal;
-      const resolved = forward ? Math.floor(elapsed / step)
-        : phrase.length - 1 - Math.floor((elapsed - reveal - hold) / step);
-      const visible = Math.min(phrase.length, resolved + 3);
-      let value = phrase.slice(0, resolved);
-      for (let i = resolved; i < visible; i++) {
-        value += phrase[i] === " " ? " " : alphabet[Math.floor(Math.random() * alphabet.length)];
-      }
-      credit.textContent = value;
-      timer = setTimeout(frame, step);
-    }
-    frame();
-  }
-  brand.addEventListener("click", play);
-  motion.addEventListener("change", () => { if (motion.matches && credit.textContent) play(); });
-  window.addEventListener("pagehide", clear);
-})();
-
-(() => {
   const $ = (id) => document.getElementById(id);
   const calculationQueue = window.CeasefireCalculationQueue.create();
   const state = {

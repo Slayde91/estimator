@@ -42,9 +42,11 @@ async function openAdd(label) {
   for (const width of [1915,631,390]) {
     await page.setViewportSize({width,height:970});
     await expect(action).toHaveText('+'); await expect(action).toHaveAttribute('title',label);
-    const box=await action.boundingBox();
-    assert.ok(box.width>=44 && box.width===box.height && box.x>=0 && box.x+box.width<=width);
-    assert.equal(await action.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(208, 0, 27)');
+    await expect.poll(() => action.evaluate((node, viewportWidth) => {
+      const box=node.getBoundingClientRect();
+      return box.width>=44 && box.width===box.height && box.left>=0 && box.right<=viewportWidth;
+    }, width), {message:`${label} should be square, at least 44px and inside the ${width}px viewport`}).toBe(true);
+    await expect(action).toHaveCSS('background-color','rgb(208, 0, 27)');
   }
   await page.setViewportSize({width:1915,height:970}); await action.click();
 }
@@ -136,6 +138,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await scheduler();
   await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02');
   await page.getByLabel('Week containing date',{exact:true}).press('Tab');
+  await expect(page.getByRole('button',{name:'Add shift for Jordan QA on 2026-11-02',exact:true})).toBeVisible();
   await openAdd('Add shift');
   modal = page.locator('dialog[open]');
   const palette=modal.getByRole('radiogroup',{name:'Colour'});

@@ -310,6 +310,12 @@ class PassiveFireRegisterTests(unittest.TestCase):
             for key, message in [('', 'Technical Library item'), ('removed-item', 'unavailable'), ('../path', 'Invalid library reference')]:
                 with self.subTest(key=key), self.assertRaisesRegex(ValidationError, message):
                     render_register_pdf({'entries': [{**entry, 'technical_item_id': key}]}, {}, library=library, company=DEFAULTS)
+            missing = normalize_register({'entries': [entry, {}, {**entry, 'technical_item_id': 'removed-item'}]})
+            del missing['entries'][1]
+            for render in (render_register_pdf, render_inspection_register):
+                with self.subTest(render=render.__name__), self.assertRaisesRegex(
+                        ValidationError, 'Penetration ID 003 / 003-2:.*unavailable'):
+                    render(missing, {}, library=library, company=DEFAULTS)
 
     def test_conditional_requirements_and_closed_template_choices(self):
         entry = completed_entry()

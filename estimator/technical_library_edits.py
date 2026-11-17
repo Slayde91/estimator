@@ -460,6 +460,9 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
                         display and label == 'ID' and previous.get('value') == original['id'] and value == display['source_code']):
                     previous['value'] = value
                 normalized.append(previous)
+            # Display cleanup can omit source fields from the editor entirely.
+            normalized.extend(deepcopy(field) for label, field in old_fields.items()
+                              if label not in labels and label not in displayed_fields)
             facets = body['facets']
             if not isinstance(facets, dict) or set(facets) != {key for key, _ in FACETS}:
                 raise ValidationError('Choose all Technical Library classifications.')
@@ -496,11 +499,18 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             chosen['report'] = ([value.strip() for value in old_report['value'].splitlines() if value.strip()] if retain_reports else [report_number])
             if set(chosen['category']) & MOVED_SERVICE_CATEGORIES and chosen['services'] != ['N/A']:
                 raise ValidationError('Choose N/A Services for this non-service Category.')
+            old_rating = old_fields.get('FRL')
+            retain_rating = bool(old_rating and old_rating.get('table_links')
+                                 and chosen['frl'] == original.get('filter_values', {}).get('frl', [])
+                                 and all(field['value'] == displayed_fields.get('FRL')
+                                         for field in fields if field['label'] == 'FRL'))
             normalized = [field for field in normalized if field['label'] not in FIELD_FACETS]
             for label, facet in FIELD_FACETS.items():
                 field = {'label': label, 'value': '\n'.join(chosen[facet])}
                 if facet == 'report':
                     field = deepcopy(old_report) if retain_reports else ({**field, 'report_links': [{'label': report_number, 'url': report_url}]} if report_url else field)
+                elif facet == 'frl' and retain_rating:
+                    field = deepcopy(old_rating)
                 normalized.append(field)
             record = deepcopy(context['record'])
             created = key is None

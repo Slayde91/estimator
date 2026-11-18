@@ -13,6 +13,7 @@ import unittest
 from openpyxl import load_workbook
 
 from feature_client import StaffConnection
+from estimator.active_pricing import active_configuration
 from estimator.calculator import specification
 from estimator.catalog import baseline, effective_catalog
 from estimator.estimate_composition import calculate
@@ -131,15 +132,16 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         self.assert_calculation(self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS}),
                                 SHARED_INPUTS, {})
 
-    def test_separate_use_override_and_yield_survive_round_trip_and_later_price_change(self):
+    def test_legacy_linked_rate_price_follows_product_after_import_and_later_price_change(self):
         draft = {'rates': {'primers:1': {'price': 401.25}}}
-        original = self.export(draft)
-        first_payload = self.edit(original, [
-            ('204', {'Yield': 'Primers #1 = 71'}),
+        old_workbook = _product_service_export(draft, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
+                                               CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
+        first_payload = self.edit(old_workbook, [
+            ('204', {'Rate overrides': 'primers = 407.25', 'Yield': 'Primers #1 = 71'}),
             ('203', {'Yield': 2.5}),
         ])
         first = self.preview(first_payload, draft)['configuration']
-        expected = {'inventory': {}, 'rates': {'primers:1': {'price': 401.25, 'yield': 71},
+        expected = {'inventory': {}, 'rates': {'primers:1': {'yield': 71},
                                                'mesh:2': {'yield': 2.5}}}
         second_payload = self.edit(self.export(first), [
             ('204', {'Supplier price': 300, 'Markup': 0.2}),
@@ -149,39 +151,35 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         result = self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS, 'configuration': second})
         cells = self.assert_calculation(result, SHARED_INPUTS, expected)
         self.assertEqual({address: cells[address] for address in ('A87', 'F20', 'B87', 'A92', 'F21', 'B68')},
-                         {'A87': 401.25, 'F20': 71, 'B87': 2, 'A92': 360, 'F21': 142, 'B68': 4})
+                         {'A87': 360, 'F20': 71, 'B87': 2, 'A92': 360, 'F21': 142, 'B68': 4})
         catalog = effective_catalog(second)
         primer = next(rate for rate in catalog['rate_groups']['primers'] if rate['id'] == 'primers:1')
         topcoat = next(rate for rate in catalog['rate_groups']['topcoats'] if rate['id'] == 'topcoats:1')
         self.assertEqual((primer['inventory_id'], topcoat['inventory_id']), ('204', '204'))
-        self.assertEqual((primer['price_mode'], topcoat['price_mode']), ('override', 'inventory'))
+        self.assertEqual((primer['price_mode'], topcoat['price_mode']), ('inventory', 'inventory'))
         self.assertEqual((primer['price'], primer['yield'], topcoat['price'], topcoat['yield']),
-                         (401.25, 71, 360, 142))
-        workbook = load_workbook(BytesIO(self.export(second)))
-        try:
-            sheet = workbook['Inventory & Rates']
-            headers = {cell.value: cell.column for cell in sheet[1]}
-            row = product_service_row(sheet, headers, '204')
-            self.assertNotIn('Rate overrides', headers)
-            self.assertEqual(sheet.cell(row, headers['Yield']).value, 'primers = 71; topcoats = 142')
-            saved = json.loads(sheet.cell(row, headers['Saved values']).value)
-            self.assertEqual([use['rate']['id'] for use in saved['uses']], ['primers:1', 'topcoats:1'])
-            self.assertEqual(saved['uses'][0]['rate']['price'], 401.25)
-        finally:
-            workbook.close()
+                         (360, 71, 360, 142))
+        # The public export also clears the linked price from an unsaved legacy draft.
+        for configuration, price, visible_yield in ((draft, 384.93, 142), (second, 360, 'primers = 71; topcoats = 142')):
+            with self.subTest(price=price):
+                workbook = load_workbook(BytesIO(self.export(configuration)))
+                try:
+                    sheet = workbook['Inventory & Rates']
+                    headers = {cell.value: cell.column for cell in sheet[1]}
+                    row = product_service_row(sheet, headers, '204')
+                    self.assertNotIn('Rate overrides', headers)
+                    self.assertEqual(sheet.cell(row, headers['Yield']).value, visible_yield)
+                    saved = json.loads(sheet.cell(row, headers['Saved values']).value)
+                    self.assertEqual([use['rate']['id'] for use in saved['uses']], ['primers:1', 'topcoats:1'])
+                    self.assertEqual([(use['rate']['price_mode'], use['rate']['price']) for use in saved['uses']],
+                                     [('inventory', price), ('inventory', price)])
+                finally:
+                    workbook.close()
         round_trip = self.preview(self.export(second), second)
         self.assertEqual(round_trip['summary'], {'inventory': {'added': 0, 'removed': 0, 'updated': 0},
                                                 'rates': {'added': 0, 'removed': 0, 'updated': 0}})
         self.assert_calculation(self.request('POST', '/api/calculate', {
             'inputs': SHARED_INPUTS, 'configuration': round_trip['configuration']}), SHARED_INPUTS, expected)
-        old_format = _product_service_export(second, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
-                                             CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
-        restored_payload = self.edit(old_format, [('204', {'Rate overrides': None})])
-        restored = self.preview(restored_payload, second)['configuration']
-        expected['rates']['primers:1'].pop('price')
-        restored_result = self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS, 'configuration': restored})
-        self.assert_calculation(restored_result, SHARED_INPUTS, expected)
-        self.assertEqual(restored_result['cells']['A87'], 360)
 
     def test_imported_yield_kinds_keep_existing_numeric_and_error_results(self):
         original = self.export()
@@ -257,7 +255,8 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         self.assertEqual(proposed['summary'], {'inventory': {'added': 0, 'removed': 0, 'updated': 0},
                                              'rates': {'added': 0, 'removed': 0, 'updated': 0}})
         self.assert_calculation(self.request('POST', '/api/calculate', {
-            'inputs': SHARED_INPUTS, 'configuration': proposed['configuration']}), SHARED_INPUTS, draft)
+            'inputs': SHARED_INPUTS, 'configuration': proposed['configuration']}), SHARED_INPUTS,
+            active_configuration(draft))
         self.assert_calculation(self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS}),
                                 SHARED_INPUTS, saved)
         self.assertEqual(self.request('GET', f'/api/quotes/{old_quote["id"]}'), old_quote)

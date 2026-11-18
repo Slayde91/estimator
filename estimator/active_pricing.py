@@ -1,10 +1,13 @@
-"""Retire catalogue choices from live pricing without rewriting frozen estimates."""
+"""Maintain the current pricing library without rewriting frozen estimates."""
 
 from .catalog import baseline, catalog_signature, product_service_name, validate_configuration
 
 
+_RATE_PRICE_FIELDS = {"price", "supplier_price", "markup"}
+
+
 def active_configuration(value):
-    """Return validated, editable pricing with the retired access and labour uses removed.
+    """Return current pricing with retired uses removed and linked prices reconciled.
 
     The source workbook also serves legacy quotes with no embedded catalogue.
     Keep it intact and materialise the reduced catalogue only for current pricing.
@@ -36,19 +39,40 @@ def active_configuration(value):
         else:
             products.append(product)
     catalog["inventory"] = products
+    product_prices = {product["id"]: product["sales_price"] for product in products}
+    linked_prices_changed = False
     for group, rates in catalog["rate_groups"].items():
         kept = []
         for rate in rates:
-            current = {**rate, **config["rates"].get(rate["id"], {})}
+            key = rate["id"]
+            owner = rate.get("inventory_id")
+            patch = config["rates"].get(key, {})
+            current = {**rate, **patch}
             label = product_service_name(records=[current]).strip().casefold()
-            if (rate.get("inventory_id") in removed_products
+            if (owner in removed_products
                 or (group == "access_hire" and label.endswith("daily hire"))
                 or (group == "labour_rates" and label.endswith("(sheeting)"))):
-                removed_rates.add(rate["id"])
-            else:
-                kept.append(rate)
+                removed_rates.add(key)
+                continue
+            if owner is not None:
+                # Use the base product price here. The calculator applies
+                # product-level price edits to inventory-priced uses later.
+                price = product_prices[owner]
+                if (rate["price"] != price or rate.get("price_mode", "inventory") != "inventory"
+                    or {"supplier_price", "markup"} & rate.keys()):
+                    rate.update(price=price, price_mode="inventory")
+                    rate.pop("supplier_price", None)
+                    rate.pop("markup", None)
+                    linked_prices_changed = True
+                if _RATE_PRICE_FIELDS & patch.keys():
+                    retained = {field: value for field, value in patch.items() if field not in _RATE_PRICE_FIELDS}
+                    if retained:
+                        config["rates"][key] = retained
+                    else:
+                        del config["rates"][key]
+            kept.append(rate)
         catalog["rate_groups"][group] = kept
-    if removed_products or removed_rates:
+    if removed_products or removed_rates or linked_prices_changed:
         config["catalog"] = catalog
         for key in removed_products:
             config["inventory"].pop(key, None)

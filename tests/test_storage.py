@@ -48,7 +48,7 @@ class StorageTests(unittest.TestCase):
     def test_quote_pricing_is_frozen_across_settings_changes_and_restart(self):
         original = self.store.save_quote({"title": "Duct quote", "inputs": {"B15": 10}})
         rate = baseline()["rate_groups"]["sprays"][1]
-        self.store.save_configuration({"rates": {rate["id"]: {"price": 999}}})
+        self.store.save_configuration({"inventory": {rate["inventory_id"]: {"supplier_price": 999, "markup": 0}}})
         reopened = Store(self.store.path)
         stored = reopened.quote(original["id"])
         self.assertEqual(stored, original)
@@ -160,8 +160,9 @@ class StorageTests(unittest.TestCase):
         replacement = self.replacement()
         rate = replacement["catalog"]["rate_groups"]["boards"][0]
         rate.update(source={}, price_mode="override", price=19, **{"yield": 2.5})
-        self.store.save_configuration(replacement)
-        quote = self.store.save_quote({"title": "Imported board", "inputs": {"D15": "Replacement spray", "D22": rate["name"], "B22": 5, "D9": "1 Team - 1x"}})
+        # Historical snapshots can still carry an explicit rate price.
+        quote = self.store.save_quote({"title": "Imported board", "configuration": replacement,
+                                       "inputs": {"D15": "Replacement spray", "D22": rate["name"], "B22": 5, "D9": "1 Team - 1x"}})
         self.assertEqual(quote["configuration"]["rates"][rate["id"]], {"price": 19, "yield": 2.5})
         self.assertEqual(quote["result"]["cells"]["F22"], 2.5)
         replacement["catalog"]["rate_groups"]["boards"] = []

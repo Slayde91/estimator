@@ -61,8 +61,8 @@ class ProjectFileTests(unittest.TestCase):
         return json.dumps(snapshot).encode()
 
     def test_round_trip_keeps_pricing_precision_settings_all_schedules_and_extra_boards(self):
-        rate = baseline()["rate_groups"]["labour_rates"][0]["id"]
-        self.sender.save_configuration({"rates": {rate: {"price": 876.5432109876543}}})
+        rate = baseline()["rate_groups"]["labour_rates"][0]
+        self.sender.save_configuration({"inventory": {rate["inventory_id"]: {"supplier_price": 876.5432109876543, "markup": 0}}})
         estimate = {"project_no": " CF-1000 ", "client": "Client & Co", "site_address": "1 Main Street",
                     "measurements": "Existing measurement notes", "inputs": {"B15": 432.123456789}}
         drafts = {
@@ -76,7 +76,7 @@ class ProjectFileTests(unittest.TestCase):
         original_drafts = deepcopy(drafts)
         before_sender = stored_rows(self.sender)
         payload = export_project(self.sender, {"estimate": estimate, "calculators": drafts})
-        self.receiver.save_configuration({"rates": {rate: {"price": 22}}})
+        self.receiver.save_configuration({"inventory": {rate["inventory_id"]: {"supplier_price": 22, "markup": 0}}})
         self.receiver.save_quote({"title": "Existing local quote"})
         self.receiver.save_calculator_state("ductwork", {"CALCULATOR": {"B11": "Existing local schedule"}})
         before_receiver = stored_rows(self.receiver)
@@ -85,7 +85,7 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(stored_rows(self.receiver), before_receiver)
         self.assertEqual(loaded["project_details"], validate_quote_details({"project_no": "CF-1000", "client": "Client & Co", "site_address": "1 Main Street"}))
         self.assertIsNone(loaded["estimate"]["id"])
-        self.assertEqual(loaded["estimate"]["configuration"]["rates"][rate]["price"], 876.5432109876543)
+        self.assertEqual(loaded["estimate"]["configuration"]["rates"][rate["id"]]["price"], 876.5432109876543)
         self.assertEqual(loaded["estimate"]["result"], self.sender.prepare_quote(estimate)["result"])
         self.assertEqual(loaded["fields"], fields(effective_catalog(loaded["estimate"]["configuration"])))
         for identity, draft in drafts.items():
@@ -325,7 +325,11 @@ class ProjectFileTests(unittest.TestCase):
         self.assertEqual(reopened_quote["result"]["cells"]["F20"], patch["yield"])
         before_sender = stored_rows(self.sender)
         payload = export_project(self.sender, {"estimate": {key: reopened_quote[key] for key in ESTIMATE_FIELDS}})
-        self.receiver.save_configuration({"rates": {identity: {"price": 22, "product_service": "Current shared label"}}})
+        linked_product = baseline()["rate_groups"]["primers"][0]["inventory_id"]
+        self.receiver.save_configuration({
+            "inventory": {linked_product: {"supplier_price": 22, "markup": 0}},
+            "rates": {identity: {"product_service": "Current shared label"}},
+        })
         before_receiver = stored_rows(self.receiver)
         loaded = self.load(payload)
         self.assertEqual(stored_rows(self.sender), before_sender)

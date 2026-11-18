@@ -3862,7 +3862,6 @@
   "Supplier markup": "সরবরাহকারীর দামের ওপর মার্জিন",
   "Manual": "ম্যানুয়াল",
   "Enter a nonnegative number or leave blank.": "অঋণাত্মক সংখ্যা লিখুন বা ফাঁকা রাখুন।",
-  "Rate overrides": "আলাদা দর",
   "Use Main Estimator group names and = to enter individual values.": "আলাদা মান লিখতে প্রধান এস্টিমেটরের গ্রুপের নাম ও = ব্যবহার করুন।",
   "Enter a valid Main Estimator group: {0}.": "প্রধান এস্টিমেটরের একটি বৈধ গ্রুপ লিখুন: {0}।",
   "Enter each group once: {0}.": "প্রতিটি গ্রুপ একবার লিখুন: {0}।",

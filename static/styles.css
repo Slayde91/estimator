@@ -405,8 +405,6 @@ dialog .actions{justify-content:flex-end}
 .pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:15%}
 .pricing-table th:nth-child(n+8):nth-child(-n+11){width:3.8%;padding-inline:4px}
 .pricing-table th:last-child{width:108px}
-.pricing-existing-overrides{margin-top:5px;font-size:10px}
-.pricing-existing-overrides summary{cursor:pointer}
 .pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}

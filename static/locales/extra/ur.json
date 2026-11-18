@@ -3862,7 +3862,6 @@
   "Supplier markup": "سپلائر کی قیمت پر اضافہ",
   "Manual": "دستی",
   "Enter a nonnegative number or leave blank.": "غیر منفی عدد درج کریں یا خالی چھوڑ دیں۔",
-  "Rate overrides": "مخصوص نرخ",
   "Use Main Estimator group names and = to enter individual values.": "الگ قدریں درج کرنے کے لیے مرکزی تخمینہ کار کے گروپ نام اور = استعمال کریں۔",
   "Enter a valid Main Estimator group: {0}.": "مرکزی تخمینہ کار کا درست گروپ درج کریں: {0}۔",
   "Enter each group once: {0}.": "ہر گروپ ایک بار درج کریں: {0}۔",

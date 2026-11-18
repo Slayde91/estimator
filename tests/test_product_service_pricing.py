@@ -1,6 +1,7 @@
 """Single-column descriptions and yields preserve estimator business inputs."""
 
-from copy import deepcopy
+from copy import copy, deepcopy
+from hashlib import sha256
 from io import BytesIO
 import json
 import unittest
@@ -12,10 +13,11 @@ from estimator.catalog import (baseline, effective_catalog, catalog_signature,
                                product_service_name, validate_catalog,
                                validate_configuration, ValidationError)
 from estimator.pricing_workbook import (export_pricing_workbook, import_pricing_workbook,
-    PRODUCT_SERVICE_VISIBLE_HEADERS, PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS,
+    PRODUCT_SERVICE_VISIBLE_HEADERS, COLUMN_M_PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS,
     CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
     POSITIONAL_PRODUCT_SERVICE_VISIBLE_HEADERS, POSITIONAL_PRODUCT_SERVICE_HEADERS,
-    COMBINED_SHEET, _serialize_exact, _product_service_export)
+    COMBINED_SHEET, PRICING_METADATA_HEADERS, PRICING_METADATA_SHEET, ROW_NOTE_PREFIX,
+    _serialize_exact, _product_service_export)
 from estimator.penetration_calculator import inventory_lists
 import test_pricing_workbook as pricing_fixtures
 
@@ -28,7 +30,13 @@ def edit(payload, changes, *, ordinary_save=False):
         for identity, fields in changes:
             number = pricing_fixtures.product_service_row(sheet, headers, identity)
             for field, value in fields.items():
-                cell = sheet.cell(number, headers[field])
+                if field == 'Saved values' and field not in headers:
+                    cell = pricing_fixtures.product_service_saved_cell(sheet, headers, number)
+                    key = sha256(value.encode('utf-8')).hexdigest()
+                    cell.offset(column=-1).value = key
+                    sheet.cell(number, 1).comment.text = ROW_NOTE_PREFIX + key
+                else:
+                    cell = sheet.cell(number, headers[field])
                 cell.value = value
                 if isinstance(value, str):
                     cell.data_type = 's'
@@ -59,13 +67,12 @@ class ProductServicePricingTests(unittest.TestCase):
         product['firestopping_groups'][0] = 'mastics'  # A previously saved project.
         self.assertIn(product['sales_description'], inventory_lists(current)[1]['S'])
         with BytesIO(export_pricing_workbook(current)) as output:
-            book = load_workbook(output, read_only=True)
+            book = load_workbook(output)
             try:
-                rows = book[COMBINED_SHEET].values
-                headers = next(rows)
-                row = next(row for row in rows
-                           if (json.loads(row[headers.index('Saved values')])["product"] or {}).get("id") == "204")
-                self.assertEqual(row[headers.index('Firestopping groups')], 'mastic;materials')
+                sheet = book[COMBINED_SHEET]
+                headers = {cell.value: cell.column for cell in sheet[1]}
+                number = pricing_fixtures.product_service_row(sheet, headers, '204')
+                self.assertEqual(sheet.cell(number, headers['Firestopping groups']).value, 'mastic;materials')
             finally:
                 book.close()
 
@@ -76,20 +83,147 @@ class ProductServicePricingTests(unittest.TestCase):
             headers = {cell.value: cell.column for cell in sheet[1]}
             visible = [cell.value for cell in sheet[1] if not sheet.column_dimensions[cell.column_letter].hidden]
             self.assertEqual(tuple(visible), PRODUCT_SERVICE_VISIBLE_HEADERS)
-            self.assertEqual(tuple(cell.value for cell in sheet[1]), PRODUCT_SERVICE_HEADERS)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:M418')
+            self.assertEqual(tuple(cell.value for cell in sheet[1]), PRODUCT_SERVICE_VISIBLE_HEADERS)
+            self.assertEqual(sheet.max_column, 12)
+            self.assertNotIn('M', sheet.column_dimensions)
+            self.assertEqual(sheet.auto_filter.ref, 'A1:L418')
             self.assertTrue(sheet.print_area.endswith('$A$1:$L$418'))
             self.assertEqual(set(headers) & {'Item code', 'Weight', 'Price source', 'Sell rate',
-                                            'Use yields', 'Inventory ID', 'Rate ID', 'Pricing mode', 'Rate overrides'}, set())
+                                            'Use yields', 'Inventory ID', 'Rate ID', 'Pricing mode', 'Rate overrides',
+                                            'Saved values'}, set())
+            metadata = book[PRICING_METADATA_SHEET]
+            self.assertEqual(metadata.sheet_state, 'veryHidden')
+            self.assertEqual(tuple(cell.value for cell in metadata[1]), PRICING_METADATA_HEADERS)
+            saved_cells = dict(pricing_fixtures.product_service_saved_cells(sheet, headers))
+            self.assertEqual(set(saved_cells), set(range(2, sheet.max_row + 1)))
+            self.assertEqual(metadata.max_row, sheet.max_row)
+            self.assertEqual(metadata.max_column, 2)
+            for number, saved in saved_cells.items():
+                key = sha256(saved.value.encode('utf-8')).hexdigest()
+                self.assertEqual(sheet.cell(number, 1).comment.text, ROW_NOTE_PREFIX + key)
+                self.assertEqual(saved.offset(column=-1).value, key)
             number = pricing_fixtures.product_service_row(sheet, headers, '204')
             self.assertEqual(sheet.cell(number, headers['Yield']).value, 142)
-            self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Saved values']).column_letter].hidden)
             self.assertEqual(sheet.cell(number, headers['Product/Service']).value,
                 product_service_name(next(item for item in baseline()['inventory'] if item['id'] == '204')))
             collar = pricing_fixtures.product_service_row(sheet, headers, '207')
             self.assertIn('collars', sheet.cell(collar, headers['Firestopping groups']).value.split(';'))
         finally:
             book.close()
+
+    def test_previous_column_m_template_can_still_be_edited_and_imported(self):
+        previous = _product_service_export({}, PRODUCT_SERVICE_VISIBLE_HEADERS, COLUMN_M_PRODUCT_SERVICE_HEADERS)
+        unchanged = self.imported(previous)
+        current = self.imported()
+        self.assertEqual(unchanged['summary'], current['summary'])
+        old_catalog = effective_catalog(unchanged['configuration'])
+        new_catalog = effective_catalog(current['configuration'])
+        self.assertEqual(old_catalog['inventory'], new_catalog['inventory'])
+        self.assertEqual(old_catalog['rate_groups'], new_catalog['rate_groups'])
+        edited = self.imported(edit(previous, [('204', {'Product/Service': 'Renamed legacy product'})], ordinary_save=True))
+        inventory = effective_catalog(edited['configuration'])['inventory']
+        product = next(item for item in inventory if item['id'] == '204')
+        self.assertEqual(product['product_service'], 'Renamed legacy product')
+
+    def test_row_notes_follow_sorted_rows_and_catalog_order_stays_stable(self):
+        def move_rows(book):
+            sheet = book[COMBINED_SHEET]
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            first = pricing_fixtures.product_service_row(sheet, headers, '204')
+            second = pricing_fixtures.product_service_row(sheet, headers, '207')
+            spare = sheet.max_row + 1
+            sheet.move_range(f'A{first}:L{first}', rows=spare - first)
+            sheet.move_range(f'A{second}:L{second}', rows=first - second)
+            sheet.move_range(f'A{spare}:L{spare}', rows=second - spare)
+
+        sorted_payload = pricing_fixtures.modify(self.exported, move_rows, normal_excel_precision=True)
+        after = self.imported(sorted_payload)
+        unchanged = self.imported()
+        before = effective_catalog(unchanged['configuration'])
+        after_catalog = effective_catalog(after['configuration'])
+        self.assertEqual(after_catalog['inventory'], before['inventory'])
+        self.assertEqual(after_catalog['rate_groups'], before['rate_groups'])
+        self.assertEqual(after['summary'], unchanged['summary'])
+        edited = self.imported(edit(sorted_payload, [
+            ('204', {'Product/Service': 'Coating', 'Supplier price': 250, 'Markup': .2, 'Sell price': 300,
+                     'Group': 'primers;topcoats', 'Firestopping groups': 'mastic', 'Yield': 17,
+                     'Manufacturer': 'Precision Coatings', 'Width (mm)': 600, 'Length (mm)': 1200,
+                     'Area (m²)': .72}),
+            ('207', {'Product/Service': 'Coating'}),
+        ], ordinary_save=True))
+        edited_catalog = effective_catalog(edited['configuration'])
+        old_product = next(item for item in before['inventory'] if item['id'] == '204')
+        product = next(item for item in edited_catalog['inventory'] if item['id'] == '204')
+        self.assertEqual(product['item_code'], old_product['item_code'])
+        self.assertEqual(product['properties'], {**old_product['properties'], 'width_mm': 600, 'length_mm': 1200, 'sqm': .72})
+        self.assertEqual((product['product_service'], product['manufacturer'], product['sales_price'], product['firestopping_groups']),
+                         ('Coating', 'Precision Coatings', 300, ['mastic']))
+        self.assertEqual([(group, rows[0]['id'], rows[0]['yield']) for group, rows in edited_catalog['rate_groups'].items()
+                          if group in {'primers', 'topcoats'}],
+                         [(group, f'{group}:1', 17) for group in before['rate_groups'] if group in {'primers', 'topcoats'}])
+
+    def test_missing_or_duplicate_row_notes_cannot_silently_replace_existing_products(self):
+        def change_note(book, change):
+            sheet = book[COMBINED_SHEET]
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            first = pricing_fixtures.product_service_row(sheet, headers, '204')
+            second = pricing_fixtures.product_service_row(sheet, headers, '207')
+            if change == 'sheet removed':
+                del book[PRICING_METADATA_SHEET]
+            elif change == 'note removed':
+                sheet.cell(first, 1).comment = None
+            elif change == 'duplicate note':
+                sheet.cell(first, 1).comment = copy(sheet.cell(second, 1).comment)
+            elif change == 'unmatched digest':
+                saved = pricing_fixtures.product_service_saved_cell(sheet, headers, first)
+                saved.value += ' '
+
+        for change in ('sheet removed', 'note removed', 'duplicate note', 'unmatched digest'):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                self.imported(pricing_fixtures.modify(self.exported, lambda book: change_note(book, change)))
+
+    def test_clear_rows_and_add_new_items_in_the_same_file(self):
+        def replace(book):
+            sheet = book[COMBINED_SHEET]
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            number = pricing_fixtures.product_service_row(sheet, headers, '204')
+            for cell in sheet[number]:
+                if not cell.protection.locked:
+                    cell.value = None
+            values = {'Product/Service': 'New standalone inventory', 'Supplier price': 15, 'Markup': .2}
+            sheet.append([values.get(header) for header in headers])
+
+        result = self.imported(pricing_fixtures.modify(self.exported, replace, normal_excel_precision=True))
+        self.assertEqual(result['summary']['inventory'], {'added': 1, 'removed': 1, 'updated': 0})
+        self.assertEqual(result['summary']['rates'], {'added': 0, 'removed': 2, 'updated': 0})
+        catalog = effective_catalog(result['configuration'])
+        self.assertFalse(any(item['id'] == '204' for item in catalog['inventory']))
+        new_item = next(item for item in catalog['inventory'] if item.get('product_service') == 'New standalone inventory')
+        self.assertEqual(new_item['sales_price'], 18)
+
+    def test_full_row_deletion_without_additions_removes_only_that_row(self):
+        def remove(book):
+            sheet = book[COMBINED_SHEET]
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            sheet.delete_rows(pricing_fixtures.product_service_row(sheet, headers, '204'))
+
+        deleted = self.imported(pricing_fixtures.modify(self.exported, remove, normal_excel_precision=True))
+        self.assertEqual(deleted['summary']['inventory'], {'added': 0, 'removed': 1, 'updated': 0})
+        self.assertEqual(deleted['summary']['rates'], {'added': 0, 'removed': 2, 'updated': 0})
+
+    def test_empty_catalog_export_requires_the_metadata_sheet(self):
+        catalog = baseline()
+        catalog['inventory'].clear()
+        for rates in catalog['rate_groups'].values():
+            rates.clear()
+        config = {'catalog': catalog}
+        payload = export_pricing_workbook(config)
+        unchanged = self.imported(payload, config)
+        self.assertEqual(unchanged['summary'], {'inventory': {'added': 0, 'removed': 0, 'updated': 0},
+                                               'rates': {'added': 0, 'removed': 0, 'updated': 0}})
+        stripped = pricing_fixtures.modify(payload, lambda book: book.remove(book[PRICING_METADATA_SHEET]))
+        with self.assertRaises(ValidationError):
+            self.imported(stripped, config)
 
     def test_firestopping_groups_round_trip_and_control_dropdowns(self):
         result = self.imported(edit(self.exported, [('207', {'Firestopping groups': 'wraps;materials'})]))
@@ -245,7 +379,7 @@ class ProductServicePricingTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[1]}
         row = pricing_fixtures.product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(row, headers['Yield']).value, 'primers = 71.12345678901234; topcoats = 142')
-        snapshot = json.loads(sheet.cell(row, headers['Saved values']).value)
+        snapshot = json.loads(pricing_fixtures.product_service_saved_cell(sheet, headers, row).value)
         self.assertEqual((snapshot['uses'][0]['rate']['price_mode'], snapshot['uses'][0]['rate']['price']),
             ('override', 401.1234567890123))
         book.close()
@@ -410,7 +544,7 @@ class ProductServicePricingTests(unittest.TestCase):
         values = {'Product/Service': 'New shared coating',
                   'Supplier price': 100, 'Markup': .25, 'Sell price': None,
                   'Group': 'primers;topcoats', 'Yield': 25}
-        sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
+        sheet.append([values.get(header) for header in PRODUCT_SERVICE_VISIBLE_HEADERS])
         payload = _serialize_exact(book, escape_text=True)
         book.close()
         added = effective_catalog(self.imported(payload)['configuration'])
@@ -430,7 +564,7 @@ class ProductServicePricingTests(unittest.TestCase):
         sheet = book[COMBINED_SHEET]
         headers = {cell.value: cell.column for cell in sheet[1]}
         number = pricing_fixtures.product_service_row(sheet, headers, '204')
-        original = json.loads(sheet.cell(number, headers['Saved values']).value)
+        original = json.loads(pricing_fixtures.product_service_saved_cell(sheet, headers, number).value)
         book.close()
         for malformed in ('properties-list', 'properties-null', 'price-mode-number', 'group-object', 'bad-order', 'deep-source'):
             saved = deepcopy(original)

@@ -7,7 +7,7 @@ import sqlite3
 from uuid import UUID
 
 from .catalog import ValidationError
-from .form_fields import is_person_group, validate_template, validate_values
+from .form_fields import approval_row_ids, is_person_group, validate_template, validate_values
 from .form_rich_text import plain_form_text
 
 FORM_PDF_THEMES = ('ceasefire', 'midnight', 'ocean', 'forest', 'slate')
@@ -112,7 +112,9 @@ class Forms:
         self._user(user)
         profile = self.personal(owner_id=user['id']) if self.personal else {}
         return {'id': user['id'], 'name': _full_name(user, profile),
-                'company': self.company().get('name', ''), 'at': _now()}
+                'company': self.company().get('name', ''), 'at': _now(),
+                'signature_image': profile.get('signature_image'),
+                'signature_name': profile.get('signature_name', '')}
 
     @staticmethod
     def _user(user, write=False):
@@ -328,6 +330,7 @@ class Forms:
             result.update(assigned_to=row['owner'], assigned_to_name=row['owner_name'])
         if answers:
             values = json.loads(row['answers'])
+            approval_row_ids(template['fields'], values, row['id'])
             counter = next((values[f['id']] for f in template['fields']
                             if f['type'] == 'counter' and f['id'] in values), None)
             if counter is None and row['status'] != 'requested':
@@ -438,12 +441,12 @@ class Forms:
             staff_rows = any(is_person_group(field) for field in template['fields'])
             needs_company = staff_rows or any(f['type'] in ('profile','profile_company','profile_phone') for f in profile_fields)
             company = self.company() if needs_company else {}
-            needs_signature = any(f['type']=='signature' for f in profile_fields)
+            needs_signature = any(f['type'] in ('signature','approval') for f in profile_fields)
             profile = self.personal(owner_id=user['id']) if self.personal and (staff_rows or needs_signature) else {}
             now = _now()
             signer = {**user,'at':now,'full_name':_full_name(user,profile),'company':company.get('name',''),'phone':company.get('phone','')}
             if needs_signature and self.personal:
-                signer.update(signature_image=profile['signature_image'],signature_name=profile['signature_name'])
+                signer.update(signature_image=profile.get('signature_image'),signature_name=profile.get('signature_name',''))
             values = validate_values(template, body['values'], complete=status == 'submitted',
                                      previous=previous, stage_id=stage_id, staff={p['id'] for p in self.staff()},
                                      signer=signer,lookup=lookup,counter=counter)
@@ -544,8 +547,13 @@ class Forms:
                     raise ValidationError(f'Approval requires {field["label"]} to be {rule["value"]}.')
             following = stages[current+1]['id'] if current+1 < len(stages) else None
             now = _now()
-            entry['approvals'].append({'stage_id':entry['stage_id'], 'member_id':user['id'],
-                                       'member_name':user['name'], 'at':now})
+            profile = self.personal(owner_id=user['id']) if self.personal else {}
+            approval = {'stage_id':entry['stage_id'], 'member_id':user['id'],
+                        'member_name':_full_name(user,profile), 'at':now}
+            if profile.get('signature_image'):
+                approval.update(signature_image=profile['signature_image'],
+                                signature_name=profile.get('signature_name',''))
+            entry['approvals'].append(approval)
             db.execute('UPDATE form_entries SET version=?,stage_id=?,status=?,approvals=?,updated_at=?,request_key=? WHERE id=?',
                        (expected+1,following,'draft' if following else 'submitted',_json(entry['approvals']),now,request_key,key))
             return self._entry(db, user, self._entry_row(db,key), answers=True)

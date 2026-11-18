@@ -3836,5 +3836,21 @@
   "Open Documents, then Forms, to fill out a template or view its records. The template creator or an administrator can confirm deletion of a template. Existing records keep their template version.": "Ouvrez Documents, puis Formulaires, pour remplir un modèle ou consulter ses enregistrements. Le créateur du modèle ou un administrateur peut confirmer sa suppression. Les enregistrements existants conservent leur version du modèle.",
   "Open Projects to create or open a project. Use Project Details to review its number, client and site address.": "Ouvrez Projets pour créer ou ouvrir un projet. Consultez son numéro, son client et l’adresse du chantier dans les détails du projet.",
   "Link Library Item connects a Firestopping record to a Technical Library reference. The trash button on a library card removes the item after confirmation. Unlink beside a related record removes only that link.": "Lier un élément de bibliothèque associe une fiche de calfeutrement à une référence de la bibliothèque technique. La corbeille de la fiche supprime l’élément après confirmation. Dissocier, à côté d’une fiche associée, supprime uniquement le lien.",
-  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "Dans la bibliothèque de calfeutrement, ajoutez un élément au bordereau. Dans la bibliothèque technique, sélectionnez les éléments existants du bordereau auxquels associer la référence."
+  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "Dans la bibliothèque de calfeutrement, ajoutez un élément au bordereau. Dans la bibliothèque technique, sélectionnez les éléments existants du bordereau auxquels associer la référence.",
+  "Counter": "Compteur",
+  "Text": "Texte",
+  "Date and Time": "Date et heure",
+  "Yes / No": "Oui / Non",
+  "List": "Liste",
+  "Tables and groups": "Tableaux et groupes",
+  "Sketch": "Croquis",
+  "Attachments": "Pièces jointes",
+  "Relationship": "Relation",
+  "Page Break": "Saut de page",
+  "Number": "Nombre",
+  "Form unavailable": "Formulaire indisponible",
+  "Complete the preceding approval to edit this field.": "Terminez l’approbation précédente pour modifier ce champ.",
+  "STEEL": "ACIER",
+  "DUCT": "CONDUITS",
+  "WALLS / FLOORS": "MURS / PLANCHERS"
 }

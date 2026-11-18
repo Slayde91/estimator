@@ -29,7 +29,9 @@ const assert=require('node:assert/strict'), path=require('node:path');
       {id:'ext',type:'text',label:'Incident reference',condition:{field_id:'impact',value:'High'}},
       {id:'priority',type:'choice',display:'inline',label:'Priority',options:['Normal','Urgent']},
       {id:'tags',type:'multichoice',display:'inline',label:'Tags',options:['New','Old']},
+      {id:'categories',type:'multichoice',display:'dropdown',label:'Categories',options:['Option 1','Option 2']},
       {id:'crew',type:'person',label:'Crew',multiple:true},{id:'or',type:'lookup',label:'Related form'},
+      {id:'relationship',type:'relationship',label:'Attached form'},
       {id:'range',type:'datetime_range',label:'Shift',timezone:true},
       {id:'draw',type:'sketch',label:'Site sketch',hide_in_pdf:true},{id:'hand',type:'manual_signature',label:'Sign on paper'},
       {id:'photo',type:'photo',label:'Photos',photo_size:'large',show_tags:true,show_description:true},
@@ -49,8 +51,9 @@ const assert=require('node:assert/strict'), path=require('node:path');
       {id:'group',type:'group',label:'Crew checks',children:[{id:'person',type:'person',label:'Worker',required:true}]},
       {id:'locked',type:'text',label:'Review notes',stage_id:'review',default:'future default',required:true}
     ]};
+    const referencedId='6e79f090-d204-40e6-869a-40771d9b2ecb';
     const options={stageId:'initial',staff:[{id:'s1',name:'Harper'},{id:'s2',name:'Jules'}],member:{id:'s1',name:'Harper'},
-      entries:[{id:'r1',name:'Earlier inspection',created_by_name:'Jules'}],
+      entries:[{id:referencedId,name:'Earlier inspection',created_by_name:'Jules'}],
       values:{range:{start:'2026-11-15T01:30+08:00',end:'2026-11-15T05:00+08:00'}}};
     const mount=(opts)=>page.evaluate(({template,opts})=>{
       window.calcCalls=[];
@@ -101,8 +104,29 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await field('detail').getByRole('button',{name:'Italic',exact:true}).click();
     assert.match((await values()).detail.html, /<i>Check seal<\/i>/i);
     await field('priority').getByLabel('Urgent').check(); await field('tags').getByLabel('Old').check();
+    const categories = field('categories');
+    const openCategories=categories.getByRole('button',{name:/^Categories/});
+    await openCategories.click();
+    await categories.getByRole('checkbox',{name:'Option 1',exact:true}).check();
+    await categories.getByRole('checkbox',{name:'Option 2',exact:true}).check();
+    assert.deepEqual((await values()).categories,['Option 1','Option 2']);
+    await categories.getByRole('checkbox',{name:'Option 1',exact:true}).uncheck();
+    assert.deepEqual((await values()).categories,['Option 2']);
+    await categories.getByRole('checkbox',{name:'Option 2',exact:true}).press('Escape');
+    await expect(categories.getByRole('checkbox',{name:'Option 2',exact:true})).toBeHidden();
+    await expect(openCategories).toBeFocused();
+    await expect(openCategories).toHaveAttribute('aria-expanded','false');
+    await openCategories.press('ArrowUp');
+    await expect(categories.getByRole('checkbox',{name:'Option 2',exact:true})).toBeFocused();
+    await categories.getByRole('checkbox',{name:'Option 2',exact:true}).press('Space');
+    assert.deepEqual((await values()).categories,[]);
+    await page.getByLabel('Subject').focus();
+    await expect(openCategories).toHaveAttribute('aria-expanded','false');
     await field('crew').locator('select').selectOption(['s1','s2']);
-    await field('or').locator('select').selectOption('r1');
+    for (const id of ['or','relationship']) {
+      await expect(field(id).locator('option[value="'+referencedId+'"]')).toHaveText('Earlier inspection · Jules');
+      await field(id).locator('select').selectOption(referencedId);
+    }
     await field('range').getByLabel('End').fill('2026-11-15T06:00');
     await expect(field('range')).toContainText('UTC+08:00');
     await field('place').getByLabel('Latitude').fill('-33.8');await field('place').getByLabel('Longitude').fill('151.2');
@@ -199,7 +223,8 @@ const assert=require('node:assert/strict'), path=require('node:path');
     assert.equal(saved.hand.name,'Sid Mills');assert.equal(saved.hand.company,'Mills & Co');assert.match(saved.hand.image,/^data:image\/png;base64,/);
     assert.deepEqual(saved.toggle,{answer:'Yes',explanation:'Damaged'});
     assert.deepEqual(saved.range,{start:'2026-11-15T01:30+08:00',end:'2026-11-15T06:00+08:00'});
-    assert.deepEqual(saved.or,{entry_id:'r1'});assert.deepEqual(saved.tab,[{qty:3.5}]);assert.deepEqual(saved.group,[{person:'s2'}]);
+    assert.deepEqual(saved.or,{entry_id:referencedId});assert.deepEqual(saved.relationship,{entry_id:referencedId});
+    assert.deepEqual(saved.tab,[{qty:3.5}]);assert.deepEqual(saved.group,[{person:'s2'}]);
     assert.deepEqual(saved.crew,['s1','s2']);assert.deepEqual(Object.keys(saved.sign),['signature_image']);assert.equal(saved.wallet,true);
     assert.equal(saved.file[0].data,Buffer.from('report').toString('base64'));assert.equal(saved.priority,'Urgent');
     await mount({...options,readOnly:true,values:{...saved,n:14,fixed:[{...saved.fixed[0],price:'70',desc:'Banana'}],sign:{member_name:'Harper',at:'2026-11-15T06:00Z',signature_image:saved.hand.image},
@@ -208,6 +233,10 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await expect(field('manualId')).toContainText('BR-007');
     await expect(field('detail').locator('i')).toHaveText('Check seal');
     await expect(field('range')).not.toContainText('2026-11-15');
+    for (const id of ['or','relationship']) {
+      await expect(field(id).locator('.form-field-answer')).toHaveText('Earlier inspection · Jules');
+      await expect(field(id)).not.toContainText(referencedId);
+    }
     await expect(page.locator('main :is(input,select,textarea,button)')).toHaveCount(0);
     await expect(field('wallet')).toContainText('Harper · editor · s1');
     await expect(field('hand')).toContainText('Sid Mills · Mills & Co');await expect(field('sign').locator('img')).toBeVisible();
@@ -229,6 +258,11 @@ const assert=require('node:assert/strict'), path=require('node:path');
     await expect(field('hand').locator('input,button')).toHaveCount(0);await expect(field('hand')).toContainText('Sid Mills');
     await mount({...options,values:{...saved,hand:saved.hand.image}});
     await expect(field('hand').locator('img')).toBeVisible();await expect(field('hand').locator('input,button')).toHaveCount(0);
+    await mount({...options,entries:[],values:saved});
+    for (const id of ['or','relationship']) {
+      await expect(field(id).locator('option:checked')).toHaveText('Form unavailable');
+      assert.equal(await field(id).locator('select').inputValue(),referencedId);
+    }
     console.log('Forms field collection, validation, workflow locks, attachments, table and read-only display passed.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

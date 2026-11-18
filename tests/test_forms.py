@@ -273,7 +273,8 @@ class FormsTests(unittest.TestCase):
         self.assertEqual(self.store.reopen(self.admin,replay),reopened)
         self.assertEqual(reopened['stage_id'],'review')
         self.assertEqual(reopened['reversals'][0]['original_approval'],done['approvals'][-1])
-        self.assertEqual(reopened['values']['approval'],True)
+        self.assertEqual(reopened['values']['approval'],reviewed['values']['approval'])
+        self.assertEqual(reopened['values']['approval']['member_id'],self.admin['id'])
 
     def test_stamp_survives_row_removal_and_profile_cannot_be_spoofed(self):
         self.store.personal = lambda *,owner_id: {'signature_image':'data:image/png;base64,YQ==','signature_name':owner_id+'.png'}

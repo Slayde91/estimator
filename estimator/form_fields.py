@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 import json
 import re
-from uuid import uuid4
+from uuid import UUID, uuid4, uuid5
 
 from .catalog import ValidationError
 from .commercial_files import filename
@@ -27,6 +27,19 @@ SUMMARY_CELL_TYPES = {'text','textarea','number','date','datetime','time','choic
 MAX_FILE = 5 * 1024 * 1024
 MAX_TOTAL = 12 * 1024 * 1024
 MIME = re.compile(r'[a-zA-Z0-9.+_-]+/[a-zA-Z0-9.+_-]+')
+
+
+def approval_row_ids(fields, values, entry_id):
+    """Give older approval rows stable identities before the editor can move them."""
+    namespace = UUID(entry_id)
+    for field in fields:
+        if field['type'] not in ('table','group'):
+            continue
+        children = field['columns' if field['type'] == 'table' else 'children']
+        if not any(child['type'] == 'approval' for child in children):
+            continue
+        for index, row in enumerate(values.get(field['id'], [])):
+            row.setdefault('_row_id', str(uuid5(namespace, f"approval-row/{field['id']}/{index}")))
 
 
 def is_person_group(field):
@@ -529,8 +542,22 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                 return result
             raise ValueError
         elif kind=='approval':
+            if value is True and isinstance(old,dict):
+                return old
+            if value == old and (old is True or isinstance(old,dict) or old is False and not (field.get('required') and complete)):
+                return old
+            if isinstance(old,dict):
+                raise ValidationError('A captured approval signature cannot be overwritten.')
             if type(value) is not bool or field.get('required') and complete and not value:
                 raise ValueError
+            if value:
+                if not signer:
+                    raise ValueError
+                stamp = {'member_id':signer['id'], 'member_name':signer.get('full_name') or signer['name'],
+                         'at':signer['at']}
+                if signer.get('signature_image'):
+                    stamp.update(signature_image=signer['signature_image'],signature_name=signer.get('signature_name',''))
+                return stamp
         elif kind in ('lookup','relationship'):
             if not isinstance(value,dict) or set(value)!={'entry_id'}:
                 raise ValueError
@@ -554,6 +581,7 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
         if not isinstance(provided,dict) or set(provided)-{f['id'] for f in fields}:
             raise ValidationError('The form contains values for unknown fields.')
         result = {}
+        approval_gate = None
         for f in fields:
             key, kind = f['id'], f['type']
             val, old = provided.get(key), before.get(key)
@@ -572,12 +600,24 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                     source = source.get('answer')
                 matches = condition['value'] in source if isinstance(source,list) else source==condition['value']
                 if not matches:
+                    if kind == 'approval' and isinstance(old,dict):
+                        result[key] = old
                     continue
             if kind in LAYOUT or kind in DERIVED:
                 continue
+            if approval_gate:
+                if key in provided and val != old and not (_blank(val) and _blank(old)):
+                    raise ValidationError(f'Approve {approval_gate} before changing the following fields.')
+                if complete:
+                    raise ValidationError(f'Approve {approval_gate} before completing the following fields.')
+                if key in before:
+                    result[key] = old
+                continue
+            if kind == 'approval' and not val:
+                approval_gate = f['label']
             if kind == 'textarea' and val is not None:
                 val = rich_form_text(val, 16000, 'form text')
-            if _blank(val) and (kind in ('signature','staff_wallet') and isinstance(old,dict)
+            if _blank(val) and (kind in ('signature','staff_wallet','approval') and isinstance(old,dict)
                     or (kind=='profile' or kind.startswith('profile_')) and isinstance(old,str) and old
                     or kind=='manual_signature' and (isinstance(old,str) or isinstance(old,dict) and old.get('at'))):
                 raise ValidationError('A captured signature or staff profile cannot be cleared.')
@@ -600,7 +640,7 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
                         raise ValueError
                     children = f['columns' if kind=='table' else 'children']
                     prior = old if isinstance(old,list) else []
-                    stamped = any(child['type'] in ('signature','manual_signature','profile','profile_name','profile_company',
+                    stamped = any(child['type'] in ('approval','signature','manual_signature','profile','profile_name','profile_company',
                                       'profile_phone','person','scan_id','staff_wallet','action') for child in children)
                     old_rows = {row['_row_id']:row for row in prior if '_row_id' in row}
                     rows, seen = [], set()
@@ -641,7 +681,9 @@ def validate_values(template, values, *, complete, previous, stage_id, staff=Non
             if f['type'] in ('table','group'):
                 children = f.get('columns') if f['type']=='table' else f.get('children')
                 size += sum(upload_bytes(children,row) for row in value)
-            elif f['type'] in ('attachment','photo','manual_signature','sketch','signature'):
+            elif f['type'] in ('attachment','photo','manual_signature','sketch','signature','approval'):
+                if f['type'] == 'approval' and type(value) is bool:
+                    continue
                 if isinstance(value,dict):
                     value = value.get('image') or value.get('signature_image')
                 if not value:

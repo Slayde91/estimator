@@ -70,14 +70,16 @@
     const entries = Array.isArray(options.entries) ? options.entries : [];
     const member = options.member || {};
     const conditions = new Map(), checks = new Map();
-    const fieldBoxes = new WeakMap();
+    let fieldBoxes = new WeakMap();
+    const approvalPreviews = new WeakMap();
     const formulaOutputs = new Map(), listProperties = new Map();
     let calculationTimer, calculationVersion = 0;
     let pending = 0;
+    let approvalState = '';
     const root = el('div','form-fields');
     host.replaceChildren(root);
     const personName = id => staff.find(person=>person.id === id)?.name || (member.id === id && member.name) || id;
-    const refLabel = entry => [entry.name || entry.title, entry.created_by_name, entry.created_at && window.ClassifireDates.dateTime(entry.created_at), entry.id].filter(Boolean).join(' · ');
+    const refLabel = entry => [entry.name || entry.title, entry.created_by_name, entry.created_at && window.ClassifireDates.dateTime(entry.created_at)].filter(Boolean).join(' · ') || translate('Form unavailable');
     function scheduleCalculation() {
       const current = ++calculationVersion;
       clearTimeout(calculationTimer);
@@ -97,10 +99,38 @@
     }
     function changed() {
       for (const update of conditions.values()) update();
+      if (approvalState !== approvalConditions(template.fields,values)) renderAll();
       for (const update of listProperties.values()) update();
       scheduleCalculation();
       if (options.onChange?.length) options.onChange(clone(values));
       else options.onChange?.();
+    }
+    function approvalConditions(fields, dictionary, parentVisible = true) {
+      const visibility=new Map();
+      return fields.map(field=>{
+        const visible = parentVisible && visibility.get(field.condition?.field_id)!==false && conditionMet(field.condition,dictionary);
+        visibility.set(field.id,visible);
+        if (field.type === 'approval') return field.id+':'+visible+':'+Boolean(dictionary[field.id]);
+        if (field.type === 'group') return (dictionary[field.id] || []).map(row=>
+          approvalConditions(field.children,row,visible)).filter(Boolean).join('|');
+        return '';
+      }).filter(Boolean).join('|');
+    }
+    function precedingApproval(fields, field, dictionary, parentStage) {
+      const currentStage=field.stage_id || parentStage || stages[0]?.id;
+      for (const previous of fields) {
+        if (previous === field) return null;
+        const previousStage=previous.stage_id || parentStage || stages[0]?.id;
+        if (previous.type === 'approval' && previousStage === currentStage && !fieldBoxes.get(dictionary)?.get(previous.id)?.hidden &&
+            conditionMet(previous.condition,dictionary) && !dictionary[previous.id]) return previous;
+      }
+      return null;
+    }
+    function renderAll() {
+      conditions.clear(); checks.clear(); formulaOutputs.clear(); listProperties.clear();
+      fieldBoxes = new WeakMap(); root.replaceChildren();
+      renderFields(root,template.fields,values);
+      approvalState = approvalConditions(template.fields,values);
     }
     function teamChoices(value) {
       const ids = new Set(Array.isArray(value) ? value : value ? [value] : []);
@@ -117,7 +147,8 @@
       for (const field of fields || []) {
         const id = field.id, type = field.type;
         const fieldStage = field.stage_id || parentStage || stages[0]?.id;
-        const readOnly = inheritedLock || options.readOnly || (workflow && (fieldStage !== stage || locked.has(fieldStage)));
+        const approvalGate = precedingApproval(fields,field,dictionary,parentStage);
+        const readOnly = inheritedLock || options.readOnly || Boolean(approvalGate) || (workflow && (fieldStage !== stage || locked.has(fieldStage)));
         const box = el('div','form-field');
         if(field.hide_in_pdf)box.classList.add('form-hide-in-print');
         box.dataset.fieldId = id; box.dataset.fieldType = type;
@@ -157,6 +188,7 @@
         const help = el('p','form-field-help',field.help);
         if (field.help) { help.id = 'form-field-help-'+sequence; box.append(help); }
         box.append(body,error);
+        if (approvalGate && !options.readOnly) body.append(el('p','form-field-help',translate('Complete the preceding approval to edit this field.')));
         const describe = control => {
           if (!title.htmlFor) { control.id = 'form-field-control-'+ ++sequence; title.htmlFor = control.id; }
           if (!control.hasAttribute('aria-label') && !control.closest('label')) control.setAttribute('aria-labelledby',title.id);
@@ -304,26 +336,43 @@
             const label=el('label');label.append(control,document.createTextNode(choice));group.append(label);
           }
           const selected=()=>controls.filter(control=>control.checked).map(control=>control.value);
-          group.addEventListener('change',event=>set(multiple ? selected() : event.target.value));
           if (dropdown) {
-            const menu=el('details','form-choice-dropdown'), toggle=el('summary'), current=el('span');
+            const menu=el('div','form-choice-dropdown'), toggle=el('button','form-choice-toggle'), current=el('span');
             current.id='form-choice-selection-'+ ++sequence;
+            group.id='form-choice-options-'+sequence;
+            toggle.type='button';
             toggle.setAttribute('aria-labelledby',title.id+' '+current.id);
+            toggle.setAttribute('aria-controls',group.id);
             if (field.help) toggle.setAttribute('aria-describedby',help.id);
-            const showSelection=()=>{current.textContent=selected().join(', ') || translate('Select…');};
-            showSelection();group.addEventListener('change',showSelection);
+            const setOpen=open=>{
+              group.hidden=!open;
+              toggle.setAttribute('aria-expanded',String(open));
+            };
+            current.textContent=selected().join(', ') || translate('Select…');
+            setOpen(false);
             toggle.append(current);menu.append(toggle,group);body.append(menu);
+            toggle.addEventListener('click',()=>setOpen(group.hidden));
+            group.addEventListener('change',()=>{
+              const choices=selected();
+              current.textContent=choices.join(', ') || translate('Select…');
+              set(choices);
+            });
             menu.addEventListener('keydown',event=>{
-              if (event.key==='Escape' && menu.open) {
-                event.preventDefault();event.stopPropagation();menu.open=false;toggle.focus();
+              if (event.key==='Escape' && !group.hidden) {
+                event.preventDefault();event.stopPropagation();toggle.focus();setOpen(false);
               } else if ((event.key==='ArrowDown' || event.key==='ArrowUp') && controls.length) {
-                event.preventDefault();menu.open=true;
+                event.preventDefault();setOpen(true);
                 const index=controls.indexOf(event.target), next=event.key==='ArrowDown' ? index+1 : (index<0 ? controls.length-1 : index-1);
                 controls[(next+controls.length)%controls.length].focus();
               }
             });
-            menu.addEventListener('focusout',event=>{if (!menu.contains(event.relatedTarget)) menu.open=false;});
-          } else body.append(group);
+            menu.addEventListener('focusout',event=>{
+              if (event.relatedTarget && !menu.contains(event.relatedTarget)) setOpen(false);
+            });
+          } else {
+            group.addEventListener('change',event=>set(multiple ? selected() : event.target.value));
+            body.append(group);
+          }
         } else if (['choice','person','lookup','relationship'].includes(type)) {
           const many = type === 'person' && field.multiple;
           const reference = type==='lookup' || type==='relationship';
@@ -331,7 +380,7 @@
           if (type === 'person') choices=teamChoices(answer);
           else if (reference) {
             choices=entries.filter(entry=>!field.source_template_id || entry.template_id === field.source_template_id).map(entry=>[entry.id,refLabel(entry)]);
-            if(answer?.entry_id && !choices.some(([id])=>id===answer.entry_id)) choices.push([answer.entry_id,answer.entry_id]);
+            if(answer?.entry_id && !choices.some(([id])=>id===answer.entry_id)) choices.push([answer.entry_id,refLabel({})]);
           } else choices=(field.options || []).map(name=>[name,name]);
           const control=select(choices,reference ? answer?.entry_id : answer,many);
           if (signerRow && !signerRow.person && type === 'person') {
@@ -482,6 +531,28 @@
           body.append(labelled(translate(label)+(member.name && !['profile_phone','profile_company'].includes(type)?' '+member.name:''),checkbox));describe(checkbox);
           if (answer && (typeof answer==='string' || typeof answer==='object' && (type!=='signature' || answer.at))) {
             checkbox.disabled=true;readonlyAnswer(body,field,answer);
+          } else if (type==='approval') {
+            const preview=el('div');body.append(preview);
+            const paint=()=>{
+              preview.replaceChildren();
+              const signed=approvalPreviews.get(dictionary)?.get(id);
+              if(signed && value()) readonlyAnswer(preview,field,signed);
+            };
+            paint();
+            checkbox.addEventListener('change',async()=>{
+              if(!checkbox.checked){set(null);return;}
+              pending++;checkbox.disabled=true;
+              try {
+                const profile=await options.signerProfile?.();
+                if(profile) {
+                  if(!approvalPreviews.has(dictionary)) approvalPreviews.set(dictionary,new Map());
+                  approvalPreviews.get(dictionary).set(id,{member_name:profile.name,at:profile.at,signature_image:profile.signature_image});
+                }
+                set(true);
+              } catch(err) {
+                checkbox.checked=false;errorText(error,err.message || 'Could not load your signature profile. Try again.');
+              } finally {pending--;checkbox.disabled=false;}
+            });
           } else if (type==='signature') {
             const ink=el('img','form-field-image');ink.alt=field.label;body.append(ink);
             const paint=()=>{
@@ -563,7 +634,7 @@
       if(['attachment','photo'].includes(field.type)){const list=el('ul','form-field-files');if(field.type==='photo')body.parentElement.dataset.photoSize=field.photo_size || 'medium';body.append(list);fileList(list,field,answer);return;}
       if(['manual_signature','sketch'].includes(field.type)&&isPNG(answer)){const image=el('img','form-field-image');image.src=answer;image.alt=field.label;body.append(image);return;}
       if(field.type==='manual_signature'&&isPNG(answer.image)){const image=el('img','form-field-image');image.src=answer.image;image.alt=field.label;body.append(image);}
-      if(field.type==='signature'&&/^data:image\/(png|jpeg);base64,/.test(answer.signature_image)){const image=el('img','form-field-image');image.src=answer.signature_image;image.alt=field.label;body.append(image);}
+      if(['signature','approval'].includes(field.type)&&/^data:image\/(png|jpeg);base64,/.test(answer.signature_image)){const image=el('img','form-field-image');image.src=answer.signature_image;image.alt=field.label;body.append(image);}
       let shown;
       switch(field.type){
         case 'date':case 'expiry_date':shown=window.ClassifireDates.date(answer);break;
@@ -579,13 +650,13 @@
         case 'staff_wallet':shown=answer===true?member.name:[answer.member_name,answer.role,answer.member_id,answer.at && window.ClassifireDates.dateTime(answer.at)].filter(Boolean).join(' · ');break;
         case 'scan_id':shown=[personName(answer),answer].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' · ');break;
         case 'profile':shown=answer===true?member.name:typeof answer==='object'?[answer.name,answer.email,answer.role].filter(Boolean).join(' · '):answer;break;
-        case 'approval':shown=translate(answer?'Approved':'Not approved');break;
+        case 'approval':shown=typeof answer==='object' ? [answer.member_name,answer.at && window.ClassifireDates.dateTime(answer.at)].filter(Boolean).join(' · ') : translate(answer?'Approved':'Not approved');break;
         case 'profile_company':case 'profile_phone':case 'profile_name':shown=answer===true?(field.type==='profile_name'?member.name:translate('Assigned when saved.')):answer;break;
         default:shown=Array.isArray(answer)?answer.join(', '):answer;
       }
       body.append(el('p','form-field-answer',shown));
     }
-    renderFields(root, template.fields, values);
+    renderAll();
     scheduleCalculation();
     return {
       getValues:()=>clone(values),isBusy:()=>pending>0,

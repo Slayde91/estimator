@@ -1303,7 +1303,7 @@
         inspectorRefresh = false;
         if (menuView && inspectorMenu?.context === context) inspectorMenu.restore(menuView);
       }
-      renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); root.CeasefireI18n.text(ui.heading, "{0} — PHYSICAL DRAFT", [root.CeasefireI18n.term(servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS")]); root.CeasefireI18n.attr(ui.add, "aria-label", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.attr(ui.add, "title", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.text(ui.status, "Physical revision {0} · {1} retained identities · {2}", [graph()?.revision ?? 0, state.index.size, root.CeasefireI18n.term(legacyReadOnly() ? "Legacy read-only" : "Unapproved draft")]); setBusy(state.busy);
+      renderBulkSelection(); ui.readOnlyNotice.hidden = !legacyReadOnly(); root.CeasefireI18n.text(ui.heading, servicePlans() ? "SERVICE PLANS" : "DEFECT REPORTS"); root.CeasefireI18n.attr(ui.add, "aria-label", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.attr(ui.add, "title", servicePlans() ? "Add substrate" : "Add defect"); root.CeasefireI18n.text(ui.status, "Physical revision {0} · {1} retained identities · {2}", [graph()?.revision ?? 0, state.index.size, root.CeasefireI18n.term(legacyReadOnly() ? "Legacy read-only" : "Unapproved draft")]); setBusy(state.busy);
     }
     function refreshPressedInspector() { if (inspectorRefresh && !state.busy && !state.autoRoutine && !state.pending.size) renderData(); }
     function render(snapshot) {

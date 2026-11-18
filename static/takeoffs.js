@@ -24,6 +24,7 @@
   // Presentation only: snapshots, evidence digests and calculator inputs retain full precision.
   const formatLength = value => Number.isFinite(value) ? lengthUnits.format(value) : "—";
   const labels = { steel: "Steel", duct: "Duct", wall: "Walls/Floors", slab: "Walls/Floors", walls_floors: "Walls/Floors", physical: "Penetrations" };
+  const registerLabels = { steel: "STEEL", duct: "DUCT", wall: "WALLS / FLOORS", slab: "WALLS / FLOORS", walls_floors: "WALLS / FLOORS" };
   const steelTargets = [["steel_vermiculite", "Steel Spray Schedule"], ["steel_intumescent", "Steel Intumescent Schedule"], ["steel_board", "Steel Board Schedule"]];
   const steelCalculators = steelTargets.map(([id]) => id);
   const thicknessKeys = { steel_vermiculite: "estimating_thickness_mm", steel_intumescent: "intumescent_thickness_mm", steel_board: "total_thickness_mm", ductwork: "duct_thickness_mm" };
@@ -669,7 +670,7 @@
     layout.append(toolbar, ui.viewportPanel, ui.settingsPanel, ui.physicalDetails, drawingPane, markupRail);
     const register = ui.register = node("section", "takeoff-register");
     const heading = ui.registerHeading = node("div", "section-heading");
-    ui.registerTitle = uiNode("h2", "", "Steel register"); ui.status = uiNode("span", "status-label", "Ready");
+    ui.registerTitle = uiNode("h2", "", "STEEL"); ui.status = uiNode("span", "status-label", "Ready");
     ui.registerLayout = uiSelect([["below", "Register below drawing"], ["beside", "Register beside drawing"]], value => {
       workspace.classList.toggle("beside", value === "beside");
       ui.registerResize?.refresh();
@@ -903,7 +904,7 @@
       state.physicalUI.render(physicalSnapshot()); renderRail(); renderCalibrations(); renderOverlay(); working(state.busy); return;
     }
     state.ui.tools.trace.after(state.ui.countAnchor);
-    window.CeasefireI18n.text(state.ui.registerTitle, "{0} register", [window.CeasefireI18n.term(labels[state.mode])]);
+    window.CeasefireI18n.text(state.ui.registerTitle, registerLabels[state.mode] || labels[state.mode]);
     for (const control of state.ui.registerExtraControls || []) control.hidden = false;
     for (const control of [state.ui.statusFilter, state.ui.sort, state.ui.group]) control.hidden = usesColumnFilters();
     const area = isArea();

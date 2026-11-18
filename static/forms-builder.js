@@ -2,32 +2,40 @@
   'use strict';
 
   const palette = {
-    'Text and layout': [
-      ['text', 'Single line text'], ['textarea', 'Multi-line text'], ['number', 'Number'],
-      ['instruction', 'Prefilled text'], ['section', 'Section heading'], ['page_break', 'Page break'],
+    'Actions': [['action', 'Action']],
+    'Counter': [['counter', 'Form counter']],
+    'Text': [
+      ['text', 'Single line text'], ['textarea', 'Multi-line text'],
+      ['instruction', 'Prefilled text'], ['section', 'Section heading'],
     ],
-    'Date and time': [
+    'Number': [['number', 'Number']],
+    'Date and Time': [
       ['date', 'Date'], ['datetime', 'Date and time'], ['date_range', 'Date range'],
       ['datetime_range', 'Date and time range'], ['expiry_date', 'Expiry date'],
     ],
-    'Choices and people': [
-      ['choice', 'Dropdown list'], ['multichoice', 'Multiple choice'], ['yes_no', 'Yes / No / N/A'],
-      ['person', 'Person'], ['profile_name', 'Full name'], ['profile_company', 'Company'], ['profile_phone', 'Phone'],
-      ['lookup', 'Form reference'], ['relationship', 'Relationship'],
-    ],
+    'Yes / No': [['yes_no', 'Yes / No / N/A']],
+    'List': [['choice', 'Dropdown list'], ['multichoice', 'Multiple choice']],
     'Tables and groups': [
       ['table', 'Table'], ['prefilled_table', 'Prefilled table'], ['group', 'Repeating group'],
-      ['sign_on_table', 'Staff sign-on table'], ['weather_table', 'Weather table'],
     ],
-    'Evidence and sign-off': [
-      ['attachment', 'Attachment'], ['photo', 'Photo / video'], ['sketch', 'Sketch'],
-      ['location', 'Location'], ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
-      ['approval', 'Approval signature'], ['action', 'Action'], ['counter', 'Form counter'],
+    'Profile': [
+      ['person', 'Person'], ['profile_name', 'Full name'], ['profile_company', 'Company'], ['profile_phone', 'Phone'],
     ],
+    'Signature': [
+      ['signature', 'Signature'], ['manual_signature', 'Manual signature'], ['signatures', 'Multiple signatures'],
+      ['approval', 'Approval signature'],
+    ],
+    'Photos': [['photo', 'Photo / video']],
+    'Location': [['location', 'Location']],
+    'Sketch': [['sketch', 'Sketch']],
+    'Attachments': [['attachment', 'Attachment']],
+    'Relationship': [['relationship', 'Relationship']],
+    'Page Break': [['page_break', 'Page break']],
   };
   // These field types remain readable and editable in existing templates.
   const legacyTypes = new Map([['scan_id', 'Verify staff ID'], ['staff_wallet', 'Staff identity wallet'],
-    ['id_text', 'ID (manual entry)'], ['weather', 'Weather observation']]);
+    ['id_text', 'ID (manual entry)'], ['weather', 'Weather observation'],
+    ['lookup', 'Form reference'], ['sign_on_table', 'Staff sign-on table'], ['weather_table', 'Weather table']]);
   const names = new Map([...Object.values(palette).flat(), ...legacyTypes]);
   const columnNames = new Map([...names, ['formula', 'Formula'], ['list_property', 'List property'], ['time', 'Time']]);
   const columnTypes = ['text', 'textarea', 'instruction', 'number', 'date', 'datetime', 'time', 'choice', 'list_property',
@@ -550,7 +558,6 @@
       }
       if (field.type === 'table' || field.type === 'group') nestedEditor(properties, field, redraw);
       if (choiceTypes.has(field.type)) optionEditor(properties, field);
-      if (field.type === 'person') properties.append(check('Select multiple people', Boolean(field.multiple), on => { field.multiple = on; }));
       if (field.type === 'yes_no') yesNoEditor(properties, field, redraw);
       if (field.type === 'datetime' || field.type === 'datetime_range')
         properties.append(check('Include time zone', Boolean(field.timezone), value => { field.timezone = value; }));
@@ -716,7 +723,6 @@
         if (child.type === 'photo') photoSettings(card,child,redraw);
         if (child.type === 'expiry_date') expiryReminder(card, child);
         if (choiceTypes.has(child.type)) optionEditor(card, child, list);
-        if (child.type === 'person') card.append(check('Select multiple people', Boolean(child.multiple), on => { child.multiple = on; }));
         if (child.type === 'instruction') card.append(labelled('Instructions',
           window.ClassifireFormRichText.editor(copy('Instructions'), child.help, v => { child.help = v; })));
         conditionEditor(card, child, list.slice(0,index), redraw);

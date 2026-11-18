@@ -52,7 +52,21 @@ const {chromium, expect} = require('@playwright/test');
     await expect(palette('staff_wallet')).toHaveCount(0);
     await expect(palette('id_text')).toHaveCount(0);
     await expect(palette('weather')).toHaveCount(0);
-    await expect(palette('weather_table')).toBeVisible();
+    for (const removed of ['lookup', 'sign_on_table', 'weather_table']) await expect(palette(removed)).toHaveCount(0);
+    assert.deepEqual(await page.locator('.form-builder-palette-group').evaluateAll(groups => groups.map(group => [
+      group.querySelector('h3').textContent,
+      [...group.querySelectorAll('[data-field-type]')].map(field => field.dataset.fieldType),
+    ])), [
+      ['Actions', ['action']], ['Counter', ['counter']],
+      ['Text', ['text', 'textarea', 'instruction', 'section']], ['Number', ['number']],
+      ['Date and Time', ['date', 'datetime', 'date_range', 'datetime_range', 'expiry_date']],
+      ['Yes / No', ['yes_no']], ['List', ['choice', 'multichoice']],
+      ['Tables and groups', ['table', 'prefilled_table', 'group']],
+      ['Profile', ['person', 'profile_name', 'profile_company', 'profile_phone']],
+      ['Signature', ['signature', 'manual_signature', 'signatures']],
+      ['Photos', ['photo']], ['Location', ['location']], ['Sketch', ['sketch']],
+      ['Attachments', ['attachment']], ['Relationship', ['relationship']], ['Page Break', ['page_break']],
+    ]);
     await name.fill('Site inspection');
     await palette('choice').dragTo(page.locator('.form-builder-drop-empty'));
     await page.getByLabel('Field label').fill('Weather');
@@ -138,11 +152,19 @@ const {chromium, expect} = require('@playwright/test');
     await palette('expiry_date').click();
     await page.getByLabel('Remind before expiry (days)').fill('7');
     assert.equal((await snap()).fields.at(-1).reminder_days,7);
-    await palette('sign_on_table').click();
+    await palette('group').click();
+    await page.getByLabel('Field label',{exact:true}).first().fill('Site staff');
+    await columns.first().getByLabel('Type',{exact:true}).selectOption('person');
+    await btn('Add group field').click();
+    await columns.last().getByLabel('Type',{exact:true}).selectOption('datetime');
+    await btn('Add group field').click();
+    await columns.last().getByLabel('Type',{exact:true}).selectOption('manual_signature');
     assert.deepEqual((await snap()).fields.at(-1).children.map(c=>c.type),['person','datetime','manual_signature']);
     await expect(page.locator('.form-builder-nested-row select option[value="scan_id"]')).toHaveCount(0);
     await expect(page.locator('.form-builder-nested-row select option[value="staff_wallet"]')).toHaveCount(0);
     await expect(page.locator('.form-builder-nested-row select option[value="id_text"]')).toHaveCount(0);
+    await expect(page.locator('.form-builder-nested-row select option[value="lookup"]')).toHaveCount(0);
+    await expect(page.getByLabel('Select multiple people',{exact:true})).toHaveCount(0);
     await checkRowIcons(columns.first());
     const addField = btn('Add group field');
     await expect(addField.locator('.add-symbol[aria-hidden="true"]')).toHaveText('+');
@@ -220,6 +242,7 @@ const {chromium, expect} = require('@playwright/test');
     await page.getByLabel('Attach reference files').setInputFiles({name:'guide.txt', mimeType:'text/plain',buffer:Buffer.from('Guide')});
     await expect(page.getByText('guide.txt',{exact:true})).toBeVisible();
     await btn('Fields').click();
+    await expect(palette('approval').locator('..').getByRole('heading',{name:'Signature',exact:true})).toBeVisible();
     await palette('approval').click();
     await page.getByLabel('Workflow stage').selectOption({label:'Sign-off'});
     await btn('Preview').click();
@@ -271,27 +294,48 @@ const {chromium, expect} = require('@playwright/test');
         {id:'wallet',type:'staff_wallet',label:'Verified identity'},
         {id:'manual',type:'id_text',label:'Inspection ID'},
         {id:'conditions',type:'weather',label:'Weather observation'},
+        {id:'people',type:'person',label:'Site people',multiple:true},
+        {id:'reference',type:'lookup',label:'Previous form',source_template_id:'another-template'},
+        {id:'weather-log',type:'table',label:'Weather table',columns:[
+          {id:'temperature',type:'number',label:'Temperature (°C)'}],default:[{temperature:24}]},
         {id:'sign-in',type:'group',label:'Staff sign-in',children:[
-          {id:'badge',type:'scan_id',label:'Badge'},{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'}]}
+          {id:'badge',type:'scan_id',label:'Badge'},{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'},
+          {id:'nested-people',type:'person',label:'Assigned people',multiple:true},
+          {id:'nested-reference',type:'lookup',label:'Related form',source_template_id:'another-template'}]}
       ]};
+      window.legacySource = structuredClone(saved);
       window.editor = window.ClassifireFormsBuilder.mount(document.querySelector('main'), saved, {
         onSave: async value => {window.saved = value; return value;}, onCancel:()=>{}, onPreview:()=>{},
       });
     });
     await page.getByLabel('Field label',{exact:true}).fill('Staff badge');
     await expect(page.getByLabel('Help text',{exact:true})).toHaveCount(0);
+    await page.locator('.form-builder-field-select').filter({hasText:'Site people'}).click();
+    await expect(page.getByLabel('Select multiple people',{exact:true})).toHaveCount(0);
     await page.locator('.form-builder-field-select').last().click();
     await expect(columns.first().getByLabel('Type',{exact:true})).toHaveValue('scan_id');
-    await expect(columns.last().getByLabel('Type',{exact:true})).toHaveValue('staff_wallet');
+    await expect(columns.nth(1).getByLabel('Type',{exact:true})).toHaveValue('staff_wallet');
+    await expect(columns.last().getByLabel('Type',{exact:true})).toHaveValue('lookup');
     await expect(columns.first().locator('option[value="staff_wallet"]')).toHaveCount(0);
+    await expect(columns.first().locator('option[value="lookup"]')).toHaveCount(0);
+    await expect(page.getByLabel('Select multiple people',{exact:true})).toHaveCount(0);
+    await btn('Raw code').click();
+    const legacyRaw = page.getByLabel('Field definitions (JSON)');
+    const legacyFields = JSON.parse(await legacyRaw.inputValue());
+    legacyFields[0].label = 'Reviewed staff badge';
+    await legacyRaw.fill(JSON.stringify(legacyFields));
+    await btn('Apply fields').click();
     await btn('Save changes').click();
-    const [scan,wallet,manual,weather,group] = await page.evaluate(() => window.saved.fields);
-    assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Staff badge',help:'Previously entered description.'});
+    const [scan,wallet,manual,weather,people,reference,weatherTable,group] = await page.evaluate(() => window.saved.fields);
+    assert.deepEqual(scan,{id:'staff-check',type:'scan_id',label:'Reviewed staff badge',help:'Previously entered description.'});
     assert.deepEqual(wallet,{id:'wallet',type:'staff_wallet',label:'Verified identity'});
     assert.deepEqual(manual,{id:'manual',type:'id_text',label:'Inspection ID'});
     assert.deepEqual(weather,{id:'conditions',type:'weather',label:'Weather observation'});
+    const originalLegacy = await page.evaluate(() => window.legacySource.fields);
+    assert.deepEqual([people,reference,weatherTable,group],originalLegacy.slice(4));
     assert.equal(group.children[0].type,'scan_id');
     assert.deepEqual(group.children[1],{id:'nested-wallet',type:'staff_wallet',label:'Staff identity'});
+    await btn('Fields').click();
     await palette('instruction').click();
     await page.getByLabel('Instructions',{exact:true}).fill('Wear eye protection.');
     assert.equal((await snap()).fields.at(-1).help,'Wear eye protection.');

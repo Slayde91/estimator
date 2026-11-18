@@ -7,6 +7,7 @@ from math import ceil
 
 
 from PIL import Image as PILImage, ImageOps
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
@@ -80,7 +81,49 @@ def _visible(fields, values):
             yield field
 
 
+def _relationship_ids(fields, values):
+    for field in _visible(fields, values):
+        value = values.get(field['id'])
+        if field['type'] == 'relationship' and value:
+            yield value['entry_id']
+        elif field['type'] in ('group', 'table'):
+            children = field['children'] if field['type'] == 'group' else field['columns']
+            for row in value or []:
+                yield from _relationship_ids(children, row)
+
+
 def render_form_pdf(entry, theme, company, staff, reference):
+    """Append accessible related forms once, retaining each saved template's layout."""
+    resolved = {entry['id']: entry}
+
+    def lookup(record_id):
+        if record_id not in resolved:
+            resolved[record_id] = reference(record_id)
+        return resolved[record_id]
+
+    records = [entry]
+    seen = {entry['id']}
+    for record in records:
+        for record_id in _relationship_ids(record['template']['fields'], record['values']):
+            if record_id in seen:
+                continue
+            seen.add(record_id)
+            linked = lookup(record_id)
+            if linked:
+                records.append(linked)
+    if len(records) == 1:
+        return _render_form_pdf(entry, theme, company, staff, lookup)
+    output = BytesIO()
+    with PdfWriter() as writer:
+        for record in records:
+            pdf = PdfReader(BytesIO(_render_form_pdf(record, theme, company, staff, lookup)))
+            writer.append(pdf, outline_item=record['template']['name'])
+        writer.add_metadata({'/Title': entry['template']['name'], '/Author': entry['created_by_name']})
+        writer.write(output)
+    return output.getvalue()
+
+
+def _render_form_pdf(entry, theme, company, staff, reference):
     register_pdf_fonts()
     template = entry['template']
     settings = template['settings']
@@ -137,7 +180,7 @@ def render_form_pdf(entry, theme, company, staff, reference):
     @lru_cache(maxsize=128)
     def link_name(record_id):
         linked = reference(record_id)
-        return _joined(linked.get('name'),linked.get('created_by_name'),_dated(linked.get('created_at')),record_id)
+        return _joined(linked.get('name'),linked.get('created_by_name'),_dated(linked.get('created_at'))) or 'Form unavailable'
 
     def answer(field,value,max_width):
         kind = field['type']
@@ -163,7 +206,7 @@ def render_form_pdf(entry, theme, company, staff, reference):
                 if kind == 'photo' and settings.get('photo_appendix'):
                     appendix.append((_joined(field['label'],caption),attachment))
             return pieces
-        if kind in ('sketch','manual_signature','signature'):
+        if kind in ('sketch','manual_signature','signature') or kind == 'approval' and isinstance(value,dict):
             ink = None
             if isinstance(value,str):
                 ink = value
@@ -291,7 +334,10 @@ def render_form_pdf(entry, theme, company, staff, reference):
         if entry.get(key):
             records = [[p(action+' stage',header),p(action+' by',header),p('Date',header)]]
             for event in entry[key]:
-                records.append([p(stage_names.get(event['stage_id'],event['stage_id'])),p(event['member_name']),p(_dated(event['at']))])
+                signature = [p(event['member_name'])]
+                if event.get('signature_image'):
+                    signature.append(_image(event['signature_image'],width*.3,70))
+                records.append([p(stage_names.get(event['stage_id'],event['stage_id'])),signature,p(_dated(event['at']))])
             story.extend([Spacer(1,6),grid(records,[width*.35,width*.3,width*.35])])
     def page_number(canvas,document):
         canvas.setFont(normal.fontName,8)

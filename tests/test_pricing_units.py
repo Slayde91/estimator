@@ -24,10 +24,9 @@ class PricingUnitTests(unittest.TestCase):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        for page in book:
-            for row in page:
-                for cell in row:
-                    self.assertEqual((cell.alignment.horizontal, cell.alignment.vertical), ('center', 'center'))
+        for row in sheet:
+            for cell in row:
+                self.assertEqual((cell.alignment.horizontal, cell.alignment.vertical), ('center', 'center'))
         product = product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm² / unit')
         self.assertEqual(headers['Yield unit'], headers['Yield'] + 1)
@@ -68,19 +67,17 @@ class PricingUnitTests(unittest.TestCase):
                     if expected:
                         self.assertEqual(yield_unit(group, {**rate, 'yield_unit': 'incorrect label'}), expected)
 
-    def test_excel_units_are_locked_but_editable_input_cells_and_new_columns_are_unlocked(self):
+    def test_export_allows_sorting_and_marks_which_cells_are_inputs(self):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
-        self.assertTrue(sheet.protection.sheet)
-        self.assertFalse(sheet.protection.autoFilter)
+        self.assertFalse(sheet.protection.sheet)
+        self.assertTrue(sheet.auto_filter.ref)
         headers = {cell.value: cell.column for cell in sheet[1]}
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
-                self.assertEqual(cell.protection.locked, cell.column in {headers[name] for name in
-                    ('Yield unit', 'Saved values')}, cell.coordinate)
+                self.assertEqual(cell.protection.locked, cell.column == headers['Yield unit'], cell.coordinate)
         self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Yield unit']).column_letter].protection.locked)
         self.assertFalse(sheet.column_dimensions[sheet.cell(1, headers['Yield']).column_letter].protection.locked)
-        self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Saved values']).column_letter].protection.locked)
         self.assertTrue(all(cell.protection.locked for cell in sheet[1]))
         book.close()
 
@@ -89,8 +86,8 @@ class PricingUnitTests(unittest.TestCase):
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
         product = product_service_row(sheet, headers, '204')
-        # A file edited by a tool bypassing sheet protection still cannot change
-        # units. Old unit-list lengths also cannot prevent ordinary use edits.
+        # Yield unit remains a derived reference even when someone types in it.
+        # Old unit-list lengths also cannot prevent ordinary use edits.
         sheet.cell(product, headers['Yield unit']).value = 'm² / drum;not a unit;extra'
         result = import_pricing_workbook(_serialize_exact(book), 'changed-labels.xlsx', {})
         self.assertEqual(result['summary']['rates']['updated'], 0)

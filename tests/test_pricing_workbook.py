@@ -21,6 +21,7 @@ from estimator.calculator import calculate
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.pricing_workbook import (
     INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMPACT_HEADERS, COMBINED_SHEET,
+    PRICING_METADATA_SHEET, ROW_NOTE_PREFIX,
     _legacy_pricing_workbook, _product_service_export, VERBOSE_PRODUCT_SERVICE_HEADERS, VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS,
     import_pricing_workbook, _format_sheet, _serialize_exact,
 )
@@ -30,17 +31,34 @@ def export_verbose_pricing_workbook(configuration):
     return _product_service_export(configuration, VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS, VERBOSE_PRODUCT_SERVICE_HEADERS)
 
 
+def product_service_saved_cells(sheet, headers):
+    if "Saved values" in headers:
+        for number in range(2, sheet.max_row + 1):
+            cell = sheet.cell(number, headers["Saved values"])
+            if cell.value is not None:
+                yield number, cell
+        return
+
+    metadata = sheet.parent[PRICING_METADATA_SHEET]
+    by_key = {key.value: saved for key, saved in metadata.iter_rows(min_row=2, max_col=2)}
+    for (first_cell,) in sheet.iter_rows(min_row=2, max_col=1):
+        if first_cell.comment is not None:
+            key = first_cell.comment.text.removeprefix(ROW_NOTE_PREFIX)
+            yield first_cell.row, by_key[key]
+
+
+def product_service_saved_cell(sheet, headers, number):
+    return dict(product_service_saved_cells(sheet, headers))[number]
+
+
 def product_service_row(sheet, headers, identity):
-    for row in sheet.iter_rows(min_row=2):
-        metadata = row[headers["Saved values"] - 1].value
-        if metadata is None:
-            continue
-        snapshot = json.loads(metadata)
+    for number, cell in product_service_saved_cells(sheet, headers):
+        snapshot = json.loads(cell.value)
         product = snapshot["product"]
         if product and product["id"] == identity:
-            return row[0].row
+            return number
         if not product and any(use["rate"]["id"] == identity for use in snapshot["uses"]):
-            return row[0].row
+            return number
     raise AssertionError(f"No exported row for {identity!r}")
 
 

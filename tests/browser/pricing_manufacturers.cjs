@@ -164,29 +164,55 @@ async function importWorkbook(file,accept){
     await page.locator('[aria-controls="pricing-document-actions"]').click();await page.locator('#export-pricing').click();
   }});
   const changed=path.join(output,'manufacturer-roundtrip.xlsx');
-  const editedBook=spawnSync(python,['-c',`import json,sys
+  const editedBook=spawnSync(python,['-c',`import hashlib,json,sys
 from openpyxl import load_workbook
 b=load_workbook(sys.argv[1]);s=b['Inventory & Rates'];h={c.value:c.column for c in s[1]}
+assert tuple(h)==('Product/Service','Supplier price','Markup','Sell price','Group','Firestopping groups',
+                  'Yield','Yield unit','Manufacturer','Width (mm)','Length (mm)','Area (m²)')
+assert s.max_column==12 and 'M' not in s.column_dimensions
+assert s.auto_filter.ref==f'A1:L{s.max_row}'
 assert 'Manufacturer' in h and not s.column_dimensions[s.cell(1,h['Manufacturer']).column_letter].hidden
-assert all(name not in h for name in ('Price source','Sell rate','Use yields','Inventory ID','Rate ID','Pricing mode','Rate overrides'))
 assert 'Yield' in h and not s.column_dimensions[s.cell(1,h['Yield']).column_letter].hidden
-assert s.column_dimensions[s.cell(1,h['Saved values']).column_letter].hidden
 assert all(value is None or not isinstance(value,str) or (value.strip(' ;') and 'Empty text' not in value)
            for (value,) in s.iter_rows(min_row=2,min_col=h['Yield'],max_col=h['Yield'],values_only=True))
-saved={n:json.loads(s.cell(n,h['Saved values']).value) for n in range(2,s.max_row+1)}
+metadata=b['CLASSIFIRE Metadata']
+assert metadata.sheet_state=='veryHidden'
+assert tuple(cell.value for cell in metadata[1])==('Row key','Saved values')
+row_prefix='CLASSIFIRE row reference\\n'
+def snapshot_key(raw):
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+metadata_rows={metadata.cell(n,1).value:n for n in range(2,metadata.max_row+1)}
+saved={}
+key_by_row={}
+for n in range(2,s.max_row+1):
+    note=s.cell(n,h['Product/Service']).comment
+    assert note and note.text.startswith(row_prefix)
+    key=note.text[len(row_prefix):]
+    raw=metadata.cell(metadata_rows[key],2).value
+    assert snapshot_key(raw)==key
+    key_by_row[n]=key
+    saved[n]=json.loads(raw)
+assert len(set(key_by_row.values()))==len(saved)==len(metadata_rows)==metadata.max_row-1
 coating_row=next(n for n,item in saved.items() if (item.get('product') or {}).get('id')=='204')
 coating=saved[coating_row]
 primer=next(u['rate'] for u in coating['uses'] if u['group']=='primers')
 assert (primer['price_mode'],primer['price'])==('inventory',coating['product']['sales_price'])
 primer.update(price_mode='override',price=float(sys.argv[4]))
-s.cell(coating_row,h['Saved values'],json.dumps(coating))
+updated=json.dumps(coating)
+updated_key=snapshot_key(updated)
+metadata_row=metadata_rows[key_by_row[coating_row]]
+metadata.cell(metadata_row,1,updated_key)
+metadata.cell(metadata_row,2,updated)
+s.cell(coating_row,h['Product/Service']).comment.text=row_prefix+updated_key
 rows=[n for n,item in saved.items() if str((item.get('product') or {}).get('id'))==sys.argv[3]]
 assert len(rows)==1
 n=rows[0];assert s.cell(n,h['Manufacturer']).value is None
 linked=[use['rate']['id'] for use in saved[n]['uses']]
 assert linked and all(value for value in linked)
 s.cell(n,h['Manufacturer'],'QA Excel manufacturer');b.save(sys.argv[2]);b.close()
-print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3],linked_rate_ids=linked,exported_explicit_blank=True,legacy_override_in_import=True)))`,exported,changed,owner.id,String(legacyRatePrice)],{cwd:root,windowsHide:true,encoding:'utf8'});
+print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3],linked_rate_ids=linked,
+                      exported_explicit_blank=True,legacy_override_in_import=True,
+                      visible_columns=s.max_column,metadata_sheet=metadata.title)))`,exported,changed,owner.id,String(legacyRatePrice)],{cwd:root,windowsHide:true,encoding:'utf8'});
   assert.equal(editedBook.status,0,`${editedBook.stdout}\n${editedBook.stderr}`);evidence.workbook=JSON.parse(editedBook.stdout);
   // Import adds this exact audit record. Preserve and verify it explicitly;
   // no source fields or numeric values are omitted from the comparison.

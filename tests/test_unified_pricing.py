@@ -21,7 +21,7 @@ from estimator.pricing_workbook import (CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
                                          CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS, _product_service_export)
 from estimator.server import create_server
 from estimator.storage import Store
-from test_pricing_workbook import product_service_row
+from test_pricing_workbook import product_service_row, product_service_saved_cell
 
 
 SHARED_INPUTS = {
@@ -77,7 +77,8 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
     def edit(self, payload, edits):
         workbook = load_workbook(BytesIO(payload))
         try:
-            self.assertEqual(workbook.sheetnames, ['Inventory & Rates', 'Instructions'])
+            self.assertEqual([sheet.title for sheet in workbook if sheet.sheet_state == 'visible'],
+                             ['Inventory & Rates', 'Instructions'])
             sheet = workbook['Inventory & Rates']
             headers = {cell.value: cell.column for cell in sheet[1]}
             self.assertNotIn('Row type', headers)
@@ -169,7 +170,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
                     row = product_service_row(sheet, headers, '204')
                     self.assertNotIn('Rate overrides', headers)
                     self.assertEqual(sheet.cell(row, headers['Yield']).value, visible_yield)
-                    saved = json.loads(sheet.cell(row, headers['Saved values']).value)
+                    saved = json.loads(product_service_saved_cell(sheet, headers, row).value)
                     self.assertEqual([use['rate']['id'] for use in saved['uses']], ['primers:1', 'topcoats:1'])
                     self.assertEqual([(use['rate']['price_mode'], use['rate']['price']) for use in saved['uses']],
                                      [('inventory', price), ('inventory', price)])

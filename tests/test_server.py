@@ -14,6 +14,7 @@ from estimator.server import create_server
 from estimator.report import render_quote_pdf
 from estimator.storage import Store
 from openpyxl import load_workbook
+from test_pricing_workbook import product_service_saved_cells
 from test_report import pdf_text
 
 
@@ -313,15 +314,16 @@ class ServerTests(unittest.TestCase):
             records = list(sheet.iter_rows(min_row=2, values_only=True))
             self.assertNotIn("Row type", columns)
             self.assertEqual(len(records), 393)
-            snapshots = [json.loads(record[columns["Saved values"] - 1]) for record in records]
-            self.assertEqual(len({record["product"]["id"] for record in snapshots}), 393)
+            snapshots = [(number, json.loads(cell.value)) for number, cell in product_service_saved_cells(sheet, columns)]
+            self.assertEqual(len(snapshots), len(records))
+            self.assertEqual(len({record["product"]["id"] for _, record in snapshots}), 393)
             self.assertNotIn("Item code", columns)
             self.assertNotIn("Inventory ID", columns)
             self.assertNotIn("Rate ID", columns)
-            self.assertEqual(sum(len(record["uses"]) for record in snapshots), 154)
+            self.assertEqual(sum(len(record["uses"]) for _, record in snapshots), 154)
             # Remove an estimator choice through the visible group list.
             removed_choice = None
-            for number, record in enumerate(snapshots, 2):
+            for number, record in snapshots:
                 uses = record["uses"]
                 for index, use in enumerate(uses):
                     if use["group"] != "sprays" or use["rate"]["name"] != "Promat Cafco 300":

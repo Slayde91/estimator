@@ -84,7 +84,12 @@ CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS = (*VERBOSE_PRODUCT_SERVICE_VISIBLE
     "Rate overrides", *CALCULATOR_PROPERTY_HEADERS)
 CONSOLIDATED_PRODUCT_SERVICE_HEADERS = (*CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS, "Saved values")
 PRODUCT_SERVICE_VISIBLE_HEADERS = (*VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS[1:], *CALCULATOR_PROPERTY_HEADERS)
-PRODUCT_SERVICE_HEADERS = (*PRODUCT_SERVICE_VISIBLE_HEADERS, "Saved values")
+PRODUCT_SERVICE_HEADERS = PRODUCT_SERVICE_VISIBLE_HEADERS
+COLUMN_M_PRODUCT_SERVICE_HEADERS = (*PRODUCT_SERVICE_HEADERS, "Saved values")
+PRICING_METADATA_SHEET = "CLASSIFIRE Metadata"
+PRICING_METADATA_HEADERS = ("Row key", "Saved values")
+ROW_NOTE_PREFIX = "CLASSIFIRE row reference\n"
+_ROW_KEY = re.compile(r"[0-9a-f]{64}\Z")
 LEGACY_USE_VECTOR_HEADERS = ("Group", "Selection name", "Price source", "Sell rate", "Yield type", "Yield", "Rate ID", "Use order")
 USE_VECTOR_HEADERS = (*LEGACY_USE_VECTOR_HEADERS, "Yield unit")
 # All layouts feed the same existing pricing parser. Product values have one
@@ -558,6 +563,10 @@ def _edited_product_prices(row, previous, saved_sell, label):
     return supplier, markup, sell
 
 
+def _saved_row_key(saved):
+    return hashlib.sha256(saved.encode("utf-8")).hexdigest()
+
+
 def _product_service_export(configuration, visible, headers):
     data = effective_catalog(configuration)
     workbook = _legacy_pricing_workbook(configuration)
@@ -566,6 +575,13 @@ def _product_service_export(configuration, visible, headers):
     workbook.remove(old_sheet)
     sheet = workbook.create_sheet(COMBINED_SHEET, 0)
     sheet.append(headers)
+    current_layout = headers in (PRODUCT_SERVICE_HEADERS, COLUMN_M_PRODUCT_SERVICE_HEADERS)
+    metadata = None
+    if headers == PRODUCT_SERVICE_HEADERS:
+        metadata = workbook.create_sheet(PRICING_METADATA_SHEET)
+        metadata.sheet_state = "veryHidden"
+        metadata.protection.sheet = True
+        metadata.append(PRICING_METADATA_HEADERS)
     products = {item["id"]: item for item in data["inventory"]}
     uses = {}
     for group, rates in data["rate_groups"].items():
@@ -590,7 +606,7 @@ def _product_service_export(configuration, visible, headers):
                        "Manufacturer": (product if product is not None else records[0][2]).get("manufacturer", ""),
                        "Firestopping groups": _pack_uses(firestopping_group_keys(product)) if product else None,
                        "Yield": scalar_yield, "Sell price": sell_price, "Saved values": saved})
-        if headers == PRODUCT_SERVICE_HEADERS:
+        if current_layout:
             price_owner = product if product is not None else records[0][2]
             values["Supplier price"], values["Markup"] = _pricing_basis(
                 price_owner.get("supplier_price"), price_owner.get("markup", 0), sell_price)
@@ -601,20 +617,26 @@ def _product_service_export(configuration, visible, headers):
         elif headers == POSITIONAL_PRODUCT_SERVICE_HEADERS:
             values.update(_public_use_values(product, [rate for _, _, rate in records]))
         sheet.append([values.get(header) for header in headers])
+        if metadata is not None:
+            key = _saved_row_key(saved)
+            metadata.append((key, saved))
+            sheet.cell(sheet.max_row, 1).comment = Comment(ROW_NOTE_PREFIX + key, "CLASSIFIRE", width=280, height=70)
     widths_by_header = {"Product/Service": 64, "Manufacturer": 27, "Group": 29, "Firestopping groups": 34,
                         "Yield": 25, "Rate overrides": 27}
     widths = {get_column_letter(index): widths_by_header.get(header, 19) for index, header in enumerate(headers, 1)}
     numeric = tuple(headers.index(header) + 1 for header in ("Supplier price", "Sell price", "Yield"))
-    modern = headers in (PRODUCT_SERVICE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS, POSITIONAL_PRODUCT_SERVICE_HEADERS)
+    modern = current_layout or headers in (CONSOLIDATED_PRODUCT_SERVICE_HEADERS, POSITIONAL_PRODUCT_SERVICE_HEADERS)
     _format_sheet(sheet, headers, widths, numeric_columns=numeric, percent_columns=(headers.index("Markup") + 1,),
                   freeze_panes="B2" if modern else "C2")
     last_visible = get_column_letter(len(visible))
     # The hidden snapshot must move with its row when ordering the catalogue.
-    last_filter = get_column_letter(len(headers)) if headers in (PRODUCT_SERVICE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS) else last_visible
+    last_filter = get_column_letter(len(headers)) if current_layout or headers == CONSOLIDATED_PRODUCT_SERVICE_HEADERS else last_visible
     sheet.auto_filter.ref = f"A1:{last_filter}{sheet.max_row}"
     sheet.print_area = f"A1:{last_visible}{sheet.max_row}"
     editable, readonly = Protection(locked=False), Protection(locked=True)
-    sheet.protection.sheet = True
+    # Excel prevents sorting a protected range that includes a locked cell.
+    # The current template keeps its metadata on a protected, hidden sheet.
+    sheet.protection.sheet = metadata is None
     for flag in ("autoFilter", "sort", "insertRows", "deleteRows", "formatRows", "formatColumns", "selectLockedCells", "selectUnlockedCells"):
         setattr(sheet.protection, flag, False)
     protected = {"Yield unit", *headers[len(visible):]} if modern else {"Yield unit"}
@@ -633,7 +655,13 @@ def _product_service_export(configuration, visible, headers):
         sheet.row_dimensions[row[0].row].height = min(409, max(31, 16 * lines + 8))
     instructions = workbook["Instructions"]
     instructions.delete_rows(1, instructions.max_row)
-    current_layout = headers == PRODUCT_SERVICE_HEADERS
+    saved_values_instructions = (
+        "Keep the CLASSIFIRE note on each existing Product/Service cell so the hidden record follows its row. "
+        "Edit the cells in place or sort the entire table. To remove an entry, clear its editable values and keep its note. "
+        "Enter new items in blank rows without copying notes."
+        if metadata is not None else
+        "Keep the hidden Saved values cell with its row. It preserves inventory and rate identities, source labels, item codes and other stored properties."
+    )
     pricing_instructions = (
         "Sell price is Supplier price × (1 + Markup). If only Sell price changes, import works out Markup. "
         "For a positive Sell price with zero or blank Supplier price, the Sell price becomes Supplier price and Markup becomes 0%. "
@@ -650,16 +678,17 @@ def _product_service_export(configuration, visible, headers):
     for row in [
         ["CEASEFIRE PRICING LIBRARY", "Edit products and services"],
         ["Save changes", "Import previews this complete library. Review the changes, then Save pricing. Saved projects retain their own prices."],
-        ["Product/Service", "One editable description supplies the displayed product and Estimator selection label. Existing lookup identities are retained in hidden columns."],
+        ["Product/Service", "One editable description supplies the displayed product and Estimator selection label."],
         ["Manufacturer", "Editable product metadata only. Linked uses follow their owning product. Clearing a previously entered manufacturer preserves an explicit blank; prices, quantities and yields are unchanged."],
         ["Prices", pricing_instructions],
         ["Yield", yield_instructions],
-        ["Yield unit", "Read-only calculation unit: m² / unit for area coverage and m / unit for mastic. Groups without a yield remain blank."],
+        ["Yield unit", "The estimator derives this reference from the group. Area coverage uses m² / unit and mastic uses m / unit. Groups without a yield remain blank."],
         ["Group", "Separate Main Estimator group keys with semicolons. Every linked use takes the product's Sell price. Existing uses retain their names, order and yields. A new use takes the Product/Service name and inherits a shared yield when its unit matches. Names must be unique within each group."],
         ["Firestopping groups", "Firestopping Estimator group keys are separated by semicolons. These assignments control which product dropdowns contain the item. Leave blank to remove the product from all Firestopping dropdowns."],
         ["Width, Length and Area", "Firestopping uses these product dimensions and area directly. Values are millimetres and square metres."],
         ["Add or remove", "Add a new product with Product/Service and its pricing and groups. To remove an entry, clear its visible editable cells."],
-        ["Compatibility", "Keep the hidden Saved values cell with its row. It preserves inventory and rate identities, source labels, item codes and other stored properties. Earlier workbook formats can still be imported; linked uses take the product's Sell price. Use values only: formulas, macros and external links are rejected."],
+        ["Saved values", saved_values_instructions],
+        ["Compatibility", "Earlier workbook formats can still be imported. Linked uses take the product's Sell price. Use values only. Formulas, macros and external links are rejected."],
         ["Group keys", "Use the exact supported group keys below."],
         *[[group, "Yield required" if rule["yield_column"] else "Yield not used"]
           for group, rule in data["rate_group_rules"].items()],
@@ -761,6 +790,39 @@ def _decode_excel_text(value):
     return value
 
 
+def _pricing_row_notes(archive, sheet_path, namespace, text_value):
+    directory, filename = posixpath.split(sheet_path)
+    relationships_path = posixpath.join(directory, "_rels", filename + ".rels")
+    if relationships_path not in archive.namelist():
+        return {}
+    relationships = ET.fromstring(archive.read(relationships_path))
+    targets = [relation.attrib["Target"] for relation in relationships
+               if relation.attrib.get("Type", "").endswith("/comments")]
+    if not targets:
+        return {}
+    if len(targets) != 1:
+        raise ValidationError("The pricing sheet must have only one set of Excel notes.")
+    path = posixpath.normpath(posixpath.join(directory, targets[0])).lstrip("/")
+    if not path.startswith("xl/") or not path.lower().endswith(".xml"):
+        raise ValidationError("The pricing sheet has an invalid Excel notes file.")
+    document = ET.fromstring(archive.read(path))
+    row_keys = {}
+    for note in document.findall(namespace + "commentList/" + namespace + "comment"):
+        contents = note.find(namespace + "text")
+        value = text_value(contents).replace("\r\n", "\n") if contents is not None else ""
+        if not value.startswith(ROW_NOTE_PREFIX):
+            continue
+        address = re.fullmatch(r"A([1-9][0-9]{0,4})", note.attrib.get("ref", ""))
+        key = value.removeprefix(ROW_NOTE_PREFIX).strip()
+        if address is None or not _ROW_KEY.fullmatch(key):
+            raise ValidationError("A CLASSIFIRE row note was altered or moved outside its Product/Service cell.")
+        number = int(address[1])
+        if not 2 <= number <= 2 * MAX_ROWS + 1 or number in row_keys:
+            raise ValidationError("A CLASSIFIRE row note has an invalid or duplicate cell address.")
+        row_keys[number] = key
+    return row_keys
+
+
 def _pricing_text_cells(payload):
     """Read raw text before openpyxl removes some shared-string escapes.
 
@@ -791,9 +853,11 @@ def _pricing_text_cells(payload):
             if kind.endswith("/sharedStrings"):
                 shared = [text_value(item) for item in ET.fromstring(archive.read(path))
                           if item.tag == namespace + "si"]
-        result = {}
+        result, row_keys = {}, {}
         document = ET.fromstring(archive.read("xl/workbook.xml"))
-        for sheet in document.findall(namespace + "sheets/" + namespace + "sheet"):
+        sheets = document.findall(namespace + "sheets/" + namespace + "sheet")
+        has_metadata = any(sheet.attrib["name"] == PRICING_METADATA_SHEET for sheet in sheets)
+        for sheet in sheets:
             kind, path = parts[sheet.attrib[relationship_id]]
             if not kind.endswith("/worksheet"):
                 continue
@@ -817,8 +881,11 @@ def _pricing_text_cells(payload):
                     text = cell.find(namespace + "v")
                     if text is not None:
                         values[address] = _decode_excel_text(text.text or "")
-            result[sheet.attrib["name"]] = values
-        return result
+            name = sheet.attrib["name"]
+            result[name] = values
+            if name == COMBINED_SHEET and has_metadata:
+                row_keys = _pricing_row_notes(archive, path, namespace, text_value)
+        return result, row_keys
 
 
 def _text_rows(sheet, text_cells):
@@ -848,19 +915,47 @@ def _rows(sheet, headers, *, max_rows=MAX_ROWS, text_cells=None):
         yield row_number, dict(zip(headers, values))
 
 
-def _pricing_rows(workbook, text_cells):
-    """Adapt all three file layouts to the existing business parser."""
+def _pricing_saved_rows(sheet, text_cells, row_keys):
+    snapshots = {}
+    for position, row in _rows(sheet, PRICING_METADATA_HEADERS, max_rows=2 * MAX_ROWS, text_cells=text_cells):
+        key, raw = row["Row key"], row["Saved values"]
+        if (not isinstance(key, str) or not _ROW_KEY.fullmatch(key)
+                or not isinstance(raw, str) or len(raw) > 32767
+                or _saved_row_key(raw) != key or key in snapshots):
+            raise ValidationError(f"{PRICING_METADATA_SHEET} row {position}: Invalid or duplicate saved values.")
+        snapshots[key] = (position, raw)
+
+    saved_rows, used_keys = {}, set()
+    for number, key in row_keys.items():
+        if key not in snapshots or key in used_keys:
+            raise ValidationError(f"{COMBINED_SHEET} row {number}: Unknown or duplicate CLASSIFIRE row note.")
+        saved_rows[number] = snapshots[key]
+        used_keys.add(key)
+    return saved_rows, len(used_keys) != len(snapshots)
+
+
+def _pricing_rows(workbook, text_cells, row_keys):
+    """Adapt supported file layouts to the existing business parser."""
     names = set(workbook.sheetnames)
     if {"Inventory", "Rates"}.issubset(names) and not names - {"Inventory", "Rates", "Instructions"}:
         return (list(_rows(workbook["Inventory"], INVENTORY_HEADERS, text_cells=text_cells.get("Inventory"))),
                 list(_rows(workbook["Rates"], RATE_HEADERS, text_cells=text_cells.get("Rates"))))
-    if COMBINED_SHEET not in names or names - {COMBINED_SHEET, "Instructions"}:
+    if COMBINED_SHEET not in names or names - {COMBINED_SHEET, "Instructions", PRICING_METADATA_SHEET}:
         raise ValidationError("Use the Inventory & Rates sheet, or the earlier Inventory and Rates sheets, with only an optional Instructions sheet.")
     sheet = workbook[COMBINED_SHEET]
     sheet.reset_dimensions()
     sheet_text = text_cells.get(COMBINED_SHEET, {})
     headers = tuple(next(_text_rows(sheet, sheet_text), ()))
-    if headers in (PRODUCT_SERVICE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
+    if headers == PRODUCT_SERVICE_HEADERS:
+        if PRICING_METADATA_SHEET not in names:
+            raise ValidationError("This pricing workbook is missing the CLASSIFIRE Metadata sheet. Re-export the workbook and keep all sheets.")
+        saved_rows, missing_row_notes = _pricing_saved_rows(workbook[PRICING_METADATA_SHEET],
+                                                            text_cells.get(PRICING_METADATA_SHEET), row_keys)
+        return _product_service_rows(sheet, sheet_text, headers, saved_rows=saved_rows,
+                                     missing_row_notes=missing_row_notes)
+    if PRICING_METADATA_SHEET in names:
+        raise ValidationError("Inventory & Rates headers must match the exported CLASSIFIRE template.")
+    if headers in (COLUMN_M_PRODUCT_SERVICE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
                    POSITIONAL_PRODUCT_SERVICE_HEADERS, VERBOSE_PRODUCT_SERVICE_HEADERS,
                    PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS):
         return _product_service_rows(sheet, sheet_text, headers)
@@ -1078,14 +1173,14 @@ def _consolidated_use_edits(row, product, uses, groups, rules, label, *, hide_em
     return keys, override_edits, None, scalar, changed
 
 
-def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
+def _product_service_rows(sheet, text_cells, headers, *, saved_rows=None, missing_row_notes=False):
     """Expand the simple view using hidden per-use data as its lossless base."""
     prepared, metadata = [], {}
     reference = effective_catalog({})
     rules = reference["rate_group_rules"]
     snapshots = {**reference, "inventory": [], "rate_groups": {group: [] for group in rules}}
     rows = []
-    current_layout = headers == PRODUCT_SERVICE_HEADERS
+    current_layout = headers in (PRODUCT_SERVICE_HEADERS, COLUMN_M_PRODUCT_SERVICE_HEADERS)
     consolidated = current_layout or headers == CONSOLIDATED_PRODUCT_SERVICE_HEADERS
     positional = headers == POSITIONAL_PRODUCT_SERVICE_HEADERS
     modern = consolidated or positional
@@ -1094,7 +1189,14 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
         if all(row[header] in (None, "") for header in editable):
             continue
         label = f"{COMBINED_SHEET} row {number}"
-        raw_saved = row["Saved values"]
+        raw_saved = row.get("Saved values")
+        if saved_rows is not None:
+            stored = saved_rows.get(number)
+            if stored is None and missing_row_notes:
+                raise ValidationError(f"{label}: CLASSIFIRE row notes are missing. Keep the note on each existing "
+                                      "Product/Service cell. To remove an entry when adding new rows, clear its values "
+                                      "and keep its note.")
+            raw_saved = stored[1] if stored is not None else None
         if raw_saved not in (None, ""):
             if not isinstance(raw_saved, str) or len(raw_saved) > 32767:
                 raise ValidationError(f"{label}: Invalid saved values.")
@@ -1293,6 +1395,9 @@ def _product_service_rows(sheet, text_cells, headers=PRODUCT_SERVICE_HEADERS):
                             "manufacturer_column": "Manufacturer" in row}
         prepared.append((number, legacy))
     inventory, rates = _expand_compact_rows(prepared)
+    if saved_rows is not None:
+        # A spreadsheet sort must not change which inventory item a calculator finds first.
+        inventory.sort(key=lambda item: (0, saved_rows[item[0]][0]) if item[0] in saved_rows else (1, item[0]))
     for number, item in inventory:
         meta = metadata[number]
         source = meta["saved"]["product"]
@@ -1369,14 +1474,14 @@ def import_pricing_workbook(payload, filename, current_configuration, *, active_
     previous_inventory = {item["id"]: item for item in current["inventory"]}
     previous_rates = {rate["id"]: (group, rate) for group, rows in current["rate_groups"].items() for rate in rows}
     try:
-        text_cells = _pricing_text_cells(payload)
+        text_cells, row_keys = _pricing_text_cells(payload)
         workbook = load_workbook(BytesIO(payload), read_only=True, data_only=False, keep_links=False)
     except ValidationError:
         raise
     except Exception as error:
         raise ValidationError("The workbook could not be read. Export a fresh .xlsx template and try again.") from error
     try:
-        inventory_rows, rate_rows = _pricing_rows(workbook, text_cells)
+        inventory_rows, rate_rows = _pricing_rows(workbook, text_cells, row_keys)
         proposed = deepcopy(current)
         proposed["sources"]["pricing_import"] = {
             "filename": filename.replace("\\", "/").rsplit("/", 1)[-1],

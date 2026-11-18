@@ -239,7 +239,22 @@ async function inspectHeader(width) {
     if(kind==='pricing'){
       await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','18px');
       await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
-      assert.ok(await page.locator('#library-pricing .table-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth+1),'Pricing columns fit desktop width');
+      const pricingScroll=page.locator('#library-pricing .table-scroll'),columns=page.locator('#pricing-head th');
+      await expect(columns).toHaveCount(16);
+      for(const width of [1440,390]) {
+        await page.setViewportSize({width,height:1000});
+        await expect(pricingScroll).toHaveCSS('overflow-x',/auto|scroll/);
+        for(const column of await columns.all()) {
+          await column.scrollIntoViewIfNeeded();
+          assert.ok(await column.evaluate(el=>{
+            const cell=el.getBoundingClientRect(),viewport=el.closest('.table-scroll').getBoundingClientRect();
+            return cell.left>=viewport.left-1 && cell.right<=viewport.right+1 && viewport.left>=-1 && viewport.right<=innerWidth+1;
+          }),'Every Pricing column remains reachable inside its bounded table scroll at '+width);
+        }
+        assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Pricing does not widen the page at '+width);
+      }
+      await page.setViewportSize({width:1440,height:1000});
+      await pricingScroll.evaluate(el=>{el.scrollLeft=0;});
     }
     if(kind==='technical')await expect(page.locator('[data-library-summary="technical"]')).toBeVisible();
     if(kind==='pricing')await expect(page.locator('#pricing-heading-slot > [data-library-heading="pricing"] .subtitle')).toHaveCount(0);

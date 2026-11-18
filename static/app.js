@@ -1574,37 +1574,88 @@
     markPricingDirty();
   }
 
-  function priceInput(kind, item, key, options = {}) {
-    const input = node("input", options.text ? "item-name" : "");
-    input.type = options.text ? "text" : "number";
-    input.step = "0.01";
-    input.dataset.priceField = key;
-    const current = getOverride(kind, item.id)[key] ?? options.defaultValue ?? item[key] ?? "";
-    input.value = options.text ? current : controlValue(current, options.percent);
-    window.CeasefireI18n.attr(input, "aria-label", "{0}: {1}{2}", [item.name, window.CeasefireI18n.term(options.label || key), window.CeasefireI18n.term(options.percent ? " in percent" : "")]);
-    input.addEventListener("input", () => {
-      let value = input.value;
-      if (!options.text) value = editedNumber(input, options.percent);
-      if (["supplier_price", "markup"].includes(key)) {
-        const legacyKey = kind === "inventory" ? "sales_price" : "price";
-        const prior = getOverride(kind, item.id);
-        if (Object.hasOwn(prior, legacyKey)) {
-          const price = prior[legacyKey]; delete prior[legacyKey];
-          setOverride(kind, item, "supplier_price", price); setOverride(kind, item, "markup", 0);
+  const pricingAmountFields = [["supplier_price", "Supplier price"], ["markup", "Markup %"], ["sales_price", "Sell price"]];
+
+  function equalPricingAmounts(first, second) {
+    return Math.abs(first - second) <= Number.EPSILON * Math.max(1, Math.abs(second)) * 4;
+  }
+
+  function pricingAmounts(record) {
+    const { kind, item } = record, patch = getOverride(kind, item.id);
+    const sales_price = kind === "inventory" ? inventorySellPrice(item) : rateSellPrice(item);
+    const supplier_price = patch.supplier_price ?? item.supplier_price;
+    const storedMarkup = patch.markup ?? item.markup ?? 0;
+    if (!(supplier_price > 0)) {
+      return { supplier_price: sales_price, markup: supplier_price === 0 && sales_price === 0 ? storedMarkup : 0, sales_price };
+    }
+    const calculated = supplier_price * (1 + storedMarkup);
+    const markup = equalPricingAmounts(calculated, sales_price)
+      ? storedMarkup : sales_price / supplier_price - 1;
+    return { supplier_price, markup, sales_price };
+  }
+
+  function editedPricingAmounts(before, field, value) {
+    const amounts = { ...before, [field]: value };
+    if (field === "sales_price") {
+      if (amounts.supplier_price === 0) return { supplier_price: value, markup: 0, sales_price: value };
+      amounts.markup = value / amounts.supplier_price - 1;
+    } else {
+      amounts.sales_price = amounts.supplier_price * (1 + amounts.markup);
+    }
+    return amounts;
+  }
+
+  function applyPricingAmounts(record, amounts) {
+    const { kind, item } = record;
+    delete getOverride(kind, item.id)[kind === "inventory" ? "sales_price" : "price"];
+    setOverride(kind, item, "supplier_price", amounts.supplier_price);
+    setOverride(kind, item, "markup", amounts.markup);
+    if (!equalPricingAmounts(pricingAmounts(record).sales_price, amounts.sales_price)) {
+      // A legacy stored sale can differ from the cost and markup stored beside it.
+      state.draft[kind][item.id] = { ...getOverride(kind, item.id), markup: amounts.markup };
+      markPricingDirty();
+    }
+  }
+
+  function pricingPriceCells(record, row) {
+    const inputs = new Map(), amounts = pricingAmounts(record);
+    const cells = [];
+    for (const [key, label] of pricingAmountFields) {
+      const isMarkup = key === "markup", input = node("input"), cell = node("td");
+      const draftKey = `${record.key}:${key}`, pending = pricingPendingFields().get(draftKey);
+      input.type = "number"; input.step = "0.01"; input.min = isMarkup ? "-100" : "0"; input.dataset.priceField = key;
+      input.value = pending?.value ?? controlValue(amounts[key], isMarkup);
+      if (pending?.error) { input.setCustomValidity?.(pending.error); input.setAttribute("aria-invalid", "true"); }
+      window.CeasefireI18n.attr(input, "aria-label", "{0}: {1}", [record.item.name, window.CeasefireI18n.term(label)]);
+      inputs.set(key, input); cell.append(input); cells.push(cell);
+      let start;
+      input.addEventListener("input", () => {
+        start ||= pricingAmounts(record);
+        const value = editedNumber(input, isMarkup);
+        const next = isNumber(value) && value >= (isMarkup ? -1 : 0) ? editedPricingAmounts(start, key, value) : null;
+        if (!next || Object.values(next).some(amount => !Number.isFinite(amount) || Math.abs(amount) > 1e12)) {
+          const error = window.CeasefireI18n.translate(isMarkup ? "Enter a markup of at least −100%." : "Enter a nonnegative price.");
+          pricingPendingFields().set(draftKey, { value: input.value, error });
+          input.setCustomValidity?.(error); input.setAttribute("aria-invalid", "true");
+          markPricingDirty();
+          return;
         }
-      }
-      setOverride(kind, item, key, value);
-      const row = input.closest("tr");
-      row.classList.toggle("edited", !!state.draft[kind][item.id]);
-      const output = row.querySelector("[data-sell-preview]");
-      if (output) output.textContent = formatMoney(kind === "inventory" ? inventorySellPrice(item) : rateSellPrice(item));
-      options.onChange?.();
-    });
-    if (!options.text) input.addEventListener("blur", () => {
-      // Formatting the visible input does not add an override or round a rate.
-      if (input.value !== "" && !input.validity.badInput && Number.isFinite(Number(input.value))) input.value = controlValue(Number(input.value));
-    });
-    return input;
+        pricingPendingFields().delete(draftKey);
+        input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
+        applyPricingAmounts(record, next);
+        for (const [field, control] of inputs) {
+          if (field !== key && !pricingPendingFields().has(`${record.key}:${field}`)) {
+            control.value = controlValue(next[field], field === "markup");
+          }
+        }
+        row.classList.toggle("edited", !!state.draft[record.kind]?.[record.item.id]);
+      });
+      input.addEventListener("blur", () => {
+        start = null;
+        if (!pricingPendingFields().has(draftKey)) input.value = controlValue(pricingAmounts(record)[key], isMarkup);
+      });
+    }
+    return cells;
   }
 
   function inventorySellPrice(item) {
@@ -1795,14 +1846,10 @@
     });
     input.addEventListener("change", () => {
       try {
-        const changed = input.value !== initial;
-        if (changed) apply(input.value);
+        if (input.value !== initial) apply(input.value);
         pricingPendingFields().delete(key);
         input.setCustomValidity?.(""); input.removeAttribute("aria-invalid");
         markPricingDirty(); renderPricing();
-        if (changed && field.endsWith("Estimator groups")) message(uiCopy(state.pricingScope === "project"
-          ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save to store them."
-          : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups."));
       } catch (error) {
         const text = `${record.item.name}: ${error.message}`;
         pricingPendingFields().set(key, { value: input.value, error: text });
@@ -1810,9 +1857,6 @@
       }
     });
     return input;
-  }
-  function pricingListInput(record, field, values, apply, placeholder = "") {
-    return pricingFieldInput(record, field, pricingUseList(values), (text) => apply(parsePricingUses(text)), placeholder);
   }
   function productServiceName(record) {
     const product = { ...record.item, ...getOverride(record.kind, record.item.id) };
@@ -1853,7 +1897,7 @@
   }
   function setManufacturer(record, text) {
     const value = text.trim();
-    if (value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(uiCopy("Manufacturer must contain at most 200 characters without control characters."));
+    if (value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(window.CeasefireI18n.translate("Manufacturer must contain at most 200 characters without control characters."));
     setOverride(record.kind, record.item, "manufacturer", value);
   }
   const pricingDimensions = [["Width (mm)", "width_mm"], ["Length (mm)", "length_mm"], ["Area (m²)", "sqm"]];
@@ -1861,7 +1905,7 @@
     if (!value.trim()) return null;
     const number = Number(value);
     if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) || !Number.isFinite(number) || number > 1e12) {
-      throw new Error(uiCopy("Enter a nonnegative number or leave blank."));
+      throw new Error(window.CeasefireI18n.translate("Enter a nonnegative number or leave blank."));
     }
     return number;
   }
@@ -1870,41 +1914,6 @@
     editPricingCatalog(catalog => {
       catalog.inventory.find(item => item.id === record.item.id).properties[key] = value;
     });
-  }
-  function pricingModeInput(record) {
-    const control = node("select");
-    const { item } = record, override = getOverride("inventory", item.id);
-    const mode = Object.hasOwn(override, "supplier_price") || Object.hasOwn(override, "markup") ? "supplier_markup" : item.pricing_mode;
-    for (const [value, label] of [["supplier_markup", "Supplier markup"], ["manual", "Manual"]]) {
-      const option = uiNode("option", "", label); option.value = value; control.append(option);
-    }
-    control.value = mode;
-    control.dataset.priceField = "Pricing mode";
-    window.CeasefireI18n.attr(control, "aria-label", "{0}: {1}", [item.name, uiCopy("Pricing mode")]);
-    control.addEventListener("change", () => {
-      if (control.value === mode) return;
-      const price = inventorySellPrice(item);
-      const priceWasEdited = ["sales_price", "supplier_price", "markup"].some(key => Object.hasOwn(override, key));
-      editPricingCatalog(catalog => {
-        const saved = catalog.inventory.find(entry => entry.id === item.id);
-        saved.pricing_mode = control.value;
-        saved.sales_price = price;
-        if (control.value === "manual") {
-          Object.assign(saved, {supplier_price: override.supplier_price ?? item.supplier_price, markup: override.markup ?? item.markup});
-        } else if (saved.supplier_price == null || saved.supplier_price * (1 + saved.markup) !== price) {
-          saved.supplier_price = price;
-          saved.markup = 0;
-          saved.calculated_sell_price = price;
-        }
-        for (const key of ["sales_price", "supplier_price", "markup"]) delete override[key];
-        if (!Object.keys(override).length) delete state.draft.inventory[item.id];
-        if (priceWasEdited) for (const rates of Object.values(catalog.rate_groups)) for (const rate of rates) {
-          if (rate.inventory_id === item.id && !independentUse(rate)) rate.price = price;
-        }
-      });
-      renderPricing();
-    });
-    return {control, mode};
   }
   function independentUse(item) {
     const override = getOverride("rates", item.id);
@@ -1923,12 +1932,12 @@
     const result = new Map();
     for (const entry of parsePricingUses(text)) {
       const match = /^([^=]+)=([^=]*)$/.exec(entry);
-      if (!match || !match[2].trim()) throw new Error(uiCopy("Use group = value for each entry."));
+      if (!match || !match[2].trim()) throw new Error(window.CeasefireI18n.translate("Use group = value for each entry."));
       const key = match[1].trim();
       const normalized = key.toLowerCase().replace(/\s+#([1-9][0-9]*)$/, (_, number) => number === "1" ? "" : ` #${number}`);
       const id = names.get(normalized);
-      if (!id) throw new Error(uiCopy("Enter a valid Main Estimator group: {0}.", [key]));
-      if (result.has(id)) throw new Error(uiCopy("Enter each group once: {0}.", [key]));
+      if (!id) throw new Error(window.CeasefireI18n.translate("Enter a valid Main Estimator group: {0}.", [key]));
+      if (result.has(id)) throw new Error(window.CeasefireI18n.translate("Enter each group once: {0}.", [key]));
       result.set(id, parseValue(match[2].trim()));
     }
     return result;
@@ -1957,7 +1966,7 @@
     });
   }
   function yieldToken(value) {
-    return value === "" ? "Empty text" : String(value ?? "");
+    return String(value ?? "");
   }
   function sharedPricingYield(record, namedUses = namedPricingUses(record.uses)) {
     const uses = namedUses.filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
@@ -1966,7 +1975,7 @@
       return (Object.hasOwn(override, "yield") ? override.yield : item.yield) ?? null;
     });
     const units = [...new Set(uses.map(({ group, item }) => pricingYieldUnit(group, item)))];
-    const mixed = units.length > 1 || values.some(value => value !== values[0]);
+    const mixed = units.length > 1 || values.some(value => yieldToken(value) !== yieldToken(values[0]));
     const override = getOverride(record.kind, record.item.id);
     const stored = Object.hasOwn(override, "pricing_yield") ? override.pricing_yield : record.item.pricing_yield;
     const value = mixed ? pricingUseList(uses.map(({key}, index) => `${key} = ${yieldToken(values[index]) || "Blank"}`))
@@ -1982,11 +1991,16 @@
   function setSharedPricingYield(record, shared, text) {
     if (text.includes("=")) {
       const values = namedPricingValues(text, shared.uses, parseYieldValue);
-      for (const {item} of shared.uses) if (values.has(item.id)) setOverride("rates", item, "yield", values.get(item.id));
+      for (const [index, {item}] of shared.uses.entries()) {
+        if (!values.has(item.id)) continue;
+        const value = values.get(item.id);
+        if (value === null && shared.values[index] === "") continue;
+        setOverride("rates", item, "yield", value);
+      }
       return;
     }
     const value = parseYieldValue(text.trim());
-    if (typeof value === "number" && shared.units.length > 1) throw new Error(uiCopy("Use group = value when the yield units differ."));
+    if (typeof value === "number" && shared.units.length > 1) throw new Error(window.CeasefireI18n.translate("Use group = value when the yield units differ."));
     if (!shared.uses.length) setOverride(record.kind, record.item, "pricing_yield", value);
     for (const { item } of shared.uses) setOverride("rates", item, "yield", value);
   }
@@ -2057,7 +2071,35 @@
     return current.key === state.pricingRender.key && current.references.every((value, index) => value === state.pricingRender.references[index]);
   }
 
+  function pricingGroupCell(record, firestopping) {
+    const cell = node("td", "pricing-availability");
+    const label = firestopping ? "Firestopping Estimator groups" : "Main Estimator groups";
+    const inventory = record.kind === "inventory";
+    const options = firestopping ? (state.pricingUsage?.firestopping?.groups ?? []).map(group => ({ value: group.key, label: group.label }))
+      : Object.keys(state.catalog.rate_groups).map(key => ({ value: key, label: groups[key] || key }));
+    const selected = firestopping ? firestoppingGroups(record) : record.uses.map(use => use.group);
+    const placeholder = firestopping ? inventory ? "Not used in Firestopping Estimator" : "Requires an inventory product"
+      : "Not used in main Estimator";
+    const picker = window.CeasefirePricingGroups.create({
+      label, itemName: record.item.name, options, selected, placeholder,
+      multiple: inventory, disabled: firestopping && !inventory,
+      onChange(values) {
+        if (firestopping) setFirestoppingGroups(record, values);
+        else setPricingUses(record, values);
+        renderPricing();
+        const row = [...$("pricing-body").children].find(row => row.dataset.priceId === record.item.id && row.dataset.priceKind === record.kind);
+        message(uiCopy(state.pricingScope === "project"
+          ? "Estimator groups changed in this project draft. Click Apply project pricing to update this project's dropdowns, then Save to store them."
+          : "Estimator groups changed in the shared library draft. Click Save pricing to update dropdowns for new estimates. Existing projects keep their saved groups."));
+        return row?.querySelector(`[data-price-field="${label}"] .pricing-group-trigger`) || $("rate-group");
+      },
+    });
+    cell.append(picker);
+    return cell;
+  }
+
   function renderPricing() {
+    window.CeasefirePricingGroups.close();
     if (state.currentView !== "pricing" || state.libraryKind !== "pricing") {
       state.pricingRender = null;
       if ($("pricing-body").childElementCount) $("pricing-body").replaceChildren();
@@ -2087,13 +2129,12 @@
     });
     window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
     const heading = node("tr");
-    const titles = ["Product/Service", "Manufacturer", "Supplier price", "Markup %", "Sell price", "Pricing mode",
-      "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Rate overrides",
+    const titles = ["Product/Service", "Manufacturer", "Supplier price", "Markup %", "Sell price",
+      "Main Estimator groups", "Firestopping Estimator groups", "Yield",
       ...pricingDimensions.map(([heading]) => heading), "Actions"];
     for (const title of titles)
       heading.append(uiNode("th", "", title));
     $("pricing-head").replaceChildren(heading);
-    const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
     const rows = [];
     for (const record of matches) {
       const { item, kind, uses } = record, inventoryView = kind === "inventory";
@@ -2106,53 +2147,26 @@
       const manufacturer = pricingFieldInput(record, "Manufacturer", getOverride(kind, item.id).manufacturer ?? item.manufacturer ?? "", (text) => setManufacturer(record, text));
       manufacturer.maxLength = 200;
       manufacturerCell.append(manufacturer); row.append(manufacturerCell);
-      const modeCell = node("td");
-      if (inventoryView) {
-        const supplier = node("td");
-        const markup = node("td");
-        const legacyPrice = getOverride(kind, item.id).sales_price;
-        const {control, mode} = pricingModeInput(record);
-        modeCell.append(control);
-        const manual = mode === "manual", sell = node("td", "pricing-sell-price");
-        const costInput = priceInput(kind, item, "supplier_price", { defaultValue: legacyPrice ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price), label: "Supplier price", onChange: refreshPrices });
-        const markupInput = priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices });
-        costInput.disabled = markupInput.disabled = manual;
-        supplier.append(costInput); markup.append(markupInput);
-        if (manual) sell.append(priceInput(kind, item, "sales_price", {defaultValue: item.sales_price, label: "Sell price", onChange: refreshPrices}));
-        else {
-          const output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
-          output.dataset.sellPreview = "true"; sell.append(output);
-        }
-        row.append(supplier, markup, sell);
-      } else {
-        const supplier = node("td"), markup = node("td"), sell = node("td", "pricing-sell-price");
-        supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: getOverride(kind, item.id).price ?? item.supplier_price ?? rateSellPrice(item), label: "Supplier price", onChange: refreshPrices }));
-        markup.append(priceInput(kind, item, "markup", { defaultValue: Object.hasOwn(getOverride(kind, item.id), "price") ? 0 : item.markup ?? 0, percent: true, label: "Markup", onChange: refreshPrices }));
-        const output = node("span", "price-value", formatMoney(rateSellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output);
-        row.append(supplier, markup, sell);
-      }
-      row.append(modeCell);
-      const groupCell = node("td", "pricing-availability");
-      groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
-      const firestoppingCell = node("td", "pricing-availability");
-      const firestoppingInput = pricingListInput(record, "Firestopping Estimator groups", firestoppingGroups(record), (values) => setFirestoppingGroups(record, values), inventoryView ? "Not used in Firestopping Estimator" : "Requires an inventory product");
-      firestoppingInput.disabled = !inventoryView; firestoppingCell.append(firestoppingInput);
-      row.append(groupCell, firestoppingCell);
+      const priceCells = pricingPriceCells(record, row);
+      row.append(...priceCells, pricingGroupCell(record, false), pricingGroupCell(record, true));
       const namedUses = namedPricingUses(uses), shared = sharedPricingYield(record, namedUses);
-      const yieldCell = node("td"), ratesCell = node("td");
+      const yieldCell = node("td");
       const input = pricingFieldInput(record, "Yield", shared.value, text => setSharedPricingYield(record, shared, text));
       input.title = shared.units.join("; ") || "Stored yield; not used by this item's current calculation groups";
       yieldCell.append(input);
       const rateValues = inventoryView ? namedUses.filter(({item}) => independentUse(item))
         .map(({key, item}) => `${key} = ${rateSellPrice(item)}`) : [];
-      const rateInput = pricingFieldInput(record, "Rate overrides", pricingUseList(rateValues),
-        text => setRateOverrides(record, namedUses, text));
-      rateInput.disabled = !inventoryView || !uses.length;
       const groupHelp = "Use Main Estimator group names and = to enter individual values.";
-      if (!rateInput.disabled) window.CeasefireI18n.attr(rateInput, "title", groupHelp);
+      if (rateValues.length) {
+        const details = node("details", "pricing-existing-overrides");
+        const rateInput = pricingFieldInput(record, "Rate overrides", pricingUseList(rateValues),
+          text => setRateOverrides(record, namedUses, text));
+        window.CeasefireI18n.attr(rateInput, "title", groupHelp);
+        details.append(uiNode("summary", "", "Rate overrides"), rateInput);
+        priceCells[2].append(details);
+      }
       if (shared.mixed) window.CeasefireI18n.attr(input, "aria-description", groupHelp);
-      ratesCell.append(rateInput);
-      row.append(yieldCell, ratesCell);
+      row.append(yieldCell);
       for (const [heading, key] of pricingDimensions) {
         const cell = node("td");
         const dimension = pricingFieldInput(record, heading, String(item.properties?.[key] ?? ""), text => setPricingDimension(record, key, text));
@@ -2167,7 +2181,6 @@
     }
     if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = titles.length; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
-    refreshPrices();
     markPricingDirty();
     state.pricingRender = pricingViewState();
   }

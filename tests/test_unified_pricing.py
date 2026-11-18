@@ -16,6 +16,8 @@ from feature_client import StaffConnection
 from estimator.calculator import specification
 from estimator.catalog import baseline, effective_catalog
 from estimator.estimate_composition import calculate
+from estimator.pricing_workbook import (CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
+                                         CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS, _product_service_export)
 from estimator.server import create_server
 from estimator.storage import Store
 from test_pricing_workbook import product_service_row
@@ -130,12 +132,13 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
                                 SHARED_INPUTS, {})
 
     def test_separate_use_override_and_yield_survive_round_trip_and_later_price_change(self):
-        original = self.export()
+        draft = {'rates': {'primers:1': {'price': 401.25}}}
+        original = self.export(draft)
         first_payload = self.edit(original, [
-            ('204', {'Rate overrides': 'Primers #1 = 401.25', 'Yield': 'Primers = 71'}),
+            ('204', {'Yield': 'Primers #1 = 71'}),
             ('203', {'Yield': 2.5}),
         ])
-        first = self.preview(first_payload)['configuration']
+        first = self.preview(first_payload, draft)['configuration']
         expected = {'inventory': {}, 'rates': {'primers:1': {'price': 401.25, 'yield': 71},
                                                'mesh:2': {'yield': 2.5}}}
         second_payload = self.edit(self.export(first), [
@@ -159,10 +162,11 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
             sheet = workbook['Inventory & Rates']
             headers = {cell.value: cell.column for cell in sheet[1]}
             row = product_service_row(sheet, headers, '204')
-            self.assertEqual(sheet.cell(row, headers['Rate overrides']).value, 'primers = 401.25')
+            self.assertNotIn('Rate overrides', headers)
             self.assertEqual(sheet.cell(row, headers['Yield']).value, 'primers = 71; topcoats = 142')
             saved = json.loads(sheet.cell(row, headers['Saved values']).value)
             self.assertEqual([use['rate']['id'] for use in saved['uses']], ['primers:1', 'topcoats:1'])
+            self.assertEqual(saved['uses'][0]['rate']['price'], 401.25)
         finally:
             workbook.close()
         round_trip = self.preview(self.export(second), second)
@@ -170,7 +174,9 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
                                                 'rates': {'added': 0, 'removed': 0, 'updated': 0}})
         self.assert_calculation(self.request('POST', '/api/calculate', {
             'inputs': SHARED_INPUTS, 'configuration': round_trip['configuration']}), SHARED_INPUTS, expected)
-        restored_payload = self.edit(self.export(second), [('204', {'Rate overrides': None})])
+        old_format = _product_service_export(second, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
+                                             CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
+        restored_payload = self.edit(old_format, [('204', {'Rate overrides': None})])
         restored = self.preview(restored_payload, second)['configuration']
         expected['rates']['primers:1'].pop('price')
         restored_result = self.request('POST', '/api/calculate', {'inputs': SHARED_INPUTS, 'configuration': restored})
@@ -234,8 +240,8 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         draft = {'inventory': {'915': {'sales_price': 2222}},
                  'rates': {'primers:1': {'price': 401.25, 'yield': 71}}}
         original = self.export(draft)
-        for heading, bad_value in (('Yield', 'boards = 71'), ('Rate overrides', 'Override'),
-                                   ('Rate overrides', 'primers = 1; primers #1 = 2')):
+        for heading, bad_value in (('Yield', 'boards = 71'), ('Sell price', 'Override'),
+                                   ('Yield', 'primers = 1; primers #1 = 2')):
             with self.subTest(heading=heading):
                 malformed = self.edit(original, [('204', {heading: bad_value})])
                 rejected = self.request('POST', '/api/pricing/import', {

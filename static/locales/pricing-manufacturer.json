@@ -82,5 +82,19 @@
     "Use grupo = valor cuando las unidades de rendimiento sean distintas.",
     "استخدم الصيغة مجموعة = قيمة عندما تختلف وحدات التغطية.",
     "ใช้รูปแบบ กลุ่ม = ค่า เมื่อหน่วยปริมาณครอบคลุมต่างกัน"
+  ],
+  "Enter a markup of at least −100%.": [
+    "请输入不低于 −100% 的加成。",
+    "कम से कम −100% का मार्कअप दर्ज करें।",
+    "Introduzca un recargo de al menos −100 %.",
+    "أدخل نسبة إضافة لا تقل عن ‎−100%‎.",
+    "ป้อนส่วนเพิ่มไม่ต่ำกว่า −100%"
+  ],
+  "Enter a nonnegative price.": [
+    "请输入非负价格。",
+    "गैर-ऋणात्मक मूल्य दर्ज करें।",
+    "Introduzca un precio mayor o igual que cero.",
+    "أدخل سعرًا غير سالب.",
+    "ป้อนราคาที่ไม่ติดลบ"
   ]
 }

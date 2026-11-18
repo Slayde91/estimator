@@ -13,6 +13,7 @@ from estimator.catalog import (baseline, effective_catalog, catalog_signature,
                                validate_configuration, ValidationError)
 from estimator.pricing_workbook import (export_pricing_workbook, import_pricing_workbook,
     PRODUCT_SERVICE_VISIBLE_HEADERS, PRODUCT_SERVICE_HEADERS, LEGACY_PRODUCT_SERVICE_HEADERS,
+    CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS, CONSOLIDATED_PRODUCT_SERVICE_HEADERS,
     POSITIONAL_PRODUCT_SERVICE_VISIBLE_HEADERS, POSITIONAL_PRODUCT_SERVICE_HEADERS,
     COMBINED_SHEET, _serialize_exact, _product_service_export)
 from estimator.penetration_calculator import inventory_lists
@@ -76,13 +77,13 @@ class ProductServicePricingTests(unittest.TestCase):
             visible = [cell.value for cell in sheet[1] if not sheet.column_dimensions[cell.column_letter].hidden]
             self.assertEqual(tuple(visible), PRODUCT_SERVICE_VISIBLE_HEADERS)
             self.assertEqual(tuple(cell.value for cell in sheet[1]), PRODUCT_SERVICE_HEADERS)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:O418')
-            self.assertTrue(sheet.print_area.endswith('$A$1:$N$418'))
+            self.assertEqual(sheet.auto_filter.ref, 'A1:M418')
+            self.assertTrue(sheet.print_area.endswith('$A$1:$L$418'))
             self.assertEqual(set(headers) & {'Item code', 'Weight', 'Price source', 'Sell rate',
-                                            'Use yields', 'Inventory ID', 'Rate ID'}, set())
+                                            'Use yields', 'Inventory ID', 'Rate ID', 'Pricing mode', 'Rate overrides'}, set())
             number = pricing_fixtures.product_service_row(sheet, headers, '204')
             self.assertEqual(sheet.cell(number, headers['Yield']).value, 142)
-            self.assertIsNone(sheet.cell(number, headers['Rate overrides']).value)
+            self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Saved values']).column_letter].hidden)
             self.assertEqual(sheet.cell(number, headers['Product/Service']).value,
                 product_service_name(next(item for item in baseline()['inventory'] if item['id'] == '204')))
             collar = pricing_fixtures.product_service_row(sheet, headers, '207')
@@ -220,7 +221,9 @@ class ProductServicePricingTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[1]}
         row = pricing_fixtures.product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(row, headers['Yield']).value, 'primers = 71.12345678901234; topcoats = 142')
-        self.assertEqual(sheet.cell(row, headers['Rate overrides']).value, 'primers = 401.1234567890123')
+        snapshot = json.loads(sheet.cell(row, headers['Saved values']).value)
+        self.assertEqual((snapshot['uses'][0]['rate']['price_mode'], snapshot['uses'][0]['rate']['price']),
+            ('override', 401.1234567890123))
         book.close()
         unedited = self.imported(payload, config)
         self.assertEqual(unedited['summary']['rates']['updated'], 0)
@@ -254,7 +257,8 @@ class ProductServicePricingTests(unittest.TestCase):
         original = catalog['rate_groups']['primers'][0]
         catalog['rate_groups']['primers'].insert(1, {**original, 'id': 'primer-alt', 'name': 'Second primer use'})
         config = {'catalog': catalog}
-        payload = export_pricing_workbook(config)
+        payload = _product_service_export(config, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
+                                          CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
         updated = self.imported(edit(payload, [('204', {
             'Rate overrides': 'primers #2 = 0', 'Yield': 'primers #2 = Empty text; topcoats = Blank',
         })]), config)['configuration']
@@ -263,12 +267,49 @@ class ProductServicePricingTests(unittest.TestCase):
         self.assertEqual((primary['price_mode'], primary['price'], primary['yield']), ('inventory', 384.93, 142))
         self.assertEqual((second['id'], second['price_mode'], second['price'], second['yield']), ('primer-alt', 'override', 0, ''))
         self.assertIsNone(rates['topcoats'][0]['yield'])
-        restored = self.imported(edit(export_pricing_workbook(updated), [('204', {
+        old_format = _product_service_export(updated, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
+                                             CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
+        restored = self.imported(edit(old_format, [('204', {
             'Rate overrides': None, 'Yield': None,
         })]), updated)['configuration']
         rates = effective_catalog(restored)['rate_groups']
         self.assertEqual((rates['primers'][1]['price_mode'], rates['primers'][1]['price']), ('inventory', 384.93))
         self.assertTrue(all(rate['yield'] is None for rate in [*rates['primers'][:2], rates['topcoats'][0]]))
+
+    def test_new_export_keeps_hidden_empty_yields_during_other_edits(self):
+        config = {'rates': {'primers:1': {'yield': ''}, 'topcoats:1': {'yield': 12}}}
+        payload = export_pricing_workbook(config)
+        book = load_workbook(BytesIO(payload))
+        try:
+            sheet = book[COMBINED_SHEET]
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            number = pricing_fixtures.product_service_row(sheet, headers, '204')
+            self.assertEqual(sheet.cell(number, headers['Yield']).value, 'primers = Blank; topcoats = 12')
+        finally:
+            book.close()
+        edited = edit(payload, [('204', {'Yield': 'primers = Blank; topcoats = 15'})])
+        rates = effective_catalog(self.imported(edited, config)['configuration'])['rate_groups']
+        self.assertEqual((rates['primers'][0]['yield'], rates['topcoats'][0]['yield']), ('', 15))
+
+    def test_edit_sell_price_back_calculates_markup_and_updates_inventory_rates(self):
+        catalog = baseline()
+        item = next(item for item in catalog['inventory'] if item['id'] == '204')
+        item.update(supplier_price=250, markup=.2, sales_price=300, calculated_sell_price=300)
+        catalog['rate_groups']['primers'][0].update(price=321, price_mode='override')
+        config = {'catalog': catalog}
+        payload = export_pricing_workbook(config)
+        result = self.imported(edit(payload, [('204', {'Sell price': 375})]), config)['configuration']
+        data = effective_catalog(result)
+        changed = next(item for item in data['inventory'] if item['id'] == '204')
+        self.assertEqual((changed['supplier_price'], changed['markup'], changed['sales_price']), (250, .5, 375))
+        self.assertEqual((data['rate_groups']['primers'][0]['price'], data['rate_groups']['topcoats'][0]['price']), (321, 375))
+        price_with_zero_supplier = edit(payload, [('204', {'Supplier price': 0, 'Sell price': 50})])
+        result = self.imported(price_with_zero_supplier, config)['configuration']
+        zero_supplier = next(item for item in effective_catalog(result)['inventory'] if item['id'] == '204')
+        self.assertEqual((zero_supplier['supplier_price'], zero_supplier['markup'], zero_supplier['sales_price']), (50, 0, 50))
+        conflicting = edit(payload, [('204', {'Sell price': 375, 'Markup': .1})])
+        with self.assertRaisesRegex(ValidationError, 'Markup and Sell price must agree'):
+            self.imported(conflicting, config)
 
     def test_scalar_yield_edit_updates_only_yield_bearing_uses_and_retains_precision(self):
         catalog = baseline()

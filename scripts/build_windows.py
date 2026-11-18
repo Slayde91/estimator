@@ -40,6 +40,7 @@ STATIC_FILES = (
     'cursors/README.txt', 'cursors/LICENSE.txt', 'cursors/COPYRIGHT.txt',
     'app.js', 'project-details.js', 'project-pane.js', 'project-popup.css', 'settings-layout.css', 'activity.js', 'calculation-queue.js', 'searchable-choice.js', 'penetration-presentation.js',
     'project-record-panels.js', 'record-resources.js', 'record-resources.css',
+    'pricing-groups.js', 'pricing-groups.css',
     'calculators.css', 'calculators.js', 'ceasefire-logo.png', 'classifire-logo.png',
     'brand-boot.css', 'brand-boot.js', 'classifire-app.ico', 'classifire-app-icon.png', 'register-references.js',
     'downloads.js', 'downloads.css', 'main-layout.js',

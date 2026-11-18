@@ -128,6 +128,7 @@ jobs:
       - run: npm run test:project-library-drafts
       - run: node tests/browser/forms_builder.cjs
       - run: node tests/browser/form_fields.cjs
+      - run: node tests/browser/forms_approval.cjs
       - run: node tests/browser/forms_workspace.cjs
       - run: node tests/browser/projects_navigation.cjs
       - run: node tests/browser/workspace_dates.cjs

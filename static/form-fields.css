@@ -23,8 +23,12 @@
 .form-inline-choices label{display:flex;align-items:center;gap:.4rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:6px}
 .form-inline-choices input[type=radio]{width:1rem}
 .form-choice-dropdown{min-width:0;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
-.form-choice-dropdown summary{padding:.55rem .7rem;cursor:pointer;overflow-wrap:anywhere}
-.form-choice-dropdown summary:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.form-choice-toggle{display:flex;align-items:center;gap:.5rem;width:100%;padding:.55rem .7rem;border:0;border-radius:inherit;background:transparent;color:inherit;font:inherit;text-align:start;cursor:pointer;overflow-wrap:anywhere}
+.form-choice-toggle::before{content:"";flex:none;width:.4rem;height:.4rem;border-inline-end:1px solid;border-block-end:1px solid;transform:rotate(-45deg)}
+[dir=rtl] .form-choice-toggle::before{transform:rotate(45deg)}
+.form-choice-toggle[aria-expanded=true]::before{transform:rotate(45deg)}
+[dir=rtl] .form-choice-toggle[aria-expanded=true]::before{transform:rotate(-45deg)}
+.form-choice-toggle:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 .form-choice-list{display:grid;max-height:16rem;overflow:auto;border-top:1px solid var(--line)}
 .form-choice-list label{display:flex;align-items:center;gap:.65rem;padding:.45rem .7rem;cursor:pointer;overflow-wrap:anywhere}
 .form-choice-list label:focus-within{outline:2px solid currentColor;outline-offset:-2px}

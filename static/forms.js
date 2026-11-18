@@ -588,7 +588,14 @@
     }
   }
   function workflowHistory(host,t,entry) {
-    if(entry?.approvals?.length) host.append(table(['Approved stage','Approved by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
+    const signedBy = approval => {
+      const value=el('div');value.append(el('span',approval.member_name));
+      if(/^data:image\/(png|jpeg);base64,/.test(approval.signature_image)) {
+        const image=el('img',null,'form-field-image');image.src=approval.signature_image;image.alt='Signature';value.append(image);
+      }
+      return value;
+    };
+    if(entry?.approvals?.length) host.append(table(['Approved stage','Approved by','Date'],entry.approvals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,signedBy(a),date(a.at)]),''));
     if(entry?.reversals?.length) host.append(table(['Reopened stage','Reopened by','Date'],entry.reversals.map(a=>[stage(t,a.stage_id)?.name || a.stage_id,a.member_name,date(a.at)]),''));
   }
   async function downloadForm(entry, theme) {

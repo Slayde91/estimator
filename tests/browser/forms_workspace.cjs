@@ -288,7 +288,7 @@ const ready=new Promise((resolve,reject)=>{
     await expect(visitor.getByLabel('Full name')).toHaveValue('Visiting inspector');
     await expect(visitor.getByLabel('Company')).toHaveValue('');
     await visitor.getByLabel('Company').fill('Visitor company');
-    const zones=records.locator('[data-field-id="zones"]'),toggle=zones.locator('summary');
+    const zones=records.locator('[data-field-id="zones"]'),toggle=zones.getByRole('button',{name:/^Inspected zones/});
     await toggle.focus();await toggle.press('ArrowDown');
     const north=zones.getByRole('checkbox',{name:'North'}),south=zones.getByRole('checkbox',{name:'South'});
     await expect(north).toBeFocused();await north.press('Space');

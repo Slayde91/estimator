@@ -98,5 +98,85 @@
     "템플릿 편집기",
     "Editor ng template",
     "Trình chỉnh sửa mẫu"
+  ],
+  "Counter": [
+    "카운터",
+    "Counter",
+    "Bộ đếm"
+  ],
+  "Text": [
+    "텍스트",
+    "Teksto",
+    "Văn bản"
+  ],
+  "Date and Time": [
+    "날짜 및 시간",
+    "Petsa at oras",
+    "Ngày và giờ"
+  ],
+  "Yes / No": [
+    "예 / 아니요",
+    "Oo / Hindi",
+    "Có / Không"
+  ],
+  "List": [
+    "목록",
+    "Listahan",
+    "Danh sách"
+  ],
+  "Tables and groups": [
+    "표 및 그룹",
+    "Mga talahanayan at pangkat",
+    "Bảng và nhóm"
+  ],
+  "Sketch": [
+    "스케치",
+    "Eskis",
+    "Bản phác thảo"
+  ],
+  "Attachments": [
+    "첨부 파일",
+    "Mga kalakip",
+    "Tệp đính kèm"
+  ],
+  "Relationship": [
+    "관계",
+    "Kaugnayan",
+    "Liên kết"
+  ],
+  "Page Break": [
+    "페이지 나누기",
+    "Page break",
+    "Ngắt trang"
+  ],
+  "Number": [
+    "숫자",
+    "Numero",
+    "Số"
+  ],
+  "Form unavailable": [
+    "양식을 사용할 수 없음",
+    "Hindi available ang form",
+    "Không có biểu mẫu"
+  ],
+  "Complete the preceding approval to edit this field.": [
+    "이 필드를 편집하려면 앞선 승인을 완료하세요.",
+    "Kumpletuhin ang naunang pag-apruba upang ma-edit ang field na ito.",
+    "Hoàn tất phê duyệt trước đó để chỉnh sửa trường này."
+  ],
+  "STEEL": [
+    "철골",
+    "BAKAL",
+    "THÉP"
+  ],
+  "DUCT": [
+    "덕트",
+    "DUCT",
+    "ỐNG GIÓ"
+  ],
+  "WALLS / FLOORS": [
+    "벽 / 바닥",
+    "MGA PADER / SAHIG",
+    "TƯỜNG / SÀN"
   ]
 }

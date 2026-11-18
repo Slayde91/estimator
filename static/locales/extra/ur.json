@@ -3836,5 +3836,21 @@
   "Open Documents, then Forms, to fill out a template or view its records. The template creator or an administrator can confirm deletion of a template. Existing records keep their template version.": "سانچہ پُر کرنے یا اس کے ریکارڈ دیکھنے کے لیے دستاویزات میں فارم کھولیں۔ سانچہ بنانے والا یا منتظم اسے حذف کرنے کی تصدیق کر سکتا ہے۔ موجودہ ریکارڈ میں سانچے کا اصل ورژن برقرار رہتا ہے۔",
   "Open Projects to create or open a project. Use Project Details to review its number, client and site address.": "منصوبہ بنانے یا کھولنے کے لیے منصوبوں کا حصہ کھولیں۔ منصوبے کی تفصیلات میں اس کا نمبر، کلائنٹ اور سائٹ کا پتہ دیکھیں۔",
   "Link Library Item connects a Firestopping record to a Technical Library reference. The trash button on a library card removes the item after confirmation. Unlink beside a related record removes only that link.": "لائبریری آئٹم لنک کریں سے فائر اسٹاپنگ کا ریکارڈ تکنیکی لائبریری کے حوالے سے جڑتا ہے۔ لائبریری کارڈ پر کوڑے دان کا بٹن تصدیق کے بعد آئٹم حذف کرتا ہے۔ متعلقہ ریکارڈ کے ساتھ لنک ختم کریں صرف وہ رابطہ ہٹاتا ہے۔",
-  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "فائر اسٹاپنگ لائبریری میں شیڈول میں آئٹم شامل کریں۔ تکنیکی لائبریری میں شیڈول کے موجودہ آئٹمز منتخب کریں جن کے ساتھ حوالہ جوڑنا ہے۔"
+  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "فائر اسٹاپنگ لائبریری میں شیڈول میں آئٹم شامل کریں۔ تکنیکی لائبریری میں شیڈول کے موجودہ آئٹمز منتخب کریں جن کے ساتھ حوالہ جوڑنا ہے۔",
+  "Counter": "شمار کنندہ",
+  "Text": "متن",
+  "Date and Time": "تاریخ اور وقت",
+  "Yes / No": "ہاں / نہیں",
+  "List": "فہرست",
+  "Tables and groups": "جدول اور گروپ",
+  "Sketch": "خاکہ",
+  "Attachments": "منسلکات",
+  "Relationship": "تعلق",
+  "Page Break": "صفحے کی تقسیم",
+  "Number": "عدد",
+  "Form unavailable": "فارم دستیاب نہیں",
+  "Complete the preceding approval to edit this field.": "اس فیلڈ میں ترمیم کے لیے پچھلی منظوری مکمل کریں۔",
+  "STEEL": "اسٹیل",
+  "DUCT": "ڈکٹ",
+  "WALLS / FLOORS": "دیواریں / فرش"
 }

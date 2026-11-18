@@ -108,7 +108,15 @@ async function layout(width) {
   const initial = await page.goto(`http://127.0.0.1:${info.port}/`); await prepareProjectForSave(page); assert.ok(!initial.headers()['content-security-policy'].includes('unsafe-inline'));
   await expect.poll(() => page.evaluate(() => window.CeasefireDesktop?.status().ready)).toBe(true);
   const calculators = await page.evaluate(() => window.CeasefireCalculators.completeProjectSnapshot());
-  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click(); await chooseTakeoff(page, 'physical'); await idle();
+  await page.getByRole('button', { name: 'Takeoffs', exact: true }).click();
+  const registerHeading = page.locator('#takeoff-register-pane > section.takeoff-register > .section-heading > h2');
+  for (const [mode, title] of [['steel','STEEL'], ['duct','DUCT'], ['walls','WALLS / FLOORS']]) {
+    await chooseTakeoff(page, mode);
+    await expect(registerHeading).toHaveText(title);
+  }
+  await chooseTakeoff(page, 'physical'); await idle();
+  const physicalHeading = page.locator('.takeoff-physical-register > .section-heading > h2');
+  await expect(physicalHeading).toHaveText('DEFECT REPORTS');
   await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0);
   await page.locator('#takeoff-upload').setInputFiles(info.fixture); await expect(page.locator('.takeoff-progress')).toContainText('Original source'); await idle();
   const defect = await create('defect', { 'Defect Ref.': 'NAV-A', Location: 'Existing unplaced barrier', FRL: '-/120/120' });
@@ -149,6 +157,7 @@ async function layout(width) {
   await expect.poll(() => page.locator('.takeoff-physical-details').evaluate(el => el.scrollTop)).toBe(0);
   await layout(1600); await layout(764); evidence.markerKeepsSelectionAndOpensDefect = true;
   await chooseTakeoff(page, 'Service Plans'); await idle(); await page.setViewportSize({ width: 1600, height: 1100 });
+  await expect(physicalHeading).toHaveText('SERVICE PLANS');
   await expect(page.getByRole('group', { name: 'Defect report count', exact: true })).toHaveCount(0); await expect(page.getByRole('button', { name: 'Add Defect', exact: true })).toHaveCount(0);
   const planBarrier = await create('barrier', { Location: 'Independent plan', FRL: '-/60/60' }, () => page.getByRole('button', { name: 'Add substrate', exact: true }).click());
   assert.equal(state.service_plans.barriers[0].id, planBarrier); assert.equal(state.service_plans.barriers[0].defect_id, undefined); assert.equal(state.service_plans.defects, undefined);

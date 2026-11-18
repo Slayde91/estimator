@@ -3836,5 +3836,21 @@
   "Open Documents, then Forms, to fill out a template or view its records. The template creator or an administrator can confirm deletion of a template. Existing records keep their template version.": "টেমপ্লেট পূরণ করতে বা তার রেকর্ড দেখতে নথি থেকে ফর্ম খুলুন। টেমপ্লেটের নির্মাতা বা প্রশাসক সেটি মুছে ফেলার বিষয়টি নিশ্চিত করতে পারেন। বিদ্যমান রেকর্ডে তার টেমপ্লেটের সংস্করণ বজায় থাকে।",
   "Open Projects to create or open a project. Use Project Details to review its number, client and site address.": "প্রকল্প তৈরি বা খুলতে প্রকল্প বিভাগ খুলুন। প্রকল্পের বিবরণে নম্বর, ক্লায়েন্ট ও সাইটের ঠিকানা দেখুন।",
   "Link Library Item connects a Firestopping record to a Technical Library reference. The trash button on a library card removes the item after confirmation. Unlink beside a related record removes only that link.": "লাইব্রেরি আইটেম লিংক করুন দিয়ে ফায়ারস্টপিং রেকর্ডকে কারিগরি লাইব্রেরির রেফারেন্সের সঙ্গে যুক্ত করা যায়। কার্ডের ট্র্যাশ বোতাম নিশ্চিত করার পর আইটেম মুছে দেয়। সম্পর্কিত রেকর্ডের পাশে আনলিংক শুধু সংযোগটি সরায়।",
-  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "ফায়ারস্টপিং লাইব্রেরি থেকে শিডিউলে আইটেম যোগ করুন। কারিগরি লাইব্রেরিতে রেফারেন্স সংযুক্ত করতে শিডিউলের বিদ্যমান আইটেম বেছে নিন।"
+  "In the Firestopping Library, add an item to the schedule. In the Technical Library, choose existing schedule items to receive the reference.": "ফায়ারস্টপিং লাইব্রেরি থেকে শিডিউলে আইটেম যোগ করুন। কারিগরি লাইব্রেরিতে রেফারেন্স সংযুক্ত করতে শিডিউলের বিদ্যমান আইটেম বেছে নিন।",
+  "Counter": "কাউন্টার",
+  "Text": "টেক্সট",
+  "Date and Time": "তারিখ ও সময়",
+  "Yes / No": "হ্যাঁ / না",
+  "List": "তালিকা",
+  "Tables and groups": "টেবিল ও গ্রুপ",
+  "Sketch": "স্কেচ",
+  "Attachments": "সংযুক্তি",
+  "Relationship": "সম্পর্ক",
+  "Page Break": "পৃষ্ঠা বিরতি",
+  "Number": "সংখ্যা",
+  "Form unavailable": "ফর্মটি উপলভ্য নয়",
+  "Complete the preceding approval to edit this field.": "এই ক্ষেত্রটি সম্পাদনা করতে আগের অনুমোদন সম্পন্ন করুন।",
+  "STEEL": "ইস্পাত",
+  "DUCT": "ডাক্ট",
+  "WALLS / FLOORS": "দেয়াল / মেঝে"
 }

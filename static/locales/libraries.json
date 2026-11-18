@@ -4086,5 +4086,12 @@
     "Elija un tipo de masilla para la cantidad introducida.",
     "اختر نوع معجون للكمية المدخلة.",
     "เลือกประเภทวัสดุยาแนวสำหรับปริมาณที่ป้อน"
+  ],
+  "CLASSIFIRE System ID": [
+    "CLASSIFIRE 系统编号",
+    "CLASSIFIRE प्रणाली आईडी",
+    "ID del sistema CLASSIFIRE",
+    "معرّف نظام CLASSIFIRE",
+    "รหัสระบบ CLASSIFIRE"
   ]
 }

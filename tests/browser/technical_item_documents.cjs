@@ -53,6 +53,11 @@ async function exported(extension){
   const databaseBefore=database(info.database);
   assert.deepEqual(databaseBefore,{...databaseAtSave,technical_library_public_ids:[]},'Opening this native-ID fixture initializes an empty registry and preserves all existing data');
   const toggle=detail.getByRole('button',{name:'Document',exact:true}), menu=detail.locator('#technical-item-document-actions');
+  const toolbar=detail.getByRole('navigation',{name:'Library record navigation'});
+  await expect(toolbar.getByRole('button',{name:'Document',exact:true})).toBeVisible();
+  await expect(toolbar.getByRole('button',{name:'Edit',exact:true})).toBeVisible();
+  await expect(toolbar.getByRole('button',{name:'Link Library Item',exact:true})).toBeVisible();
+  assert.equal(await toggle.evaluate(button=>button.parentElement.previousElementSibling.hasAttribute('data-library-add')),true);
   assert.equal(await toggle.locator('img').getAttribute('src'),'/icons/document.png');
   await toggle.focus();await toggle.press('ArrowDown');await expect(menu.getByRole('button').first()).toBeFocused();
   await page.keyboard.press('End');await expect(menu.getByRole('button').last()).toBeFocused();
@@ -62,10 +67,11 @@ async function exported(extension){
     await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
     for(const width of [1146,390]){
       await page.setViewportSize({width,height:900});await toggle.click();await expect(menu.getByRole('button')).toHaveCount(2);
+      assert.equal((await toggle.boundingBox()).height,42,'Document matches the 42px toolbar controls');
       const geometry=await menu.evaluate(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,overflow:document.documentElement.scrollWidth-innerWidth};});
       assert.ok(geometry.left>=0&&geometry.right<=width+1,'Technical Document menu fits viewport');assert.ok(geometry.overflow<=1,'Technical details never overflow viewport');
       await page.screenshot({path:path.join(output,`technical-menu-${theme}-${width}.png`)});
-      await detail.locator('h3').click();await expect(menu).toBeHidden();
+      await detail.locator('.library-record-fields dt').last().click();await expect(menu).toBeHidden();
       await expect(detail.locator('.library-related-record .helper')).toHaveCount(0);
       await expect(detail.locator('.library-record-notice')).toHaveText('Synthetic evidence only; retain every source condition.');
       await expect(detail.locator('.library-source')).toHaveCount(0);

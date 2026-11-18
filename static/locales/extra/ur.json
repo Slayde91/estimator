@@ -3852,5 +3852,21 @@
   "Complete the preceding approval to edit this field.": "اس فیلڈ میں ترمیم کے لیے پچھلی منظوری مکمل کریں۔",
   "STEEL": "اسٹیل",
   "DUCT": "ڈکٹ",
-  "WALLS / FLOORS": "دیواریں / فرش"
+  "WALLS / FLOORS": "دیواریں / فرش",
+  "CLASSIFIRE System ID": "CLASSIFIRE سسٹم آئی ڈی",
+  "Locations for {0}, {1}": "{0} کے مقامات، {1}",
+  "Timesheet map for {0}": "{0} کے اوقاتِ کار کا نقشہ",
+  "No locations were recorded for these entries on this day.": "اس دن ان اندراجات کے لیے کوئی مقام ریکارڈ نہیں ہوا۔",
+  "Length (mm)": "لمبائی (ملی میٹر)",
+  "Pricing mode": "قیمت مقرر کرنے کا طریقہ",
+  "Supplier markup": "سپلائر کی قیمت پر اضافہ",
+  "Manual": "دستی",
+  "Price source": "قیمت کا ماخذ",
+  "Sell rate": "فروخت کی شرح",
+  "Use yields": "ہر استعمال کی کوریج",
+  "Enter a nonnegative number or leave blank.": "غیر منفی عدد درج کریں یا خالی چھوڑ دیں۔",
+  "Enter one value per Main Estimator group, including blank slots.": "مرکزی تخمینہ کار کے ہر گروپ کے لیے ایک قدر درج کریں، خالی خانے بھی شامل رکھیں۔",
+  "Enter Inventory or Override for each price source.": "قیمت کے ہر ماخذ کے لیے Inventory یا Override درج کریں۔",
+  "Set Price source to Override before editing Sell rate.": "فروخت کی شرح میں ترمیم سے پہلے قیمت کا ماخذ Override مقرر کریں۔",
+  "This group does not use a yield.": "یہ گروپ کوریج استعمال نہیں کرتا۔"
 }

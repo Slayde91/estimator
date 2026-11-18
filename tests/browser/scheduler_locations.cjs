@@ -20,7 +20,7 @@ async function expectSchedulerRole(admin) {
   browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1575,height:884}});
   const setup=await context.request.post(base+'/api/access/setup',{data:{name:'Location QA Admin',email:'location-qa@example.test',password:'Disposable-location-password-2026'}});assert.equal(setup.status(),200);
   const state=await (await context.request.get(base+'/api/scheduler/state?start=2026-11-02&end=2026-11-09')).json();
-  const points=[],requests=[],tiles=[];let sequence=0,mapOffline=false,locationGate=null;
+  const points=[],requests=[],tiles=[];let sequence=0,mapOffline=false,locationGate=null,reportData=null;
   page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
   const tileImage=Buffer.from(await page.evaluate(()=>{const tile=document.createElement('canvas');tile.width=tile.height=256;const ctx=tile.getContext('2d');ctx.fillStyle='#edf1e5';ctx.fillRect(0,0,256,256);ctx.strokeStyle='#fff';ctx.lineWidth=16;ctx.beginPath();ctx.moveTo(0,80);ctx.lineTo(256,80);ctx.moveTo(120,0);ctx.lineTo(120,256);ctx.stroke();ctx.fillStyle='#465440';ctx.font='12px sans-serif';ctx.fillText('Synthetic map fixture',8,25);return tile.toDataURL('image/png').split(',')[1];}),'base64');
   await page.clock.install({time:new Date('2026-11-06T00:00:00Z')});
@@ -55,6 +55,7 @@ async function expectSchedulerRole(admin) {
     else if(action==='work-orders' && !payload)result={orders:[],matched:0,scan_pending:false,error_count:0};
     else if(action==='logout')result={signed_out:true};
     else if(action==='state')result=state;
+    else if(action==='reports')result={...reportData,rows:reportData.rows.filter(row=>row.day>=url.searchParams.get('start') && row.day<=url.searchParams.get('end'))};
     else if(action==='clock/in'){
       assert.equal(payload.location_consent,true);assert.ok(payload.location.captured_at);
       const start=payload.location.captured_at;
@@ -145,6 +146,85 @@ async function expectSchedulerRole(admin) {
   mapOffline=true;await page.getByRole('button',{name:'Zoom out map',exact:true}).click();await expect(page.locator('.scheduler-map-status')).toContainText('Street map unavailable');
   await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));await page.screenshot({path:path.join(output,'location-popup-mobile.png'),fullPage:true});
   checks.push('map popup timeline/playback/coverage gaps works offline; only visible tile coordinates requested; responsive layout');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  // Report dates are independent of the calendar's current week. One overnight
+  // clock session appears on both days, followed by a second clock session.
+  const reportRow=(entry_id,day,clock_in,clock_out)=>({entry_id,day,clock_in,clock_out,member:state.user.id,
+    job:'site',job_label:'Historical site',project:'site',project_label:'Historical site',elapsed:3600,paid:3600,
+    regular:3600,overtime:0,paid_break:0,unpaid_break:0,overtime_by_rule:{}});
+  reportData={timezone:'Australia/Sydney',members:{[state.user.id]:state.user.name},warnings:[],overtime_rules:[],pay_status:'calculated',rows:[
+    reportRow('report-night','2020-01-01','2020-01-01T23:00:00+11:00','2020-01-02T01:00:00+11:00'),
+    reportRow('report-night','2020-01-02','2020-01-01T23:00:00+11:00','2020-01-02T01:00:00+11:00'),
+    reportRow('report-second','2020-01-02','2020-01-02T02:00:00+11:00','2020-01-02T03:00:00+11:00'),
+    reportRow('report-empty','2020-01-03','2020-01-03T08:00:00+11:00','2020-01-03T09:00:00+11:00')]};
+  const reportQueries=[];
+  const reportPoint=(entry_id,id,captured_at)=>({entry_id,id,captured_at,latitude:-33.8688+Number(id)*.001,longitude:151.2093,accuracy:10});
+  const historyFor=(entry,day)=>entry==='report-night' ? day==='2020-01-01' ? [reportPoint(entry,'1','2020-01-01T12:30:00Z')]
+    : [reportPoint(entry,'2','2020-01-01T13:00:00Z'),reportPoint(entry,'3','2020-01-01T13:30:00Z')]
+    : entry==='report-second' ? [reportPoint(entry,'4','2020-01-01T15:00:00Z'),reportPoint(entry,'5','2020-01-01T15:30:00Z')] : [];
+  await page.route('**/api/scheduler/locations?entry_id=report-*',async route=>{
+    const url=new URL(route.request().url()),entry=url.searchParams.get('entry_id'),day=url.searchParams.get('day');
+    reportQueries.push({entry,day});
+    assert.ok(day,'Report location requests must include the selected local day');
+    await route.fulfill({json:{locations:historyFor(entry,day),coverage:{gaps:[]}}});
+  });
+  await page.setViewportSize({width:1575,height:884});
+  await page.locator('.scheduler-tabs').getByRole('button',{name:'Reports',exact:true}).click();
+  const reports=page.locator('.scheduler-reports');
+  await reports.getByLabel('Reporting period',{exact:true}).selectOption('custom');
+  await reports.getByLabel('Start date',{exact:true}).fill('01/01/2020');
+  await reports.getByLabel('End date',{exact:true}).fill('03/01/2020');
+  await reports.getByRole('button',{name:'Run report',exact:true}).click();
+  const details=reports.locator('.scheduler-report-detail');
+  await details.locator('summary').click();
+  await expect(details.locator('.scheduler-report-day td:first-child')).toHaveText(['03/01/2020','02/01/2020','01/01/2020']);
+  await expect(details.locator('thead th').last()).toHaveText('Location');
+  assert.equal(reportQueries.length,0,'Report rendering must not prefetch private location histories');
+  const dayPin=day=>details.locator('.scheduler-report-day').filter({hasText:day}).getByRole('button');
+  await dayPin('02/01/2020').click();
+  await expect(page.locator('.scheduler-location-list li')).toHaveCount(4);
+  await expect(page.locator('.scheduler-location-sidebar')).toContainText('02/01/2020');
+  await expect(page.locator('.scheduler-selected-location')).toContainText('02/01/2020');
+  await expect(page.locator('.scheduler-location-line')).toHaveCount(2); // No line across the off-clock interval.
+  assert.deepEqual(reportQueries,[{entry:'report-night',day:'2020-01-02'},{entry:'report-second',day:'2020-01-02'}]);
+  await page.locator('.scheduler-timeline-point').last().click();
+  await expect(page.locator('.scheduler-timeline-point').last()).toHaveAttribute('aria-current','true');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await dayPin('01/01/2020').click();
+  await expect(page.locator('.scheduler-location-list li')).toHaveCount(1);
+  await expect(page.locator('.scheduler-selected-location')).toContainText('01/01/2020');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await dayPin('03/01/2020').click();
+  await expect(page.locator('.scheduler-locations')).toContainText('No locations were recorded for these entries on this day.');
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  // Individual entry pins use the same day scope without loading the other entry.
+  const entryRow=details.locator('tbody tr:not(.scheduler-report-day)').filter({hasText:'02/01/2020'}).first();
+  const beforeEntry=reportQueries.length;
+  await entryRow.getByRole('button').click();
+  await expect(page.locator('.scheduler-location-list li')).toHaveCount(2);
+  assert.equal(reportQueries.length,beforeEntry+1);
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  for(const width of [1160,390]) {
+    await page.setViewportSize({width,height:884});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+    await reports.screenshot({path:path.join(output,`report-locations-${width}.png`)});
+  }
+  // Changing report filters while a location read is in flight invalidates its originating pin.
+  let releaseReport,reportStarted=false;
+  const reportGate=new Promise(resolve=>releaseReport=resolve);
+  const delayedReport=async route=>{reportStarted=true;await reportGate;await route.fulfill({json:{locations:historyFor('report-night','2020-01-01'),coverage:{gaps:[]}}});};
+  const delayedUrl='**/api/scheduler/locations?entry_id=report-night&day=2020-01-01';
+  await page.route(delayedUrl,delayedReport);
+  const delayedResponse=page.waitForResponse(response=>response.url().endsWith('/locations?entry_id=report-night&day=2020-01-01'));
+  await dayPin('01/01/2020').click();await expect.poll(()=>reportStarted).toBe(true);
+  await reports.getByLabel('Team member',{exact:true}).selectOption(state.user.id);
+  releaseReport();await (await delayedResponse).finished();await page.evaluate(()=>new Promise(requestAnimationFrame));
+  await expect(page.locator('.scheduler-locations')).toHaveCount(0);
+  await page.unroute(delayedUrl,delayedReport);
+  await details.locator('summary').click();
+  await dayPin('02/01/2020').click();
+  await expect(page.locator('.scheduler-location-list li')).toHaveCount(4);
+  checks.push('individual report days descend; last-column daily and entry pins load only selected historical days; separate sessions do not form a route; empty days and narrow layout work');
   // A shared-cookie account change must immediately remove private maps, including in-flight responses.
   await page.setViewportSize({width:1575,height:884});
   const adminState=JSON.parse(JSON.stringify(state));state.user={...state.user,id:'other-worker',role:'worker',name:'Other worker'};state.entries=[];

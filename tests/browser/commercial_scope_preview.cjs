@@ -123,7 +123,7 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   const appliedPricing = await page.evaluate(() => window.CeasefireProject.configuration());
   await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await chooseLibrary(page, 'pricing');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();
   await page.locator('#pricing-scope').selectOption('project');
   await expect(page.locator('#pricing-scope')).toHaveValue('project');
   const originalProjectPrice = await price.inputValue();

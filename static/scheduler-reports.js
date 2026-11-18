@@ -99,7 +99,7 @@
       return '"'+text.replace(/"/g,'""')+'"';
     }).join(',')).join('\r\n');
   }
-  function render(root,state,{request,translated:t,addDays,weekStart,zone}) {
+  function render(root,state,{request,translated:t,addDays,weekStart,zone,showLocations}) {
     const host=node('section',null,'scheduler-reports'), title=node('h2'), modes=node('div',null,'scheduler-report-modes');
     host.dataset.zone=zone; host.dataset.language=document.documentElement.lang;
     const filters=node('form',null,'card scheduler-report-filters'), output=node('div',null,'scheduler-report-output');
@@ -269,7 +269,7 @@
       }
       const tools=node('div',null,'scheduler-report-tools');
       const dimensions=['Date','Team member','Project','Job','Clock in','Clock out'];
-      const sorted=rows.slice().sort((a,b)=>name(a).localeCompare(name(b))||a.day.localeCompare(b.day)||Date.parse(a.clock_in)-Date.parse(b.clock_in));
+      const sorted=rows.slice().sort((a,b)=>name(a).localeCompare(name(b))||b.day.localeCompare(a.day)||Date.parse(a.clock_in)-Date.parse(b.clock_in));
       const detail=row=>[reportDate(row.day),name(row),projectLabel(row),jobLabel(row),reportClock(row.clock_in),reportClock(row.clock_out)];
       tools.append(action('Download CSV',()=>{
         const decimals=(row,key)=>!classified && classifiedField(key)?'':(seconds(row,key)/3600).toFixed(4);
@@ -306,19 +306,31 @@
           for (let offset=0;offset<rules.length;offset+=5) tableKeys.push(rules.slice(offset,offset+5));
         }
         const days=Array.from(groups(items,'day'),([day,entries])=>({day,entries,total:sum(entries)}));
+        function locationCell(day,entries) {
+          const cell=node('td',null,'scheduler-report-location');
+          if (!showLocations || entries.some(row=>!row.entry_id)) {cell.textContent='—';return cell;}
+          const scope={day,member:items[0].member,name:name(items[0]),entryIds:[...new Set(entries.map(row=>row.entry_id))]};
+          const pin=action('Location',()=>showLocations(scope,()=>pin.isConnected),'text-button scheduler-location-link');
+          const label=t('Locations for {0}, {1}',[scope.name,reportDate(day)]);
+          pin.textContent='⌖'; pin.title=label; pin.setAttribute('aria-label',label);
+          cell.append(pin);return cell;
+        }
         for (const metrics of tableKeys) {
           const scroll=node('div',null,'table-scroll'), table=node('table');
           if (tableKeys.length>1) table.createCaption().textContent=t(metrics===keys?'Paid time':'Overtime / penalty');
           const head=table.createTHead().insertRow(), body=table.createTBody();
-          for (const label of [t('Date'),t('Job'),t('Clock in'),t('Clock out'),...metrics.map(metricLabel)]) {
+          for (const label of [t('Date'),t('Job'),t('Clock in'),t('Clock out'),...metrics.map(metricLabel),t('Location')]) {
             const header=node('th',label); header.scope='col'; head.append(header);
           }
+          head.lastElementChild.className='scheduler-report-location';
           for (const {day,entries,total} of days) {
             const daily=body.insertRow(); daily.className='scheduler-report-day';
             for (const value of [reportDate(day),t('Daily total'),'','',...metrics.map(key=>display(total,key))]) daily.append(node('td',value));
+            daily.append(locationCell(day,entries));
             for (const row of entries) {
               const tr=body.insertRow();
               for (const value of [reportDate(day),jobLabel(row),reportClock(row.clock_in,true),reportClock(row.clock_out,true),...metrics.map(key=>display(row,key))]) tr.append(node('td',value));
+              tr.append(locationCell(day,[row]));
             }
           }
           scroll.append(table); section.append(scroll);

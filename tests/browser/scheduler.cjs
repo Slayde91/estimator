@@ -283,6 +283,10 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await reports.locator('.scheduler-report-detail summary').click();
   await expect(reports.getByText('Daily total',{exact:true})).toHaveCSS('background-color','rgb(185, 10, 21)');
   await expect(reports.getByRole('cell',{name:'02/11/2026 07:00+11:00',exact:true})).toBeVisible();
+  await expect(reports.locator('.scheduler-report-detail thead th').last()).toHaveText('Location');
+  await reports.locator('.scheduler-report-day').getByRole('button').click();
+  await expect(page.locator('.scheduler-locations')).toContainText('No locations were recorded for these entries on this day.');
+  await page.locator('.scheduler-locations').getByRole('button',{name:'Close',exact:true}).click();
   for (const rule of rules) {
     await expect(reports.getByRole('columnheader',{name:rule,exact:true})).toHaveCSS('background-color','rgb(255, 255, 255)');
   }
@@ -451,7 +455,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   },{message:'Open time clock scrolls the live clock below the header'}).toBe(true);
   await page.locator('#library-navigation-toggle').click();
   await page.locator('#pricing-scope').selectOption('library');
-  const editedPrice=page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const editedPrice=page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();
   await editedPrice.fill('987.65');await editedPrice.press('Tab');
   await expect(page.locator('#pricing-status')).toHaveText('Unsaved pricing changes');
   await openClock.click();

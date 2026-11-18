@@ -378,8 +378,9 @@ let passed=0;
   const originalPricing=JSON.stringify(pricingFixture);
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
   assert.equal(byId('pricing-body').children.length,5);assert.ok(!pricingNodes().some(node=>node.tagName==='details'));
-  assert.equal(byId('pricing-head').children[0].children.length,9);
-  assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
+  assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),[
+    'Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Pricing mode','Main Estimator groups',
+    'Firestopping Estimator groups','Yield','Price source','Sell rate','Use yields','Width (mm)','Length (mm)','Area (m²)','Actions']);
   assert.equal(productInput('coat','Product/Service').value,'Coating <literal>');assert.equal(productInput('coat','Selection name'),undefined);
   assert.equal(productInput('coat','Main Estimator groups').value,'primers; topcoats');
   const firestoppingRow=productRows().find(row=>row.dataset.priceId==='unused');
@@ -412,7 +413,9 @@ let passed=0;
   // New cost controls retain legacy values; blank unused yields can be saved and cleared.
   assert.equal(productInput('manual','supplier_price').value,'400.00');
   assert.equal(productInput('manual','markup').value,'0.00');
-  assert.equal(productInput('manual','sales_price'),undefined);assert.equal(productInput('team','price'),undefined);
+  assert.equal(productInput('manual','supplier_price').disabled,true);
+  assert.equal(productInput('manual','markup').disabled,true);
+  assert.equal(productInput('manual','sales_price').value,'400.00');assert.equal(productInput('team','price'),undefined);
   assert.equal(productInput('coat','Item code'),undefined);
   await editList('team','Yield','7.123456');assert.equal(audit.state.draft.rates.team.pricing_yield,7.123456);
   await editList('team','Yield','');assert.equal(audit.state.draft.rates.team.pricing_yield,null);

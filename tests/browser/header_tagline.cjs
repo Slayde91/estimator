@@ -215,7 +215,7 @@ async function presentationNavigation(initial) {
   await expect.poll(() => page.locator('#header-tagline-label').textContent()).not.toBe(selected.accessible);
   const library = await layout(); await typeUntilFinished(library, library.accessible, await bootstrap(library, library.accessible));
   await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();
   await price.fill('789.12345'); await price.press('Tab');
   const guarded = await snapshot(), beforeCancel = await layout(), display = await price.inputValue();
   const dialog = page.getByRole('dialog');

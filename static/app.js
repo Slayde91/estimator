@@ -1856,6 +1856,129 @@
     if (value.length > 200 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(uiCopy("Manufacturer must contain at most 200 characters without control characters."));
     setOverride(record.kind, record.item, "manufacturer", value);
   }
+  const pricingDimensions = [["Width (mm)", "width_mm"], ["Length (mm)", "length_mm"], ["Area (m²)", "sqm"]];
+  function pricingMeasurement(value) {
+    if (!value.trim()) return null;
+    const number = Number(value);
+    if (!/^[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) || !Number.isFinite(number) || number > 1e12) {
+      throw new Error(uiCopy("Enter a nonnegative number or leave blank."));
+    }
+    return number;
+  }
+  function setPricingDimension(record, key, text) {
+    const value = pricingMeasurement(text.trim());
+    editPricingCatalog(catalog => {
+      catalog.inventory.find(item => item.id === record.item.id).properties[key] = value;
+    });
+  }
+  function pricingModeInput(record) {
+    const control = node("select");
+    const { item } = record, override = getOverride("inventory", item.id);
+    const mode = Object.hasOwn(override, "supplier_price") || Object.hasOwn(override, "markup") ? "supplier_markup" : item.pricing_mode;
+    for (const [value, label] of [["supplier_markup", "Supplier markup"], ["manual", "Manual"]]) {
+      const option = uiNode("option", "", label); option.value = value; control.append(option);
+    }
+    control.value = mode;
+    control.dataset.priceField = "Pricing mode";
+    window.CeasefireI18n.attr(control, "aria-label", "{0}: {1}", [item.name, uiCopy("Pricing mode")]);
+    control.addEventListener("change", () => {
+      if (control.value === mode) return;
+      const price = inventorySellPrice(item);
+      const priceWasEdited = ["sales_price", "supplier_price", "markup"].some(key => Object.hasOwn(override, key));
+      editPricingCatalog(catalog => {
+        const saved = catalog.inventory.find(entry => entry.id === item.id);
+        saved.pricing_mode = control.value;
+        saved.sales_price = price;
+        if (control.value === "manual") {
+          Object.assign(saved, {supplier_price: override.supplier_price ?? item.supplier_price, markup: override.markup ?? item.markup});
+        } else if (saved.supplier_price == null || saved.supplier_price * (1 + saved.markup) !== price) {
+          saved.supplier_price = price;
+          saved.markup = 0;
+          saved.calculated_sell_price = price;
+        }
+        for (const key of ["sales_price", "supplier_price", "markup"]) delete override[key];
+        if (!Object.keys(override).length) delete state.draft.inventory[item.id];
+        if (priceWasEdited) for (const rates of Object.values(catalog.rate_groups)) for (const rate of rates) {
+          if (rate.inventory_id === item.id && !independentUse(rate)) rate.price = price;
+        }
+      });
+      renderPricing();
+    });
+    return {control, mode};
+  }
+  function independentUse(item) {
+    const override = getOverride("rates", item.id);
+    return item.price_mode === "override" || ["price", "supplier_price", "markup"].some(field => Object.hasOwn(override, field));
+  }
+  function setUseVector(record, field, values) {
+    if (!values.length) values = record.uses.map(() => "");
+    if (values.length !== record.uses.length) throw new Error(uiCopy("Enter one value per Main Estimator group, including blank slots."));
+    const edits = record.uses.map(({item}, index) => {
+      const value = values[index].trim();
+      if (field === "Price source") {
+        if (!value) return null;
+        const mode = value.toLowerCase();
+        if (!["inventory", "override"].includes(mode)) throw new Error(uiCopy("Enter Inventory or Override for each price source."));
+        return independentUse(item) === (mode === "override") ? null : {
+          item, mode, price: mode === "inventory" ? inventorySellPrice(record.item) : rateSellPrice(item)
+        };
+      }
+      if (field === "Sell rate") {
+        if (!value) return null;
+        if (!independentUse(item)) throw new Error(uiCopy("Set Price source to Override before editing Sell rate."));
+        return {item, price: pricingMeasurement(value)};
+      }
+      if (!(item.uses_yield ?? !!item.source?.yield)) {
+        if (value) throw new Error(uiCopy("This group does not use a yield."));
+        return null;
+      }
+      return {item, yield: value.toLowerCase() === "empty text" ? "" : pricingMeasurement(value)};
+    }).filter(Boolean);
+    if (field === "Use yields") {
+      for (const edit of edits) setOverride("rates", edit.item, "yield", edit.yield);
+    } else if (field === "Sell rate") {
+      for (const edit of edits) {
+        const patch = getOverride("rates", edit.item.id);
+        delete patch.supplier_price; delete patch.markup;
+        setOverride("rates", edit.item, "price", edit.price);
+      }
+    } else if (edits.length) {
+      const indexed = new Map(edits.map(edit => [edit.item.id, edit]));
+      editPricingCatalog(catalog => {
+        for (const rates of Object.values(catalog.rate_groups)) for (const rate of rates) {
+          const edit = indexed.get(rate.id);
+          if (!edit) continue;
+          rate.price_mode = edit.mode;
+          rate.price = edit.price;
+          delete rate.supplier_price; delete rate.markup;
+          const patch = getOverride("rates", rate.id);
+          for (const key of ["price", "supplier_price", "markup"]) delete patch[key];
+          if (!Object.keys(patch).length) delete state.draft.rates[rate.id];
+        }
+      });
+    }
+  }
+  function pricingUseCells(record) {
+    const linked = record.kind === "inventory" && record.uses.length;
+    const includesYield = record.uses.some(({item}) => item.uses_yield ?? !!item.source?.yield);
+    const useYields = record.uses.map(({item}) => {
+      const patch = getOverride("rates", item.id);
+      const value = Object.hasOwn(patch, "yield") ? patch.yield : item.yield;
+      return value === "" ? "Empty text" : value;
+    });
+    return [
+      ["Price source", record.uses.map(({item}) => independentUse(item) ? "Override" : "Inventory"), linked],
+      ["Sell rate", record.uses.map(({item}) => independentUse(item) ? rateSellPrice(item) : null), linked],
+      ["Use yields", useYields, includesYield],
+    ].map(([field, values, enabled]) => {
+      const cell = node("td");
+      const input = pricingListInput(record, field, enabled ? values : [], list => setUseVector(record, field, list));
+      input.disabled = !enabled;
+      if (enabled) input.title = uiCopy("Enter one value per Main Estimator group, including blank slots.");
+      cell.append(input);
+      return cell;
+    });
+  }
   function sharedPricingYield(record) {
     const uses = record.uses.filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
     const values = uses.map(({ item }) => Object.hasOwn(getOverride("rates", item.id), "yield") ? getOverride("rates", item.id).yield : item.yield);
@@ -1977,7 +2100,10 @@
     });
     window.CeasefireI18n.text($("pricing-count"), "{0} of {1} products and standalone rates", [matches.length, records.length]);
     const heading = node("tr");
-    for (const title of ["Product/Service", "Manufacturer", "Supplier price", "Markup %", "Sell price", "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Actions"])
+    const titles = ["Product/Service", "Manufacturer", "Supplier price", "Markup %", "Sell price", "Pricing mode",
+      "Main Estimator groups", "Firestopping Estimator groups", "Yield", "Price source", "Sell rate", "Use yields",
+      ...pricingDimensions.map(([heading]) => heading), "Actions"];
+    for (const title of titles)
       heading.append(uiNode("th", "", title));
     $("pricing-head").replaceChildren(heading);
     const refreshers = [], refreshPrices = () => refreshers.forEach((refresh) => refresh());
@@ -1993,14 +2119,23 @@
       const manufacturer = pricingFieldInput(record, "Manufacturer", getOverride(kind, item.id).manufacturer ?? item.manufacturer ?? "", (text) => setManufacturer(record, text));
       manufacturer.maxLength = 200;
       manufacturerCell.append(manufacturer); row.append(manufacturerCell);
+      const modeCell = node("td");
       if (inventoryView) {
         const supplier = node("td");
         const markup = node("td");
         const legacyPrice = getOverride(kind, item.id).sales_price;
-        supplier.append(priceInput(kind, item, "supplier_price", { defaultValue: legacyPrice ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price), label: "Supplier price", onChange: refreshPrices }));
-        markup.append(priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices }));
-        const sell = node("td", "pricing-sell-price"), output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
-        output.dataset.sellPreview = "true"; sell.append(output);
+        const {control, mode} = pricingModeInput(record);
+        modeCell.append(control);
+        const manual = mode === "manual", sell = node("td", "pricing-sell-price");
+        const costInput = priceInput(kind, item, "supplier_price", { defaultValue: legacyPrice ?? (item.pricing_mode === "manual" ? item.sales_price : item.supplier_price), label: "Supplier price", onChange: refreshPrices });
+        const markupInput = priceInput(kind, item, "markup", { defaultValue: legacyPrice !== undefined || item.pricing_mode === "manual" ? 0 : item.markup, percent: true, label: "Markup", onChange: refreshPrices });
+        costInput.disabled = markupInput.disabled = manual;
+        supplier.append(costInput); markup.append(markupInput);
+        if (manual) sell.append(priceInput(kind, item, "sales_price", {defaultValue: item.sales_price, label: "Sell price", onChange: refreshPrices}));
+        else {
+          const output = node("span", "price-value", formatMoney(inventorySellPrice(item)));
+          output.dataset.sellPreview = "true"; sell.append(output);
+        }
         row.append(supplier, markup, sell);
       } else {
         const supplier = node("td"), markup = node("td"), sell = node("td", "pricing-sell-price");
@@ -2009,6 +2144,7 @@
         const output = node("span", "price-value", formatMoney(rateSellPrice(item))); output.dataset.sellPreview = "true"; sell.append(output);
         row.append(supplier, markup, sell);
       }
+      row.append(modeCell);
       const groupCell = node("td", "pricing-availability");
       groupCell.append(pricingListInput(record, "Main Estimator groups", uses.map(({ group }) => group), (values) => setPricingUses(record, values), "Not used in main Estimator"));
       const firestoppingCell = node("td", "pricing-availability");
@@ -2021,13 +2157,20 @@
       yieldCell.append(input);
       if (shared.mixed || shared.units.length > 1) yieldCell.append(uiNode("small", "subtext", "Different saved yields: enter one value to apply it to all uses."));
       row.append(yieldCell);
+      row.append(...pricingUseCells(record));
+      for (const [heading, key] of pricingDimensions) {
+        const cell = node("td");
+        const dimension = pricingFieldInput(record, heading, String(item.properties?.[key] ?? ""), text => setPricingDimension(record, key, text));
+        dimension.disabled = !inventoryView;
+        cell.append(dimension); row.append(cell);
+      }
       const reset = node("td", "pricing-row-actions"), remove = node("button", "button secondary icon-only trash-button");
       remove.type = "button"; remove.dataset.pricingRemove = item.id; window.CeasefireI18n.attr(remove, "title", "Remove {0}", [productServiceName(record) || item.name]); window.CeasefireI18n.attr(remove, "aria-label", "Remove {0}", [productServiceName(record) || item.name]);
       const removeIcon = node("span", "trash-artwork"); removeIcon.setAttribute("aria-hidden", "true"); remove.append(removeIcon);
       remove.addEventListener("click", () => removePricingItem(record)); reset.append(resetButton(kind, item), remove); row.append(reset);
       rows.push(row);
     }
-    if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = 9; row.append(cell); rows.push(row); }
+    if (!rows.length) { const row = node("tr"); const cell = uiNode("td", "empty-state", "No matching products or rates."); cell.colSpan = titles.length; row.append(cell); rows.push(row); }
     $("pricing-body").replaceChildren(...rows);
     refreshPrices();
     markPricingDirty();

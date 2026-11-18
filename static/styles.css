@@ -245,7 +245,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-controls .search-field{margin:0;min-width:0;width:100%;max-width:none}
 .pricing-document-menu{margin-right:auto}
 .pricing-document-menu .calculator-document-actions{left:0;right:auto}
-.pricing-table{width:100%;min-width:1100px;table-layout:fixed;margin-top:15px}
+.pricing-table{width:100%;min-width:1860px;table-layout:fixed;margin-top:15px}
 /* The wide editor scrolls inside its own viewport. Layout containment prevents
    the table's intrinsic width from widening the root mobile scroll area. */
 #library-pricing .table-scroll{contain:layout}
@@ -253,10 +253,11 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 #library-pricing>.card :where(button,select,textarea,input:not([type=checkbox],[type=radio],[type=hidden],[type=file])){box-sizing:border-box;height:var(--library-control-height);min-height:var(--library-control-height);padding-block:0}
 #library-pricing>.card textarea{padding-block:6px}
 #library-pricing>.card .icon-only{width:var(--library-control-height);min-width:var(--library-control-height);padding-inline:0}
-.pricing-table th:first-child{width:22%;min-width:0}
-.pricing-table th:nth-child(2){width:12%;min-width:0}
+.pricing-table th:first-child{width:14%;min-width:0}
+.pricing-table th:nth-child(2){width:8%;min-width:0}
 .pricing-table input{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
 .pricing-table input[type=number]{min-width:0;max-width:100%;text-align:right}
+.pricing-table select{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
 .pricing-table .item-name{min-width:0}
 .pricing-table .subtext{font-size:10px;color:var(--muted);display:block;margin-top:6px}
 .pricing-table .pricing-availability{min-width:0;background:#fffdfa}
@@ -398,9 +399,11 @@ dialog .actions{justify-content:flex-end}
 
 /* Shared pricing columns stay readable without unused horizontal space. */
 .pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}
-.pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:8%}
-.pricing-table th:nth-child(4),.pricing-table th:nth-child(8){width:6%}
-.pricing-table th:nth-child(9){width:108px}
+.pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:6%}
+.pricing-table th:nth-child(4),.pricing-table th:nth-child(9){width:5%}
+.pricing-table th:nth-child(6){width:9%}
+.pricing-table th:nth-child(7),.pricing-table th:nth-child(8){width:8%}
+.pricing-table th:last-child{width:108px}
 .pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}

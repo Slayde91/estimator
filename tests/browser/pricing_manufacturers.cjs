@@ -87,7 +87,8 @@ async function importWorkbook(file,accept){
   const saving=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await saving).status(),200);await idle();
   projectBytes=fs.readFileSync(info.project);frozen=await projectState();assert.ok(frozen.configuration.catalog,'Current project owns a frozen catalogue');
   await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-scope')).toHaveValue('library');
-  await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups','Firestopping Estimator groups','Yield','Actions']);
+  await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Pricing mode',
+    'Main Estimator groups','Firestopping Estimator groups','Yield','Price source','Sell rate','Use yields','Width (mm)','Length (mm)','Area (m²)','Actions']);
   await page.locator('#pricing-search').fill(owner.manufacturer);await expect(row()).toBeVisible();await expect(field()).toHaveValue(owner.manufacturer);
   await findOwner();await expect(field()).toHaveAttribute('maxlength','200');await expect(field()).toHaveAccessibleName(owner.name+': Manufacturer');await field().scrollIntoViewIfNeeded();
   const sellPrice = row().locator('.pricing-sell-price');
@@ -130,8 +131,44 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
   const preview=await importWorkbook(changed,true);await expect(field()).toHaveValue('QA Excel manufacturer');assert.deepEqual(await api('/api/configuration'),sharedBlank,'Excel preview changes only its local draft before Save');
   assert.equal(preview.summary.inventory.added,0);assert.equal(preview.summary.inventory.removed,0);assert.equal(preview.summary.rates.added,0);assert.equal(preview.summary.rates.removed,0);
   await saveLibrary();await checkpoint('excel-roundtrip-saved','QA Excel manufacturer',undefined,canonicalImported);await reloadFrozenProject();await expect(field()).toHaveValue('QA Excel manufacturer');await checkpoint('excel-roundtrip-reloaded','QA Excel manufacturer',undefined,canonicalImported);
+
+  const coating = bootstrap.catalog.inventory.find(item => item.id === '204');
+  assert.ok(coating);
+  await page.locator('#pricing-search').fill(coating.name);
+  const coatingRow = page.locator('#pricing-body tr[data-price-kind="inventory"][data-price-id="204"]');
+  const coatingField = name => coatingRow.locator(`[data-price-field="${name}"]`);
+  const editField = async (name,value) => {
+    const input = coatingField(name);
+    await expect(input).toBeEditable();
+    await input.fill(value);
+    await input.blur();
+    await expect(input).not.toHaveAttribute('aria-invalid','true');
+  };
+  await coatingField('Pricing mode').selectOption('manual');
+  await expect(coatingField('supplier_price')).toBeDisabled();
+  await editField('sales_price','310');
+  await expect(coatingField('Main Estimator groups')).toHaveValue(/primers;\s*topcoats/);
+  await editField('Price source','Override; Inventory');
+  await editField('Sell rate','401.25;');
+  await editField('Use yields','71; 142');
+  await editField('Width (mm)','300');
+  await editField('Length (mm)','420');
+  await editField('Area (m²)','0.126');
+  await saveLibrary();
+  const savedCatalog = analyze(await api('/api/configuration'),'editable-estimator-inputs').canonical;
+  const savedCoating = savedCatalog.inventory.find(item => item.id === coating.id);
+  assert.equal(savedCoating.sales_price,310);
+  assert.equal(savedCoating.pricing_mode,'manual');
+  assert.deepEqual(savedCoating.properties,{...coating.properties,width_mm:300,length_mm:420,sqm:0.126});
+  const primer = savedCatalog.rate_groups.primers.find(item => item.inventory_id === coating.id);
+  const topcoat = savedCatalog.rate_groups.topcoats.find(item => item.inventory_id === coating.id);
+  assert.deepEqual([primer.price_mode,primer.price,primer.yield],['override',401.25,71]);
+  assert.deepEqual([topcoat.price_mode,topcoat.price,topcoat.yield],['inventory',310,142]);
+  assert.deepEqual(await projectState(),frozen,'Shared estimator edits preserve the saved project snapshot');
+  assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Shared estimator edits preserve the saved project bytes');
+  evidence.editableEstimatorInputs = true;
   assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);for(const[name,expected]of Object.entries(sourceHashes))assert.equal(hash(fs.readFileSync(path.join(root,name))),expected,'Production source remained fixed: '+name);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,port:info.port,sourceHashes,...evidence,exportedWorkbook:exported,importedWorkbook:changed,frozenProjectAndSavedBytesUnchanged:true,errors,consoleErrors},null,2));
-  console.log('PASS: Manufacturer desktop/mobile edits, explicit clear, brand search, native Save/reload, Excel import preview and linked ownership; every numeric value and frozen project unchanged. '+output);
+  console.log('PASS: Manufacturer desktop/mobile, Excel roundtrip, editable estimator prices, yields and dimensions, and frozen project preservation. '+output);
 })().catch(async error=>{console.error(error);console.error(logs.slice(-5000));fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({message:error.message,stack:error.stack,...evidence,errors,consoleErrors},null,2));if(page){console.error(await page.locator('#app-message').textContent().catch(()=>''));await page.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});}process.exitCode=1;})
   .finally(async()=>{fs.writeFileSync(path.join(output,'server.log'),logs);await browser?.close();server.kill();});

@@ -17,6 +17,7 @@ from .reference_library import ReferenceNotFound, identifier
 from .technical_variant_presentation import variant_display
 from .technical_discovery import ALLPROOF_MANUAL_SOURCE, SNAP_FILTER_SOURCE
 from .technical_prose import public_prose_fields
+from .technical_manufacturers import discovery_manufacturers
 from .technical_public_ids import bondek, install_public_ids, public_item
 from .library_opening_types import project_opening_types
 from .library_report_links import valid_manual_report_url
@@ -274,13 +275,16 @@ class ManualTechnicalLibrary(FirestoppingLibrary):
             values['category'] = discovery_categories(values.get('category', []), values.get('services', []))
             if key in data['_technical_public_records']:
                 values['type'] = project_opening_types(data['_technical_public_records'][key], values.get('type', []))
+                values['manufacturer'] = discovery_manufacturers(data['_technical_public_records'][key],
+                                                                values.get('manufacturer', []))
         canonical = self._canonical(data)
         # New reports/manufacturers are user-authored metadata, not new
         # passive-fire classifications. Classification values stay canonical.
         for definition in canonical:
             facet = definition['key']
             known = {option['value'] for option in definition['options']}
-            for key in data['_manual_technical_sources']:
+            keys = data['_visible']['technical'] if facet == 'manufacturer' else data['_manual_technical_sources']
+            for key in keys:
                 record = data['_technical_public_records'][key]
                 # These suppliers publish assessed values outside the original catalogue.
                 source = record.get('source_label')

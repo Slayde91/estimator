@@ -60,7 +60,7 @@ WRITE_FIELDS = {
     'locations': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
     'locations/enable': {'entry_id', 'latitude', 'longitude', 'accuracy', 'captured_at'},
 }
-READ_FIELDS = {'work-orders': {'offset'}, 'shift-site-contacts': {'id','revision'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'reports': {'start','end'}, 'locations': {'entry_id'}}
+READ_FIELDS = {'work-orders': {'offset'}, 'shift-site-contacts': {'id','revision'}, 'bootstrap': set(), 'organization': set(), 'state': {'start', 'end'}, 'reports': {'start','end'}, 'locations': {'entry_id','day'}}
 
 
 class SchedulerError(ValueError):
@@ -415,10 +415,26 @@ class SchedulerStore:
                 entry = self._record(db, _text(query.get('entry_id', ''), 'Entry', required=True), 'entry')
                 if entry['member_id'] != user['id'] and user['role'] != 'admin':
                     raise SchedulerError('Location history is available only to its owner or an administrator.', 403)
-                rows = db.execute('SELECT id,entry_id,captured_at,latitude,longitude,accuracy FROM scheduler_locations WHERE entry_id=? ORDER BY captured_at,id LIMIT 10000', (entry['id'],))
+                settings = self._read_settings(db)
+                sql = 'SELECT id,entry_id,captured_at,latitude,longitude,accuracy FROM scheduler_locations WHERE entry_id=?'
+                args, covered_entry = [entry['id']], entry
+                if 'day' in query:
+                    day = query['day']
+                    if not isinstance(day, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
+                        raise SchedulerError('Include a valid calendar date.')
+                    zone = ZoneInfo(settings['timezone'])
+                    left = _range_boundary(day, zone)
+                    # Advance the local calendar, not 24 UTC hours: a DST day can have 23 or 25 hours.
+                    right = (datetime.fromisoformat(day) + timedelta(days=1)).replace(tzinfo=zone).astimezone(UTC)
+                    sql += ' AND captured_at>=? AND captured_at<?'
+                    args.extend((_iso(left), _iso(right)))
+                    begin = max(left, _timestamp(entry['start']))
+                    finish = min(right, _timestamp(entry['end']) if entry.get('end') else self.now())
+                    covered_entry = {**entry, 'start': _iso(begin), 'end': _iso(finish)} if begin < finish else None
+                rows = db.execute(sql + ' ORDER BY captured_at,id LIMIT 10000', args)
                 points = [dict(row) for row in rows]
-                return {'locations': points, 'coverage': self._location_coverage(entry, points),
-                        'entry': self._entry_view(entry, self._read_settings(db))}
+                return {'locations': points, 'coverage': self._location_coverage(covered_entry, points) if covered_entry else {'gaps': []},
+                        'entry': self._entry_view(entry, settings)}
             raise SchedulerError('Scheduler endpoint not found.', 404)
 
     def _state(self, db, user, query):

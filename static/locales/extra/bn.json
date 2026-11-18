@@ -3852,5 +3852,21 @@
   "Complete the preceding approval to edit this field.": "এই ক্ষেত্রটি সম্পাদনা করতে আগের অনুমোদন সম্পন্ন করুন।",
   "STEEL": "ইস্পাত",
   "DUCT": "ডাক্ট",
-  "WALLS / FLOORS": "দেয়াল / মেঝে"
+  "WALLS / FLOORS": "দেয়াল / মেঝে",
+  "CLASSIFIRE System ID": "CLASSIFIRE সিস্টেম আইডি",
+  "Locations for {0}, {1}": "{0}-এর অবস্থান, {1}",
+  "Timesheet map for {0}": "{0}-এর সময়পত্রের মানচিত্র",
+  "No locations were recorded for these entries on this day.": "সেদিন এই এন্ট্রিগুলির জন্য কোনো অবস্থান রেকর্ড করা হয়নি।",
+  "Length (mm)": "দৈর্ঘ্য (মিমি)",
+  "Pricing mode": "মূল্য নির্ধারণের ধরন",
+  "Supplier markup": "সরবরাহকারীর দামের ওপর মার্জিন",
+  "Manual": "ম্যানুয়াল",
+  "Price source": "মূল্যের উৎস",
+  "Sell rate": "বিক্রির হার",
+  "Use yields": "প্রতি ব্যবহারের কভারেজ",
+  "Enter a nonnegative number or leave blank.": "অঋণাত্মক সংখ্যা লিখুন বা ফাঁকা রাখুন।",
+  "Enter one value per Main Estimator group, including blank slots.": "প্রধান এস্টিমেটরের প্রতিটি গ্রুপে একটি মান দিন, খালি ঘরসহ।",
+  "Enter Inventory or Override for each price source.": "প্রতিটি মূল্যের উৎসের জন্য Inventory বা Override লিখুন।",
+  "Set Price source to Override before editing Sell rate.": "বিক্রির হার বদলানোর আগে মূল্যের উৎস Override করুন।",
+  "This group does not use a yield.": "এই গ্রুপে কভারেজ ব্যবহার করা হয় না।"
 }

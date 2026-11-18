@@ -2,6 +2,7 @@
 import re
 
 from .technical_brand_presentation import manufacturer_names
+from .technical_manufacturers import manufacturer_fields
 from .technical_fields import is_hidden_technical_label
 from .technical_prose import public_prose_fields
 from .technical_relevance import primary_fields
@@ -9,7 +10,7 @@ from .technical_table_navigation import field_tables
 from .technical_variant_presentation import variant_display
 
 
-_CF_MANUFACTURERS = {'promat', 'promat australia', 'trafalgar', 'trafalgar fire', 'snap', 'snap fire systems', 'allproof'}
+_CF_MANUFACTURERS = {'promat', 'promat australia', 'trafalgar', 'trafalgar fire', 'snap', 'snap fire systems', 'allproof', 'fendix'}
 _BONDECK = re.compile(r'\bbondeck\b', re.I)
 _SNAP_SYSTEM = re.compile(r'\bSNAP system \d+\b', re.I)
 _SNAP_SOURCE = re.compile(r'\bSNAP product filter, system \d+\b', re.I)
@@ -118,8 +119,12 @@ def public_item(data, key, record):
     code = data.get('_technical_public_ids', {}).get(key)
     if not code:
         return result
+    allocated = data.get('_technical_allocated_ids', {}).get(key)
+    if allocated:
+        result['classifire_system_id'] = allocated
     if 'fields' in record:
-        result['fields'] = public_fields(record['fields'], key, code)
+        fields = public_fields(record['fields'], key, code)
+        result['fields'] = manufacturer_fields(fields, data.get('_technical_discovery', {}).get(key, {}).get('manufacturer', []))
     if 'images' in record:
         result['images'] = [_image(image, key, code) for image in record['images']]
     if 'sources' in record:
@@ -165,6 +170,8 @@ def install_public_ids(data, store):
             name = next((f.get('value', '').strip() for f in records[key].get('fields', []) if f['label'] == 'ID'), '')
             ids[key] = displays[key].get('source_code') or name or key
     ids.update({alias: ids[target] for alias, target in data['_aliases'].items() if target in ids})
+    data['_technical_allocated_ids'] = {key: code for key, code in ids.items()
+                                       if data['_aliases'].get(key, key) in retained}
     data['_technical_public_ids'] = ids
     data['_technical_relevance_fields'] = {}
     for facets in data['_technical_discovery'].values():

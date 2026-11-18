@@ -3852,5 +3852,21 @@
   "Complete the preceding approval to edit this field.": "Terminez l’approbation précédente pour modifier ce champ.",
   "STEEL": "ACIER",
   "DUCT": "CONDUITS",
-  "WALLS / FLOORS": "MURS / PLANCHERS"
+  "WALLS / FLOORS": "MURS / PLANCHERS",
+  "CLASSIFIRE System ID": "ID système CLASSIFIRE",
+  "Locations for {0}, {1}": "Positions de {0}, {1}",
+  "Timesheet map for {0}": "Carte de pointage de {0}",
+  "No locations were recorded for these entries on this day.": "Aucune position n’a été enregistrée pour ces entrées ce jour-là.",
+  "Length (mm)": "Longueur (mm)",
+  "Pricing mode": "Mode de tarification",
+  "Supplier markup": "Majoration du prix fournisseur",
+  "Manual": "Manuel",
+  "Price source": "Source du prix",
+  "Sell rate": "Tarif de vente",
+  "Use yields": "Rendements par usage",
+  "Enter a nonnegative number or leave blank.": "Saisissez un nombre positif ou nul, ou laissez le champ vide.",
+  "Enter one value per Main Estimator group, including blank slots.": "Saisissez une valeur par groupe de l’estimateur principal, cases vides comprises.",
+  "Enter Inventory or Override for each price source.": "Saisissez Inventory ou Override pour chaque source du prix.",
+  "Set Price source to Override before editing Sell rate.": "Choisissez Override comme source du prix avant de modifier le tarif de vente.",
+  "This group does not use a yield.": "Ce groupe n’utilise pas de rendement."
 }

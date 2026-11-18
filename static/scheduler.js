@@ -496,7 +496,8 @@
       if (previousReport && previousReport.dataset.zone === zone && previousReport.dataset.language === document.documentElement.lang) state.root.append(previousReport);
       else {
         state.report ||= {kind:"payroll",period:"week",start:state.week,end:addDays(state.week,6),member:"",job:"",project:""};
-        return window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone});
+        return window.ClassifireSchedulerReports.render(state.root,state.report,{request,translated,addDays,weekStart,zone,
+          showLocations:(scope,current)=>showLocations({id:scope.entryIds[0],member_id:scope.member},{...scope,current})});
       }
     }
     if (state.page === "settings" && admin()) renderSettings();
@@ -1122,19 +1123,28 @@
     void captureLocation();
     updateLocationStatus();
   }
-  async function showLocations(entry) {
-    const actor = state.data?.user?.id, generation = state.authGeneration, revision = ++state.mapRequest;
+  async function showLocations(entry, scope = null) {
+    const actor = state.data?.user?.id, generation = state.authGeneration, revision = ++state.mapRequest, page = state.page;
+    const current = () => actor === state.data?.user?.id && generation === state.authGeneration && revision === state.mapRequest && state.page === page && (!scope || scope.current());
     try {
-      const data = await request(`/locations?entry_id=${encodeURIComponent(entry.id)}`);
-      if (actor !== state.data?.user?.id || generation !== state.authGeneration || revision !== state.mapRequest || state.page !== "entries") return;
-      closeDialog(); const modal = el("dialog","scheduler-dialog scheduler-locations"), header = el("div","section-heading"), title = el("h2","",`Timesheet map for ${memberName(entry.member_id)}`);
+      const histories = await Promise.all((scope?.entryIds || [entry.id]).map(id => request('/locations?'+new URLSearchParams({entry_id:id,...(scope ? {day:scope.day} : {})}))));
+      if (!current()) return;
+      const data = scope ? {locations:histories.flatMap(item=>item.locations || []).sort((a,b)=>Date.parse(a.captured_at)-Date.parse(b.captured_at)||a.id.localeCompare(b.id)),
+        coverage:{gaps:histories.flatMap(item=>item.coverage?.gaps || []).sort((a,b)=>Date.parse(a.start)-Date.parse(b.start))}} : histories[0];
+      const name = scope?.name || memberName(entry.member_id);
+      closeDialog(); const modal = el("dialog","scheduler-dialog scheduler-locations"), header = el("div","section-heading"), title = el("h2","",translated("Timesheet map for {0}",[name]));
       title.id = "scheduler-location-title"; modal.setAttribute("aria-labelledby",title.id); header.append(title,button("Close",closeDialog)); modal.append(header);
       const locations = data.locations || [];
       const layout = el("div","scheduler-location-layout"), mapColumn = el("div"), side = el("aside","scheduler-location-sidebar");
-      const shifts = state.data.entries.filter(item => item.member_id === entry.member_id && localParts(item.start).slice(0,10) === localParts(entry.start).slice(0,10));
-      const chooser = select(shifts.map(item => [item.id,`${timeFormatter.format(new Date(item.start))} – ${item.end ? timeFormatter.format(new Date(item.end)) : "Clocked in"}`]),entry.id);
-      chooser.setAttribute("aria-label","Time entry for location history"); chooser.addEventListener("change",() => {const selected = shifts.find(item => item.id === chooser.value); if(selected) void showLocations(selected);});
-      side.append(el("strong","",memberName(entry.member_id)),chooser,el("p","",calendarDay(localParts(entry.start).slice(0,10))),el("p","",hours(duration(entry.start,entry.end))),el("p","",assignmentLabel(entry) || translated("No Work Order assigned")),el("h3","","Timesheet timeline"));
+      side.append(el("strong","",name));
+      if (scope) side.append(el("p","",calendarDay(scope.day)));
+      else {
+        const shifts = state.data.entries.filter(item => item.member_id === entry.member_id && localParts(item.start).slice(0,10) === localParts(entry.start).slice(0,10));
+        const chooser = select(shifts.map(item => [item.id,`${timeFormatter.format(new Date(item.start))} – ${item.end ? timeFormatter.format(new Date(item.end)) : "Clocked in"}`]),entry.id);
+        chooser.setAttribute("aria-label","Time entry for location history"); chooser.addEventListener("change",() => {const selected = shifts.find(item => item.id === chooser.value); if(selected) void showLocations(selected);});
+        side.append(chooser,el("p","",calendarDay(localParts(entry.start).slice(0,10))),el("p","",hours(duration(entry.start,entry.end))),el("p","",assignmentLabel(entry) || translated("No Work Order assigned")));
+      }
+      side.append(el("h3","","Timesheet timeline"));
       const list = el("ol","scheduler-location-list"), selectedText = el("p","scheduler-selected-location"); selectedText.setAttribute("aria-live","polite");
       let map, selectedIndex = 0;
       const selectPoint = index => {
@@ -1143,7 +1153,7 @@
         [...list.children].forEach((row,number) => row.querySelector("button")?.setAttribute("aria-current",number === index ? "true" : "false"));
         selectedText.textContent = `${shiftMoment(point.captured_at)} · ${Number(point.latitude).toFixed(5)}, ${Number(point.longitude).toFixed(5)} · accuracy ±${Math.round(point.accuracy)} m`;
       };
-      if (!locations.length) mapColumn.append(el("p","empty-state","No locations were recorded for this time entry. Past movements cannot be reconstructed."));
+      if (!locations.length) mapColumn.append(el("p","empty-state",translated(scope ? "No locations were recorded for these entries on this day." : "No locations were recorded for this time entry. Past movements cannot be reconstructed.")));
       else {
         map = locationPlot(locations,selectPoint); mapColumn.append(map.element);
         const playback = button("Play route",() => {
@@ -1162,7 +1172,7 @@
       if(gaps.length) {const warning = el("section","scheduler-location-gaps"); warning.append(el("strong","","Missing location intervals")); for(const gap of gaps) warning.append(el("p","helper",`${shiftMoment(gap.start)} – ${shiftMoment(gap.end)} · ${hours(gap.minutes)}`)); side.append(warning);}
       layout.append(mapColumn,side); modal.append(layout);
       modal.addEventListener("close",() => {clearInterval(state.locationPlayback); state.locationPlayback = null; map?.dispose(); modal.remove(); if(state.dialog === modal)state.dialog = null;}); state.root.append(modal); state.dialog = modal; modal.showModal(); selectPoint(0);
-    } catch(error) {if(generation === state.authGeneration && revision === state.mapRequest) {notice(error.message,true); if([401,409].includes(error.status)) void refresh();}}
+    } catch(error) {if(current()) {notice(error.message,true); if([401,409].includes(error.status)) void refresh();}}
   }
   function locationPlot(points,onSelect) {
     const ns = "http://www.w3.org/2000/svg", wrapper = el("div","scheduler-location-map"), surface = el("div","scheduler-map-surface"), canvas = el("canvas"), svg = document.createElementNS(ns,"svg");
@@ -1197,6 +1207,8 @@
       for(const item of tileJobs) {item.tile.onload = paint; item.tile.onerror = paint;} paint();
       const screen = coords.map(([x,y]) => [x*size-left,y*size-top]);
       for(let index=1;index<screen.length;index++) {
+        // Separate clock sessions have no recorded route between them.
+        if(points[index].entry_id !== points[index-1].entry_id)continue;
         const line = document.createElementNS(ns,"line"); line.setAttribute("x1",screen[index-1][0]); line.setAttribute("y1",screen[index-1][1]); line.setAttribute("x2",screen[index][0]); line.setAttribute("y2",screen[index][1]); line.setAttribute("class","scheduler-location-line");
         if(Date.parse(points[index].captured_at)-Date.parse(points[index-1].captured_at)>35*60000)line.setAttribute("stroke-dasharray","7 6"); svg.append(line);
       }

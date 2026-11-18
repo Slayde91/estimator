@@ -265,7 +265,11 @@
     uiAttr(remove, "title", "Remove {0} from the {1}", [itemTitle, titles[pane.kind]]);
     uiAttr(remove, "aria-label", "Remove {0} from the {1}", [itemTitle, titles[pane.kind]]); remove.dataset.libraryDelete = item.id;
     remove.disabled = pane.deletePending.has(item.id); pane.deleteButtons.set(`${place}:${item.id}`, remove);
-    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status); actions.append(remove, link, add, status); return actions;
+    add.disabled = pane.addPending.has(item.id); pane.scheduleButtons.set(`${place}:${item.id}`, add); pane.actionMessages.set(`${place}:${item.id}`, status);
+    actions.append(remove, link, add);
+    if (place === "detail" && pane.kind === "technical") actions.append(technicalDocumentMenu(pane, item));
+    actions.append(status);
+    return actions;
   }
   async function deleteItem(pane, item) {
     const id = item.id;
@@ -369,7 +373,8 @@
       const fields = [];
       for (const source of record.fields || []) {
         if (facetFields.has(source.label)) continue;
-        const control = field(source.label, source.value, true); fields.push({ label: source.label, control });
+        const label = record.classifire_system_id && source.label === "ID" ? "CLASSIFIRE System ID" : source.label;
+        const control = field(label, source.value, true); fields.push({ label: source.label, control });
         if (["ID", "Technical Library ID"].includes(source.label)) {
           control.readOnly = true;
           control.parentElement.hidden = !(record.source_code && source.value === record.source_code);
@@ -963,17 +968,21 @@
     heading.id = `${pane.kind}-library-detail-heading`; heading.tabIndex = -1; pane.detailPanel.setAttribute("aria-labelledby", heading.id);
     for (const key of pane.quantityBadges.keys()) if (key.startsWith("detail:")) pane.quantityBadges.delete(key);
     const title = node("div", `library-record-heading${pane.kind === "technical" ? " library-technical-heading" : ""}`);
-    title.append(heading, pane.kind === "penetration" ? quantityBadge(pane, data.id, "detail") : technicalDocumentMenu(pane, data));
-    const content = [detailNavigation(pane), title];
+    title.append(heading);
+    if (pane.kind === "penetration") title.append(quantityBadge(pane, data.id, "detail"));
+    const navigation = detailNavigation(pane);
+    const content = [navigation, title];
     const subtitle = window.LibraryDetailText.displaySubtitle(data, summary);
     if (subtitle) content.push(node("p", `library-subtitle ${summaryClass(data)}`, subtitle));
     for (const key of pane.scheduleButtons.keys()) if (key.startsWith("detail:")) { pane.scheduleButtons.delete(key); pane.actionMessages.delete(key); }
     for (const key of pane.deleteButtons.keys()) if (key.startsWith("detail:")) pane.deleteButtons.delete(key);
     pane.unlinkButtons.clear();
-    if (data.price || kinds.includes(pane.kind)) {
+    const actions = itemActions(pane, data, "detail");
+    if (pane.kind === "technical") navigation.append(actions);
+    if (data.price || pane.kind !== "technical") {
       const commercial = node("div", "library-record-commercial");
       if (data.price) commercial.append(node("p", "library-record-price", `${priceLabel(data.price)}: ${priceText(data.price)}`));
-      commercial.append(itemActions(pane, data, "detail"));
+      if (pane.kind !== "technical") commercial.append(actions);
       content.push(commercial);
     }
     if (data.notice) content.push(node("p", "library-record-notice", display(data.notice)));
@@ -1057,7 +1066,9 @@
       if (tables.length) { pair.className += " library-record-field-table"; value.append(...tables); }
       if (links.length) { const navigation = node("div", "library-table-links"); navigation.append(...links); value.append(navigation); }
       if (images.length) { const gallery = node("div", "library-images library-field-images"); gallery.append(...images.map(item => imageNode(item, pane.kind, imageOnly, pane.detail.image_replicas, data))); value.append(gallery); }
-      pair.append(uiNode("dt", "", display(fieldLabel(pane.kind, field.label, field.column) || "Field")), value); fields.append(pair);
+      const label = pane.kind === "technical" && field.label === "ID" && data.classifire_system_id
+        ? "CLASSIFIRE System ID" : fieldLabel(pane.kind, field.label, field.column) || "Field";
+      pair.append(uiNode("dt", "", display(label)), value); fields.append(pair);
     }
     content.push(fields);
     if (pane.kind === "technical" && data.diagram_status && !diagramStatusShown) content.push(node("p", "helper library-diagram-status", display(data.diagram_status)));

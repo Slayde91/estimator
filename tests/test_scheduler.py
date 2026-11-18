@@ -139,7 +139,7 @@ class SchedulerTests(unittest.TestCase):
         worker = self.member()
         other = self.member('Other')
         base = {'member_id':worker['id'], 'start':'2026-11-02T23:00','end':'2026-11-03T03:00'}
-        self.write('entries/save', {**base,'breaks':[
+        entry = self.write('entries/save', {**base,'breaks':[
             {'start':'2026-11-02T23:50','end':'2026-11-03T00:10','paid':True},
             {'start':'2026-11-03T02:00','end':'2026-11-03T02:30','paid':False}]})
         self.write('entries/save',{**base,'member_id':other['id']})
@@ -148,6 +148,8 @@ class SchedulerTests(unittest.TestCase):
         self.write('clock/in',{})  # Administrator's open entry is omitted from the report.
         data = self.store.read('reports',period,token)
         self.assertEqual(data['members'],{worker['id']:worker['name']})
+        self.assertEqual({row['entry_id'] for row in data['rows']}, {entry['id']})
+        self.assertNotIn('latitude', json.dumps(data))
         self.assertEqual([(r['day'],r['paid'],r['paid_break'],r['unpaid_break']) for r in data['rows']],
                          [('2026-11-02',3600,600,0),('2026-11-03',9000,600,1800)])
         self.assertTrue(all(r['clock_in']=='2026-11-02T23:00:00+11:00' and
@@ -363,6 +365,50 @@ class SchedulerTests(unittest.TestCase):
         closed = self.write('clock/out')
         self.assert_error(403, lambda: self.write('locations', location))
         self.assert_error(400, lambda: self.write('entries/save', {**closed, 'start': (self.now - timedelta(seconds=1)).isoformat()}))
+
+    def test_location_day_scope_preserves_permissions_and_dst_calendar_boundaries(self):
+        # Sydney's 4 October has 23 hours; the final midnight observation belongs to the next day.
+        self.now = datetime(2026, 10, 3, 13, tzinfo=timezone.utc)
+        entry = self.write('clock/in')
+        for moment in (datetime(2026, 10, 3, 14, tzinfo=timezone.utc),
+                       datetime(2026, 10, 4, 12, 30, tzinfo=timezone.utc)):
+            self.now = moment
+            self.token = self.store.write('login', {'email': 'admin@example.test', 'password': 'correct horse battery'})['token']
+            self.write('locations', {'entry_id': entry['id'], **self.location()})
+        self.now = datetime(2026, 10, 4, 13, tzinfo=timezone.utc)
+        self.write('clock/out', {'entry_id': entry['id'], 'location': self.location()})
+        query = {'entry_id': entry['id'], 'day': '2026-10-04'}
+        history = self.store.read('locations', query, self.token)
+        self.assertEqual([point['captured_at'] for point in history['locations']],
+                         ['2026-10-03T14:00:00Z', '2026-10-04T12:30:00Z'])
+        self.assertEqual(history['coverage']['gaps'], [{'start': '2026-10-03T14:00:00Z', 'end': '2026-10-04T12:30:00Z', 'minutes': 1350}])
+        self.assertTrue(all('2026-10-03T14:00:00Z' <= gap['start'] < gap['end'] <= '2026-10-04T13:00:00Z'
+                            for gap in history['coverage']['gaps']))
+        self.assertEqual(len(self.store.read('locations', {'entry_id': entry['id']}, self.token)['locations']), 4)
+        for day in ('2026-10-06', '2100-12-31'):
+            empty = self.store.read('locations', {**query, 'day': day}, self.token)
+            self.assertEqual(empty['locations'], [])
+            self.assertEqual(empty['coverage']['gaps'], [])
+        for day in ('', '2026-02-30', '2026-10-04T00:00:00Z', '2026-1-4'):
+            self.assert_error(400, lambda: self.store.read('locations', {**query, 'day': day}, self.token))
+        worker = self.member()
+        token = self.store.write('login', {'email': worker['email'], 'password': 'worker password 123'})['token']
+        self.assert_error(403, lambda: self.store.read('locations', query, token))
+        self.assert_error(401, lambda: self.store.read('locations', query))
+
+    def test_location_scope_does_not_turn_a_skipped_calendar_day_into_the_following_day(self):
+        settings = self.state()['settings']
+        self.write('organization', {'version': settings['version'], 'timezone': 'Pacific/Apia'})
+        # Apia skipped 30 December 2011. This instant is midnight on 31 December.
+        self.now = datetime(2011, 12, 30, 10, tzinfo=timezone.utc)
+        entry = self.write('clock/in')
+        self.now += timedelta(minutes=30)
+        self.write('clock/out', {'entry_id': entry['id'], 'location': self.location()})
+        missing = self.store.read('locations', {'entry_id': entry['id'], 'day': '2011-12-30'}, self.token)
+        self.assertEqual(missing['locations'], [])
+        self.assertEqual(missing['coverage']['gaps'], [])
+        following = self.store.read('locations', {'entry_id': entry['id'], 'day': '2011-12-31'}, self.token)
+        self.assertEqual(len(following['locations']), 2)
 
     def test_stale_location_watcher_cannot_follow_another_user_or_clock_session(self):
         first = self.write('clock/in', {'location_consent': True})

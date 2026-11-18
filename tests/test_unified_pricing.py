@@ -29,8 +29,7 @@ SHARED_INPUTS = {
     'B26': 0, 'B27': 0,
 }
 
-USE_COLUMNS = ('Group', 'Selection name', 'Price source', 'Sell rate',
-               'Yield type', 'Use yields', 'Rate ID', 'Use order')
+USE_COLUMNS = ('Group', 'Price source', 'Sell rate', 'Use yields', 'Rate ID')
 
 
 def read_use_values(value):
@@ -174,8 +173,8 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
     def test_separate_use_override_and_yield_survive_round_trip_and_later_price_change(self):
         original = self.export()
         first_payload = self.edit(original, [
-            ('Use', 'primers:1', {'Sell rate': 401.25, 'Yield type': 'Number', 'Use yields': 71}),
-            ('Use', 'mesh:2', {'Yield type': 'Number', 'Use yields': 2.5}),
+            ('Use', 'primers:1', {'Price source': 'Override', 'Sell rate': 401.25, 'Use yields': 71}),
+            ('Use', 'mesh:2', {'Use yields': 2.5}),
         ])
         first = self.preview(first_payload)['configuration']
         expected = {'inventory': {}, 'rates': {'primers:1': {'price': 401.25, 'yield': 71},
@@ -211,12 +210,12 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
             self.assertEqual(set(uses), {'primers:1', 'topcoats:1'})
             for rate_id, group, price_source, price, yield_value in (
                 ('primers:1', 'primers', 'Override', 401.25, 71),
-                ('topcoats:1', 'topcoats', 'Inventory', 360, 142),
+                ('topcoats:1', 'topcoats', 'Inventory', None, 142),
             ):
                 self.assertEqual((uses[rate_id]['Group'], uses[rate_id]['Price source']),
                                  (group, price_source))
-                self.assertEqual((float(uses[rate_id]['Sell rate']), float(uses[rate_id]['Use yields'])),
-                                 (price, yield_value))
+                self.assertEqual(uses[rate_id]['Sell rate'], '' if price is None else str(price))
+                self.assertEqual(float(uses[rate_id]['Use yields']), yield_value)
         finally:
             workbook.close()
         round_trip = self.preview(self.export(second), second)
@@ -239,7 +238,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
             ('Blank', None, None, '#DIV/0!'), ('Empty text', None, '', '#VALUE!'),
         ):
             with self.subTest(kind=kind):
-                payload = self.edit(original, [('Use', 'mesh:2', {'Yield type': kind, 'Use yields': workbook_value})])
+                payload = self.edit(original, [('Use', 'mesh:2', {'Use yields': "Empty text" if kind == "Empty text" else workbook_value})])
                 proposed = self.preview(payload)['configuration']
                 mesh = next(rate for rate in effective_catalog(proposed)['rate_groups']['mesh']
                             if rate['id'] == 'mesh:2')
@@ -256,7 +255,7 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         payload = self.edit(self.export(), [
             ('Inventory', '204', {'Supplier price': 300, 'Markup': 0.2}),
             ('Inventory', '915', {'Sell price': 2222}),
-            ('Use', 'mesh:2', {'Yield type': 'Number', 'Use yields': 2.5}),
+            ('Use', 'mesh:2', {'Use yields': 2.5}),
         ])
         proposed = self.preview(payload)['configuration']
         self.assertEqual(self.stored_rows(), before)
@@ -288,9 +287,8 @@ class UnifiedPricingIntegrationTests(unittest.TestCase):
         draft = {'inventory': {'915': {'sales_price': 2222}},
                  'rates': {'primers:1': {'price': 401.25, 'yield': 71}}}
         original = self.export(draft)
-        # Group is now the editable scalar-view membership list. Its edits are
-        # reconciled by stable group identities; hidden vectors still align.
-        for heading, shortened_value in (('Use yields', 71), ('Selection name', 'Only one'), ('Rate ID', 'primers:1')):
+        # Editable vectors follow group order and hidden stable IDs match the row snapshot.
+        for heading, shortened_value in (('Use yields', 71), ('Price source', 'Override'), ('Rate ID', 'primers:1')):
             with self.subTest(heading=heading):
                 malformed = self.edit(original, [('Inventory', '204', {heading: shortened_value})])
                 rejected = self.request('POST', '/api/pricing/import', {

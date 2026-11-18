@@ -75,10 +75,11 @@ class PricingUnitTests(unittest.TestCase):
         headers = {cell.value: cell.column for cell in sheet[1]}
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
-                self.assertEqual(cell.protection.locked, cell.column == headers['Yield unit'], cell.coordinate)
-        self.assertTrue(sheet.column_dimensions['I'].protection.locked)
-        self.assertFalse(sheet.column_dimensions['H'].protection.locked)
-        self.assertFalse(sheet.column_dimensions['S'].protection.locked)
+                self.assertEqual(cell.protection.locked, cell.column in {headers[name] for name in
+                    ('Yield unit', 'Inventory ID', 'Rate ID', 'Saved values')}, cell.coordinate)
+        self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Yield unit']).column_letter].protection.locked)
+        self.assertFalse(sheet.column_dimensions[sheet.cell(1, headers['Yield']).column_letter].protection.locked)
+        self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Saved values']).column_letter].protection.locked)
         self.assertTrue(all(cell.protection.locked for cell in sheet[1]))
         book.close()
 

@@ -3867,5 +3867,7 @@
   "Enter a valid Main Estimator group: {0}.": "প্রধান এস্টিমেটরের একটি বৈধ গ্রুপ লিখুন: {0}।",
   "Enter each group once: {0}.": "প্রতিটি গ্রুপ একবার লিখুন: {0}।",
   "Use group = value for each entry.": "প্রতিটি এন্ট্রির জন্য গ্রুপ = মান ব্যবহার করুন।",
-  "Use group = value when the yield units differ.": "কভারেজের একক ভিন্ন হলে গ্রুপ = মান ব্যবহার করুন।"
+  "Use group = value when the yield units differ.": "কভারেজের একক ভিন্ন হলে গ্রুপ = মান ব্যবহার করুন।",
+  "Enter a markup of at least −100%.": "অন্তত −১০০% মার্কআপ দিন।",
+  "Enter a nonnegative price.": "শূন্য বা তার বেশি দাম লিখুন।"
 }

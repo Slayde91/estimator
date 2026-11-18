@@ -58,5 +58,15 @@
     "적용량 단위가 서로 다르면 그룹 = 값 형식을 사용하세요.",
     "Gamitin ang pangkat = halaga kung magkakaiba ang mga unit ng saklaw.",
     "Dùng nhóm = giá trị khi các đơn vị định mức khác nhau."
+  ],
+  "Enter a markup of at least −100%.": [
+    "−100% 이상의 가산율을 입력하세요.",
+    "Maglagay ng markup na hindi bababa sa −100%.",
+    "Nhập tỷ lệ phụ phí từ −100% trở lên."
+  ],
+  "Enter a nonnegative price.": [
+    "0 이상의 가격을 입력하세요.",
+    "Maglagay ng presyong hindi negatibo.",
+    "Nhập giá không âm."
   ]
 }

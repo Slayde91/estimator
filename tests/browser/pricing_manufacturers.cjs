@@ -8,7 +8,8 @@ const {referenceExport}=require('./reference_export.cjs');
 const root=path.resolve(__dirname,'../..'),python=process.env.CEASEFIRE_PYTHON||'python';
 const output=path.join(root,'.runtime/browser-qa',`pricing-manufacturers-${Date.now()}`);fs.mkdirSync(output,{recursive:true});
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
-const sources=['static/app.js','estimator/catalog.py','estimator/pricing_workbook.py','estimator/pricing_manufacturers.py','data/pricing_manufacturers.json'];
+const sources=['static/app.js','static/pricing-groups.js','static/pricing-groups.css','static/styles.css',
+  'estimator/catalog.py','estimator/pricing_workbook.py','estimator/pricing_manufacturers.py','data/pricing_manufacturers.json'];
 const sourceHashes=Object.fromEntries(sources.map(name=>[name,hash(fs.readFileSync(path.join(root,name)))]));
 const server=spawn(python,[path.join(__dirname,'project_library_fixture.py'),'--directory',output],{cwd:root,windowsHide:true});
 let logs='',browser,page,info,owner,base,projectBytes,frozen,canonicalBefore,canonicalImported;
@@ -17,6 +18,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   server.stdout.on('data',value=>{data+=value;if(data.includes('\n')){clearTimeout(timer);resolve(JSON.parse(data.split('\n')[0]));}});
   server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error(`Fixture exited ${code}: ${logs}`));});});
 const errors=[],consoleErrors=[],evidence={layouts:[],checkpoints:[]};
+const standaloneId='browser-standalone-primer';
 async function idle(){await page.waitForFunction(()=>{const status=window.CeasefireDesktop?.status();return status?.ready&&!status.busy;},null,{timeout:120000});}
 async function api(route){const reply=await page.request.get(base+route);assert.equal(reply.status(),200,await reply.text());return reply.json();}
 async function projectState(){await idle();return page.evaluate(()=>({configuration:window.CeasefireProject.configuration(),details:window.CeasefireProject.details(),calculators:window.CeasefireCalculators.projectSnapshot(),penetration:window.CeasefirePenetrations.projectSnapshot(),inputs:[...document.querySelectorAll('#main-estimate-form input,#main-estimate-form select,#main-estimate-form textarea')].map(node=>[node.id,node.type,node.value,node.checked]),totals:[...document.querySelectorAll('[id^="sum-"]')].map(node=>[node.id,node.textContent])}));}
@@ -48,6 +50,16 @@ async function checkpoint(label,manufacturer,configuration,expected=canonicalBef
 }
 const row=()=>page.locator(`#pricing-body tr[data-price-kind="inventory"][data-price-id="${owner.id}"]`);
 const field=()=>row().locator('[data-price-field="Manufacturer"]');
+const groupPopup=name=>page.locator(`.pricing-group-popup[data-pricing-group-field="${name}"]`);
+function groupChoice(popup,key){
+  return popup.locator(`input[type="checkbox"][value="${key}"]`);
+}
+async function assertPopupFits(popup,width){
+  const bounds=await popup.boundingBox();
+  const height=page.viewportSize().height;
+  assert.ok(bounds&&bounds.x>=-1&&bounds.x+bounds.width<=width+1&&bounds.y>=-1&&bounds.y+bounds.height<=height+1,
+    'Group dropdown is reachable at '+width);
+}
 async function findOwner(){await page.locator('#rate-group').selectOption('');await page.locator('#pricing-search').fill(owner.name);await expect(row()).toHaveCount(1);}
 async function editManufacturer(value){await field().fill(value);await field().press('Tab');await expect(field()).toHaveValue(value);}
 async function saveLibrary(){
@@ -77,6 +89,16 @@ async function importWorkbook(file,accept){
   browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1146,height:900}});
   page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')consoleErrors.push(message.text());});
   await page.goto(base+'/');await idle();
+  const existingConfiguration=await api('/api/configuration');
+  const existingCatalog=(await api('/api/bootstrap')).catalog;
+  const exception=existingCatalog.rate_groups.primers.find(rate=>rate.inventory_id==='204');
+  assert.ok(exception,'Fixture has a primer rate for the two-group coating');
+  exception.price_mode='override';exception.price=401.25;
+  existingCatalog.rate_groups.primers.push({id:standaloneId,name:'QA standalone primer rate',
+    inventory_id:null,price_mode:'override',price:0,uses_yield:true,yield:null,source:{}});
+  const seed=await page.request.put(base+'/api/configuration',{data:{...existingConfiguration,catalog:existingCatalog}});
+  assert.equal(seed.status(),200,await seed.text());
+  await page.reload();await idle();
   const bootstrap=await api('/api/bootstrap'),linkedIds=new Set(Object.values(bootstrap.catalog.rate_groups).flat().map(rate=>rate.inventory_id));
   owner=bootstrap.catalog.inventory.find(item=>item.manufacturer&&item.manufacturer!=='N/A'&&item.source?.manufacturer_assignment&&linkedIds.has(item.id));
   assert.ok(owner,'Disposable bootstrap includes a genuine source-reviewed branded inventory owner with linked uses');
@@ -87,13 +109,13 @@ async function importWorkbook(file,accept){
   const saving=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/project/save-as');await clickProjectControl(page,'Save');assert.equal((await saving).status(),200);await idle();
   projectBytes=fs.readFileSync(info.project);frozen=await projectState();assert.ok(frozen.configuration.catalog,'Current project owns a frozen catalogue');
   await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-scope')).toHaveValue('library');
-  await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Pricing mode',
-    'Main Estimator groups','Firestopping Estimator groups','Yield','Rate overrides','Width (mm)','Length (mm)','Area (m²)','Actions']);
+  await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price',
+    'Main Estimator groups','Firestopping Estimator groups','Yield','Width (mm)','Length (mm)','Area (m²)','Actions']);
   await page.locator('#pricing-search').fill(owner.manufacturer);await expect(row()).toBeVisible();await expect(field()).toHaveValue(owner.manufacturer);
   await findOwner();await expect(field()).toHaveAttribute('maxlength','200');await expect(field()).toHaveAccessibleName(owner.name+': Manufacturer');await field().scrollIntoViewIfNeeded();
-  const sellPrice = row().locator('.pricing-sell-price');
-  await expect(sellPrice).toHaveCSS('vertical-align','middle');
-  await expect(sellPrice).toHaveCSS('text-align','center');
+  const sellPrice = row().locator('[data-price-field="sales_price"]');
+  await expect(sellPrice).toBeEditable();
+  await expect(sellPrice).toHaveAccessibleName(owner.name+': Sell price');
   await page.screenshot({path:path.join(output,'manufacturer-desktop.png')});evidence.layouts.push({width:1146,visible:true,editable:true});
   await editManufacturer('QA desktop manufacturer');await page.locator('#pricing-search').fill('QA desktop manufacturer');await expect(row()).toHaveCount(1);await expect(page.locator('#pricing-body tr')).toHaveCount(1);
   // Cancelling the native Save confirmation keeps the edited field and all shared data.
@@ -115,12 +137,14 @@ async function importWorkbook(file,accept){
 from openpyxl import load_workbook
 b=load_workbook(sys.argv[1]);s=b['Inventory & Rates'];h={c.value:c.column for c in s[1]}
 assert 'Manufacturer' in h and not s.column_dimensions[s.cell(1,h['Manufacturer']).column_letter].hidden
-assert all(name not in h for name in ('Price source','Sell rate','Use yields','Inventory ID','Rate ID'))
-assert all(name in h and not s.column_dimensions[s.cell(1,h[name]).column_letter].hidden for name in ('Yield','Rate overrides'))
+assert all(name not in h for name in ('Price source','Sell rate','Use yields','Inventory ID','Rate ID','Pricing mode','Rate overrides'))
+assert 'Yield' in h and not s.column_dimensions[s.cell(1,h['Yield']).column_letter].hidden
 assert s.column_dimensions[s.cell(1,h['Saved values']).column_letter].hidden
-for name in ('Yield','Rate overrides'):
- assert all(value is None or not isinstance(value,str) or value.strip(' ;') for (value,) in s.iter_rows(min_row=2,min_col=h[name],max_col=h[name],values_only=True))
+assert all(value is None or not isinstance(value,str) or (value.strip(' ;') and 'Empty text' not in value)
+           for (value,) in s.iter_rows(min_row=2,min_col=h['Yield'],max_col=h['Yield'],values_only=True))
 saved={n:json.loads(s.cell(n,h['Saved values']).value) for n in range(2,s.max_row+1)}
+primer=next(u['rate'] for item in saved.values() if (item.get('product') or {}).get('id')=='204' for u in item['uses'] if u['group']=='primers')
+assert (primer['price_mode'],primer['price'])==('override',401.25)
 rows=[n for n,item in saved.items() if str((item.get('product') or {}).get('id'))==sys.argv[3]]
 assert len(rows)==1
 n=rows[0];assert s.cell(n,h['Manufacturer']).value is None
@@ -138,11 +162,20 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
   assert.equal(preview.summary.inventory.added,0);assert.equal(preview.summary.inventory.removed,0);assert.equal(preview.summary.rates.added,0);assert.equal(preview.summary.rates.removed,0);
   await saveLibrary();await checkpoint('excel-roundtrip-saved','QA Excel manufacturer',undefined,canonicalImported);await reloadFrozenProject();await expect(field()).toHaveValue('QA Excel manufacturer');await checkpoint('excel-roundtrip-reloaded','QA Excel manufacturer',undefined,canonicalImported);
 
+  await page.locator('#pricing-search').fill('N/A');
+  const placeholderRow=page.locator('#pricing-body tr[data-price-kind="inventory"][data-price-id="0"]');
+  await expect(placeholderRow.locator('[data-price-field="Yield"]')).not.toHaveValue(/Empty text/);
+  await expect(placeholderRow.locator('[data-price-field="sales_price"]')).toBeEditable();
+  await expect(placeholderRow.locator('.pricing-existing-overrides')).toHaveCount(0);
   const coating = bootstrap.catalog.inventory.find(item => item.id === '204');
   assert.ok(coating);
   await page.locator('#pricing-search').fill(coating.name);
   const coatingRow = page.locator('#pricing-body tr[data-price-kind="inventory"][data-price-id="204"]');
   const coatingField = name => coatingRow.locator(`[data-price-field="${name}"]`);
+  const overrideSection=coatingRow.locator('.pricing-existing-overrides');
+  await overrideSection.locator('summary').click();
+  await expect(coatingField('Rate overrides')).toHaveValue('primers = 401.25');
+  await overrideSection.locator('summary').click();
   const editField = async (name,value) => {
     const input = coatingField(name);
     await expect(input).toBeEditable();
@@ -150,38 +183,81 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
     await input.blur();
     await expect(input).not.toHaveAttribute('aria-invalid','true');
   };
-  await coatingField('Pricing mode').selectOption('manual');
-  await expect(coatingField('supplier_price')).toBeDisabled();
+  await editField('supplier_price','200');
+  await editField('markup','25');
+  await expect(coatingField('sales_price')).toHaveValue(/^250(?:\.00)?$/);
   await editField('sales_price','310');
-  await expect(coatingField('Main Estimator groups')).toHaveValue(/primers;\s*topcoats/);
-  await editField('Rate overrides','');
-  await expect(coatingField('Rate overrides')).toHaveValue('');
-  await editField('Rate overrides','primers = 0');
-  await expect(coatingField('Rate overrides')).toHaveValue('primers = 0');
-  await editField('Rate overrides','primers = 401.25');
+  await expect(coatingField('supplier_price')).toHaveValue(/^200(?:\.00)?$/);
+  await expect(coatingField('markup')).toHaveValue(/^55(?:\.00)?$/);
+  await editField('supplier_price','240');
+  await expect(coatingField('sales_price')).toHaveValue(/^372(?:\.00)?$/);
+  await editField('supplier_price','200');
+  await expect(coatingField('sales_price')).toHaveValue(/^310(?:\.00)?$/);
   await editField('Yield','primers = 71');
   await expect(coatingField('Yield')).toHaveValue('primers = 71; topcoats = 142');
+  const mainField='Main Estimator groups',fireField='Firestopping Estimator groups';
+  const main=groupPopup(mainField),fire=groupPopup(fireField);
+  const mainTrigger=coatingField(mainField).locator('.pricing-group-trigger');
+  await expect(mainTrigger).toHaveAccessibleName(coating.name+': '+mainField);
+  await mainTrigger.press('ArrowDown');
+  await expect(main).toBeVisible();
+  await expect(groupChoice(main,'primers')).toBeChecked();
+  await expect(groupChoice(main,'topcoats')).toBeChecked();
+  await groupChoice(main,'mesh').check();
+  await main.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(main).toBeHidden();
+  await coatingField(mainField).locator('.pricing-group-add').click();
+  await expect(groupChoice(main,'mesh')).not.toBeChecked();
+  await groupChoice(main,'mesh').check();
+  await main.getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(main).toBeHidden();
+
+  await coatingField(fireField).locator('.pricing-group-add').click();
+  await groupChoice(fire,'boards').check();
+  await groupChoice(fire,'materials').check();
+  await fire.getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(fire).toBeHidden();
   for (const width of [1440,390]) {
     await page.setViewportSize({width,height:900});
-    await coatingField('Rate overrides').scrollIntoViewIfNeeded();
     await expect(coatingField('Yield')).toBeEditable();
-    await expect(coatingField('Rate overrides')).toBeEditable();
-    await page.screenshot({path:path.join(output,`consolidated-pricing-${width}.png`)});
+    await expect(coatingField(mainField).locator('.pricing-group-add')).toBeEnabled();
+    await expect(coatingField(fireField).locator('.pricing-group-add')).toBeEnabled();
+    await coatingField(fireField).locator('.pricing-group-trigger').click();
+    await expect(fire).toBeVisible();await assertPopupFits(fire,width);
+    await expect(groupChoice(fire,'boards')).toBeChecked();
+    await expect(groupChoice(fire,'materials')).toBeChecked();
+    await page.screenshot({path:path.join(output,`pricing-group-dropdown-${width}.png`)});
+    await page.keyboard.press('Escape');await expect(fire).toBeHidden();
   }
   await page.setViewportSize({width:1146,height:900});
   await editField('Width (mm)','300');
   await editField('Length (mm)','420');
   await editField('Area (m²)','0.126');
+
+  await page.locator('#pricing-search').fill('QA standalone primer rate');
+  const standalone=page.locator(`#pricing-body tr[data-price-kind="rates"][data-price-id="${standaloneId}"]`);
+  const standaloneSell=standalone.locator('[data-price-field="sales_price"]');
+  await expect(standaloneSell).toBeEditable();
+  await standaloneSell.fill('25');await standaloneSell.blur();
+  await expect(standalone.locator('[data-price-field="supplier_price"]')).toHaveValue(/^25(?:\.00)?$/);
+  await expect(standalone.locator('[data-price-field="markup"]')).toHaveValue(/^0(?:\.00)?$/);
   await saveLibrary();
   const savedCatalog = analyze(await api('/api/configuration'),'editable-estimator-inputs').canonical;
   const savedCoating = savedCatalog.inventory.find(item => item.id === coating.id);
   assert.equal(savedCoating.sales_price,310);
-  assert.equal(savedCoating.pricing_mode,'manual');
+  assert.equal(savedCoating.supplier_price,200);
+  assert.ok(Math.abs(savedCoating.markup-0.55)<1e-10,'Editing sell price recomputes the markup percentage');
   assert.deepEqual(savedCoating.properties,{...coating.properties,width_mm:300,length_mm:420,sqm:0.126});
+  assert.deepEqual(new Set(savedCoating.firestopping_groups),new Set(['boards','materials']));
   const primer = savedCatalog.rate_groups.primers.find(item => item.inventory_id === coating.id);
   const topcoat = savedCatalog.rate_groups.topcoats.find(item => item.inventory_id === coating.id);
+  const mesh = savedCatalog.rate_groups.mesh.find(item => item.inventory_id === coating.id);
+  const standaloneRate=savedCatalog.rate_groups.primers.find(item=>item.id===standaloneId);
   assert.deepEqual([primer.price_mode,primer.price,primer.yield],['override',401.25,71]);
   assert.deepEqual([topcoat.price_mode,topcoat.price,topcoat.yield],['inventory',310,142]);
+  assert.deepEqual([mesh.price_mode,mesh.price],['inventory',310]);
+  assert.deepEqual([standaloneRate.inventory_id,standaloneRate.supplier_price,standaloneRate.markup,standaloneRate.price],
+    [null,25,0,25]);
   assert.deepEqual(await projectState(),frozen,'Shared estimator edits preserve the saved project snapshot');
   assert.deepEqual(fs.readFileSync(info.project),projectBytes,'Shared estimator edits preserve the saved project bytes');
   evidence.editableEstimatorInputs = true;

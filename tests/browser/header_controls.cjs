@@ -240,7 +240,7 @@ async function inspectHeader(width) {
       await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','18px');
       await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
       const pricingScroll=page.locator('#library-pricing .table-scroll'),columns=page.locator('#pricing-head th');
-      await expect(columns).toHaveCount(14);
+      await expect(columns).toHaveCount(12);
       for(const width of [1440,390]) {
         await page.setViewportSize({width,height:1000});
         await expect(pricingScroll).toHaveCSS('overflow-x',/auto|scroll/);

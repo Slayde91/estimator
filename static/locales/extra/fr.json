@@ -3867,5 +3867,7 @@
   "Enter a valid Main Estimator group: {0}.": "Saisissez un groupe valide de l’estimateur principal : {0}.",
   "Enter each group once: {0}.": "Saisissez chaque groupe une seule fois : {0}.",
   "Use group = value for each entry.": "Utilisez groupe = valeur pour chaque entrée.",
-  "Use group = value when the yield units differ.": "Utilisez groupe = valeur lorsque les unités de rendement diffèrent."
+  "Use group = value when the yield units differ.": "Utilisez groupe = valeur lorsque les unités de rendement diffèrent.",
+  "Enter a markup of at least −100%.": "Saisissez une majoration d’au moins −100 %.",
+  "Enter a nonnegative price.": "Saisissez un prix positif ou nul."
 }

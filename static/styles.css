@@ -245,7 +245,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 .pricing-controls .search-field{margin:0;min-width:0;width:100%;max-width:none}
 .pricing-document-menu{margin-right:auto}
 .pricing-document-menu .calculator-document-actions{left:0;right:auto}
-.pricing-table{width:100%;min-width:1580px;table-layout:fixed;margin-top:15px}
+.pricing-table{width:100%;min-width:1390px;table-layout:fixed;margin-top:15px}
 /* The wide editor scrolls inside its own viewport. Layout containment prevents
    the table's intrinsic width from widening the root mobile scroll area. */
 #library-pricing .table-scroll{contain:layout}
@@ -400,13 +400,14 @@ dialog .actions{justify-content:flex-end}
 /* Shared pricing columns stay readable without unused horizontal space. */
 .pricing-table th,.pricing-table td{padding:9px 6px;overflow-wrap:anywhere}
 .pricing-table th{white-space:normal}
-.pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:6%}
-.pricing-table th:nth-child(4){width:5%}
-.pricing-table th:nth-child(6){width:9%}
-.pricing-table th:nth-child(7),.pricing-table th:nth-child(8){width:8%}
-.pricing-table th:nth-child(9),.pricing-table th:nth-child(10){width:10%}
-.pricing-table th:nth-child(n+11):nth-child(-n+13){width:3.6%;padding-inline:4px}
+.pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:7%}
+.pricing-table th:nth-child(4){width:6%}
+.pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:15%}
+.pricing-table th:nth-child(8){width:9%}
+.pricing-table th:nth-child(n+9):nth-child(-n+11){width:3.8%;padding-inline:4px}
 .pricing-table th:last-child{width:108px}
+.pricing-existing-overrides{margin-top:5px;font-size:10px}
+.pricing-existing-overrides summary{cursor:pointer}
 .pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 
 .calculator-status{display:inline-block;background:#fff1bf;color:#775300;width:fit-content}

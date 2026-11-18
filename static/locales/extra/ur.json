@@ -3867,5 +3867,7 @@
   "Enter a valid Main Estimator group: {0}.": "مرکزی تخمینہ کار کا درست گروپ درج کریں: {0}۔",
   "Enter each group once: {0}.": "ہر گروپ ایک بار درج کریں: {0}۔",
   "Use group = value for each entry.": "ہر اندراج کے لیے گروپ = قدر استعمال کریں۔",
-  "Use group = value when the yield units differ.": "جب کوریج کی اکائیاں مختلف ہوں تو گروپ = قدر استعمال کریں۔"
+  "Use group = value when the yield units differ.": "جب کوریج کی اکائیاں مختلف ہوں تو گروپ = قدر استعمال کریں۔",
+  "Enter a markup of at least −100%.": "کم از کم −100% مارک اپ درج کریں۔",
+  "Enter a nonnegative price.": "صفر یا اس سے زیادہ قیمت درج کریں۔"
 }

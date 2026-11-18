@@ -333,7 +333,7 @@ class ServerTests(unittest.TestCase):
                     break
             self.assertIsNotNone(removed_choice)
             record = {"Product/Service": "Replacement spray",
-                      "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
+                      "Supplier price": 100, "Markup": .25,
                       "Sell price": 125, "Group": "sprays"}
             sheet.append([record.get(header) for header in columns])
             stream = BytesIO()

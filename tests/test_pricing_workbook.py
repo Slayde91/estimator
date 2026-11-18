@@ -30,6 +30,20 @@ def export_verbose_pricing_workbook(configuration):
     return _product_service_export(configuration, VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS, VERBOSE_PRODUCT_SERVICE_HEADERS)
 
 
+def product_service_row(sheet, headers, identity):
+    for row in sheet.iter_rows(min_row=2):
+        metadata = row[headers["Saved values"] - 1].value
+        if metadata is None:
+            continue
+        snapshot = json.loads(metadata)
+        product = snapshot["product"]
+        if product and product["id"] == identity:
+            return row[0].row
+        if not product and any(use["rate"]["id"] == identity for use in snapshot["uses"]):
+            return row[0].row
+    raise AssertionError(f"No exported row for {identity!r}")
+
+
 def export_compact_pricing_workbook(configuration):
     """Retained earlier compact-file fixture; new layout has dedicated tests."""
     workbook = _legacy_pricing_workbook(configuration)

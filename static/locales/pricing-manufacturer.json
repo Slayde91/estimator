@@ -34,27 +34,6 @@
     "يدوي",
     "กำหนดเอง"
   ],
-  "Price source": [
-    "价格来源",
-    "मूल्य स्रोत",
-    "Origen del precio",
-    "مصدر السعر",
-    "แหล่งที่มาของราคา"
-  ],
-  "Sell rate": [
-    "销售单价",
-    "बिक्री दर",
-    "Tarifa de venta",
-    "سعر البيع للوحدة",
-    "อัตราขาย"
-  ],
-  "Use yields": [
-    "各用途的覆盖量",
-    "हर उपयोग की कवरेज",
-    "Rendimientos por uso",
-    "التغطية لكل استخدام",
-    "ปริมาณครอบคลุมต่อการใช้งาน"
-  ],
   "Enter a nonnegative number or leave blank.": [
     "输入非负数或留空。",
     "गैर-ऋणात्मक संख्या दर्ज करें या खाली छोड़ें।",
@@ -62,32 +41,46 @@
     "أدخل رقمًا غير سالب أو اترك الحقل فارغًا.",
     "ป้อนตัวเลขที่ไม่ติดลบหรือเว้นว่าง"
   ],
-  "Enter one value per Main Estimator group, including blank slots.": [
-    "为主估算器的每个组输入一个值，包括空位。",
-    "मुख्य अनुमानक के प्रत्येक समूह के लिए एक मान दर्ज करें, खाली स्थान भी रखें।",
-    "Introduzca un valor por grupo del estimador principal, incluidos los espacios vacíos.",
-    "أدخل قيمة واحدة لكل مجموعة في المقدّر الرئيسي، بما في ذلك الخانات الفارغة.",
-    "ป้อนค่าหนึ่งค่าต่อกลุ่มในตัวประมาณราคาหลัก รวมช่องว่างด้วย"
+  "Rate overrides": [
+    "费率覆盖",
+    "दर ओवरराइड",
+    "Tarifas específicas",
+    "تجاوزات الأسعار",
+    "อัตราราคาเฉพาะ"
   ],
-  "Enter Inventory or Override for each price source.": [
-    "每个价格来源请输入 Inventory 或 Override。",
-    "हर मूल्य स्रोत के लिए Inventory या Override दर्ज करें।",
-    "Introduzca Inventory u Override para cada origen de precio.",
-    "أدخل Inventory أو Override لكل مصدر سعر.",
-    "ป้อน Inventory หรือ Override สำหรับแหล่งราคาแต่ละรายการ"
+  "Use Main Estimator group names and = to enter individual values.": [
+    "使用主估算器的组名和 = 输入各组的数值。",
+    "अलग-अलग मान दर्ज करने के लिए मुख्य अनुमानक के समूह नाम और = का उपयोग करें।",
+    "Use los nombres de grupo del estimador principal y = para introducir valores individuales.",
+    "استخدم أسماء مجموعات المقدّر الرئيسي وعلامة = لإدخال قيم منفصلة.",
+    "ใช้ชื่อกลุ่มในตัวประมาณราคาหลักและเครื่องหมาย = เพื่อป้อนค่าแต่ละกลุ่ม"
   ],
-  "Set Price source to Override before editing Sell rate.": [
-    "编辑销售单价前，请将价格来源设为 Override。",
-    "बिक्री दर बदलने से पहले मूल्य स्रोत को Override पर सेट करें।",
-    "Cambie el origen del precio a Override antes de editar la tarifa de venta.",
-    "اضبط مصدر السعر على Override قبل تعديل سعر البيع للوحدة.",
-    "ตั้งแหล่งราคาเป็น Override ก่อนแก้ไขอัตราขาย"
+  "Enter a valid Main Estimator group: {0}.": [
+    "请输入有效的主估算器组名：{0}。",
+    "मुख्य अनुमानक का मान्य समूह दर्ज करें: {0}।",
+    "Introduzca un grupo válido del estimador principal: {0}.",
+    "أدخل مجموعة صالحة للمقدّر الرئيسي: {0}.",
+    "ป้อนกลุ่มที่ถูกต้องของตัวประมาณราคาหลัก: {0}"
   ],
-  "This group does not use a yield.": [
-    "此组不使用覆盖量。",
-    "इस समूह में कवरेज का उपयोग नहीं होता।",
-    "Este grupo no usa un rendimiento.",
-    "لا تستخدم هذه المجموعة قيمة التغطية.",
-    "กลุ่มนี้ไม่ใช้ปริมาณครอบคลุม"
+  "Enter each group once: {0}.": [
+    "每个组只能输入一次：{0}。",
+    "हर समूह केवल एक बार दर्ज करें: {0}।",
+    "Introduzca cada grupo una sola vez: {0}.",
+    "أدخل كل مجموعة مرة واحدة: {0}.",
+    "ป้อนแต่ละกลุ่มเพียงครั้งเดียว: {0}"
+  ],
+  "Use group = value for each entry.": [
+    "每项请使用“组名 = 数值”格式。",
+    "हर प्रविष्टि के लिए समूह = मान का उपयोग करें।",
+    "Use grupo = valor para cada entrada.",
+    "استخدم الصيغة مجموعة = قيمة لكل إدخال.",
+    "ใช้รูปแบบ กลุ่ม = ค่า สำหรับแต่ละรายการ"
+  ],
+  "Use group = value when the yield units differ.": [
+    "覆盖量单位不同时，请使用“组名 = 数值”格式。",
+    "जब कवरेज की इकाइयाँ अलग हों, समूह = मान का उपयोग करें।",
+    "Use grupo = valor cuando las unidades de rendimiento sean distintas.",
+    "استخدم الصيغة مجموعة = قيمة عندما تختلف وحدات التغطية.",
+    "ใช้รูปแบบ กลุ่ม = ค่า เมื่อหน่วยปริมาณครอบคลุมต่างกัน"
   ]
 }

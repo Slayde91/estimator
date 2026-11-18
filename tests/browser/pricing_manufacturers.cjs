@@ -88,7 +88,7 @@ async function importWorkbook(file,accept){
   projectBytes=fs.readFileSync(info.project);frozen=await projectState();assert.ok(frozen.configuration.catalog,'Current project owns a frozen catalogue');
   await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-scope')).toHaveValue('library');
   await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Pricing mode',
-    'Main Estimator groups','Firestopping Estimator groups','Yield','Price source','Sell rate','Use yields','Width (mm)','Length (mm)','Area (m²)','Actions']);
+    'Main Estimator groups','Firestopping Estimator groups','Yield','Rate overrides','Width (mm)','Length (mm)','Area (m²)','Actions']);
   await page.locator('#pricing-search').fill(owner.manufacturer);await expect(row()).toBeVisible();await expect(field()).toHaveValue(owner.manufacturer);
   await findOwner();await expect(field()).toHaveAttribute('maxlength','200');await expect(field()).toHaveAccessibleName(owner.name+': Manufacturer');await field().scrollIntoViewIfNeeded();
   const sellPrice = row().locator('.pricing-sell-price');
@@ -111,14 +111,20 @@ async function importWorkbook(file,accept){
     await page.locator('[aria-controls="pricing-document-actions"]').click();await page.locator('#export-pricing').click();
   }});
   const changed=path.join(output,'manufacturer-roundtrip.xlsx');
-  const editedBook=spawnSync(python,['-c',`import csv,json,sys
+  const editedBook=spawnSync(python,['-c',`import json,sys
 from openpyxl import load_workbook
 b=load_workbook(sys.argv[1]);s=b['Inventory & Rates'];h={c.value:c.column for c in s[1]}
 assert 'Manufacturer' in h and not s.column_dimensions[s.cell(1,h['Manufacturer']).column_letter].hidden
-rows=[n for n in range(2,s.max_row+1) if str(s.cell(n,h['Inventory ID']).value)==sys.argv[3]]
+assert all(name not in h for name in ('Price source','Sell rate','Use yields','Inventory ID','Rate ID'))
+assert all(name in h and not s.column_dimensions[s.cell(1,h[name]).column_letter].hidden for name in ('Yield','Rate overrides'))
+assert s.column_dimensions[s.cell(1,h['Saved values']).column_letter].hidden
+for name in ('Yield','Rate overrides'):
+ assert all(value is None or not isinstance(value,str) or value.strip(' ;') for (value,) in s.iter_rows(min_row=2,min_col=h[name],max_col=h[name],values_only=True))
+saved={n:json.loads(s.cell(n,h['Saved values']).value) for n in range(2,s.max_row+1)}
+rows=[n for n,item in saved.items() if str((item.get('product') or {}).get('id'))==sys.argv[3]]
 assert len(rows)==1
 n=rows[0];assert s.cell(n,h['Manufacturer']).value is None
-linked=next(csv.reader([str(s.cell(n,h['Rate ID']).value)],delimiter=';'))
+linked=[use['rate']['id'] for use in saved[n]['uses']]
 assert linked and all(value for value in linked)
 s.cell(n,h['Manufacturer'],'QA Excel manufacturer');b.save(sys.argv[2]);b.close()
 print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3],linked_rate_ids=linked,exported_explicit_blank=True)))`,exported,changed,owner.id],{cwd:root,windowsHide:true,encoding:'utf8'});
@@ -148,9 +154,21 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
   await expect(coatingField('supplier_price')).toBeDisabled();
   await editField('sales_price','310');
   await expect(coatingField('Main Estimator groups')).toHaveValue(/primers;\s*topcoats/);
-  await editField('Price source','Override; Inventory');
-  await editField('Sell rate','401.25;');
-  await editField('Use yields','71; 142');
+  await editField('Rate overrides','');
+  await expect(coatingField('Rate overrides')).toHaveValue('');
+  await editField('Rate overrides','primers = 0');
+  await expect(coatingField('Rate overrides')).toHaveValue('primers = 0');
+  await editField('Rate overrides','primers = 401.25');
+  await editField('Yield','primers = 71');
+  await expect(coatingField('Yield')).toHaveValue('primers = 71; topcoats = 142');
+  for (const width of [1440,390]) {
+    await page.setViewportSize({width,height:900});
+    await coatingField('Rate overrides').scrollIntoViewIfNeeded();
+    await expect(coatingField('Yield')).toBeEditable();
+    await expect(coatingField('Rate overrides')).toBeEditable();
+    await page.screenshot({path:path.join(output,`consolidated-pricing-${width}.png`)});
+  }
+  await page.setViewportSize({width:1146,height:900});
   await editField('Width (mm)','300');
   await editField('Length (mm)','420');
   await editField('Area (m²)','0.126');

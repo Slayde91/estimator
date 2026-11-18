@@ -313,28 +313,28 @@ class ServerTests(unittest.TestCase):
             records = list(sheet.iter_rows(min_row=2, values_only=True))
             self.assertNotIn("Row type", columns)
             self.assertEqual(len(records), 393)
-            self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 393)
-            def read_uses(record):
-                return json.loads(record[columns["Saved values"] - 1])["uses"]
-
+            snapshots = [json.loads(record[columns["Saved values"] - 1]) for record in records]
+            self.assertEqual(len({record["product"]["id"] for record in snapshots}), 393)
             self.assertNotIn("Item code", columns)
-            self.assertEqual(sum(len(read_uses(record)) for record in records), 154)
+            self.assertNotIn("Inventory ID", columns)
+            self.assertNotIn("Rate ID", columns)
+            self.assertEqual(sum(len(record["uses"]) for record in snapshots), 154)
             # Remove an estimator choice through the visible group list.
             removed_choice = None
-            for number, record in enumerate(records, 2):
-                uses = read_uses(record)
+            for number, record in enumerate(snapshots, 2):
+                uses = record["uses"]
                 for index, use in enumerate(uses):
                     if use["group"] != "sprays" or use["rate"]["name"] != "Promat Cafco 300":
                         continue
                     self.assertIsNone(removed_choice)
-                    removed_choice = (record[columns["Inventory ID"] - 1], use["rate"]["id"])
+                    removed_choice = (record["product"]["id"], use["rate"]["id"])
                     sheet.cell(number, columns["Group"]).value = ";".join(
                         current["group"] for other_index, current in enumerate(uses) if index != other_index)
                     break
             self.assertIsNotNone(removed_choice)
             record = {"Product/Service": "Replacement spray",
                       "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
-                      "Sell price": 125, "Group": "sprays", "Price source": "Inventory"}
+                      "Sell price": 125, "Group": "sprays"}
             sheet.append([record.get(header) for header in columns])
             stream = BytesIO()
             workbook.save(stream)

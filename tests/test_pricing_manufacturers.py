@@ -18,7 +18,7 @@ from estimator.pricing_workbook import (export_pricing_workbook, import_pricing_
     COMBINED_SHEET, PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS, _serialize_exact)
 from estimator.project_file import export_project, load_project_bytes
 from estimator.storage import Store
-from test_pricing_workbook import export_verbose_pricing_workbook
+from test_pricing_workbook import export_verbose_pricing_workbook, product_service_row
 
 
 def remove_manufacturer_metadata(value):
@@ -188,7 +188,7 @@ class PricingManufacturerTests(unittest.TestCase):
         try:
             sheet = book[COMBINED_SHEET]
             columns = {cell.value: cell.column for cell in sheet[1]}
-            number = next(row[0].row for row in sheet.iter_rows(min_row=2) if sheet.cell(row[0].row, columns['Inventory ID']).value == '204')
+            number = product_service_row(sheet, columns, '204')
             sheet.cell(number, columns['Manufacturer']).value = None
             cleared = import_pricing_workbook(_serialize_exact(book, escape_text=True), 'cleared.xlsx', configuration)['configuration']
             self.assertEqual(next(item for item in effective_catalog(cleared)['inventory'] if item['id'] == '204')['manufacturer'], '')

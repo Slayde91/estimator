@@ -272,7 +272,7 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
     try:
         workbook = load_workbook(BytesIO(payload), read_only=True, data_only=False, keep_links=False)
         if schedule["sheet"] not in workbook.sheetnames or set(workbook.sheetnames) - {schedule["sheet"], "Instructions"}:
-            raise ValidationError(f"Use the {catalog['title']} template: the workbook must contain {schedule['sheet']} and only an optional Instructions worksheet.")
+            raise ValidationError(f"Use the {catalog['title']} schedule template. The workbook must contain {schedule['sheet']} and only an optional Instructions worksheet.")
         sheet = workbook[schedule["sheet"]]
         sheet.reset_dimensions()
         sheet.calculate_dimension(force=True)

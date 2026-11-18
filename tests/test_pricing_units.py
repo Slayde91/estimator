@@ -12,6 +12,7 @@ from estimator.calculator import calculate
 from estimator.catalog import baseline, effective_catalog, validate_catalog, validate_configuration, ValidationError, yield_unit
 from estimator.pricing_workbook import export_pricing_workbook, import_pricing_workbook, _serialize_exact, _legacy_pricing_workbook
 from estimator.storage import Store
+from test_pricing_workbook import product_service_row
 
 
 class PricingUnitTests(unittest.TestCase):
@@ -27,7 +28,7 @@ class PricingUnitTests(unittest.TestCase):
             for row in page:
                 for cell in row:
                     self.assertEqual((cell.alignment.horizontal, cell.alignment.vertical), ('center', 'center'))
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm² / unit')
         self.assertEqual(headers['Yield unit'], headers['Yield'] + 1)
         result = import_pricing_workbook(self.payload, 'pricing.xlsx', {})
@@ -46,7 +47,7 @@ class PricingUnitTests(unittest.TestCase):
         book = load_workbook(BytesIO(exported))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm² / unit')
         book.close()
         after = import_pricing_workbook(exported, 'pricing.xlsx', configuration)
@@ -76,7 +77,7 @@ class PricingUnitTests(unittest.TestCase):
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
                 self.assertEqual(cell.protection.locked, cell.column in {headers[name] for name in
-                    ('Yield unit', 'Inventory ID', 'Rate ID', 'Saved values')}, cell.coordinate)
+                    ('Yield unit', 'Saved values')}, cell.coordinate)
         self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Yield unit']).column_letter].protection.locked)
         self.assertFalse(sheet.column_dimensions[sheet.cell(1, headers['Yield']).column_letter].protection.locked)
         self.assertTrue(sheet.column_dimensions[sheet.cell(1, headers['Saved values']).column_letter].protection.locked)
@@ -87,7 +88,7 @@ class PricingUnitTests(unittest.TestCase):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         # A file edited by a tool bypassing sheet protection still cannot change
         # units. Old unit-list lengths also cannot prevent ordinary use edits.
         sheet.cell(product, headers['Yield unit']).value = 'm² / drum;not a unit;extra'
@@ -101,7 +102,7 @@ class PricingUnitTests(unittest.TestCase):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         cell = sheet.cell(product, headers['Group'])
         cell.value += ';boards'
         result = import_pricing_workbook(_serialize_exact(book), 'extra-use.xlsx', {})
@@ -129,16 +130,16 @@ class PricingUnitTests(unittest.TestCase):
         book = load_workbook(BytesIO(export_pricing_workbook({'catalog': catalog})))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         self.assertEqual(sheet.cell(product, headers['Yield unit']).value, 'm / unit; m² / unit')
-        self.assertEqual(sheet.cell(product, headers['Yield']).value, 'Mixed')
+        self.assertEqual(sheet.cell(product, headers['Yield']).value, 'mastic = 10; primers = 142; topcoats = 142')
         book.close()
 
     def test_clearing_editable_cells_removes_a_product_without_touching_locked_units(self):
         book = load_workbook(BytesIO(self.payload))
         sheet = book['Inventory & Rates']
         headers = {cell.value: cell.column for cell in sheet[1]}
-        product = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
+        product = product_service_row(sheet, headers, '204')
         for cell in sheet[product]:
             if not cell.protection.locked:
                 cell.value = None

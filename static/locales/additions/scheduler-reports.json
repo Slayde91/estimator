@@ -143,5 +143,20 @@
     "1일에서 366일 사이의 보고 기간을 선택하세요.",
     "Pumili ng panahon ng ulat na 1 hanggang 366 na araw.",
     "Chọn kỳ báo cáo từ 1 đến 366 ngày."
+  ],
+  "Locations for {0}, {1}": [
+    "{0}의 위치, {1}",
+    "Mga lokasyon ni {0}, {1}",
+    "Vị trí của {0}, {1}"
+  ],
+  "Timesheet map for {0}": [
+    "{0}의 근무 기록 지도",
+    "Mapa ng tala ng oras ni {0}",
+    "Bản đồ chấm công của {0}"
+  ],
+  "No locations were recorded for these entries on this day.": [
+    "해당 날짜의 이 항목에 기록된 위치가 없습니다.",
+    "Walang naitalang lokasyon para sa mga entry na ito sa araw na iyon.",
+    "Không có vị trí nào được ghi lại cho các mục này trong ngày đó."
   ]
 }

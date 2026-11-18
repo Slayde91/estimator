@@ -271,7 +271,7 @@ async function inspectHeader(width) {
   assert.deepEqual(await snapshot(), initial, 'Layout and workspace selection must retain the project drafts');
   await chooseLibrary(page, 'pricing');
   await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first(); await price.fill('987.65432'); await price.press('Tab');
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first(); await price.fill('987.65432'); await price.press('Tab');
   await expect(page.locator('#pricing-status')).toHaveText('Unsaved pricing changes');
   const guarded = await snapshot();
   for (const select of [() => chooseLibrary(page, 'technical'), () => chooseTakeoff(page, 'Steel', { waitForSelection: false })]) {

@@ -18,6 +18,7 @@ from estimator.pricing_workbook import (export_pricing_workbook, import_pricing_
     COMBINED_SHEET, PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS, _serialize_exact)
 from estimator.project_file import export_project, load_project_bytes
 from estimator.storage import Store
+from test_pricing_workbook import export_verbose_pricing_workbook
 
 
 def remove_manufacturer_metadata(value):
@@ -192,7 +193,12 @@ class PricingManufacturerTests(unittest.TestCase):
             cleared = import_pricing_workbook(_serialize_exact(book, escape_text=True), 'cleared.xlsx', configuration)['configuration']
             self.assertEqual(next(item for item in effective_catalog(cleared)['inventory'] if item['id'] == '204')['manufacturer'], '')
             self.assertEqual(self.enriched(cleared), cleared)
-            sheet.delete_cols(columns['Manufacturer'])
+        finally:
+            book.close()
+        book = load_workbook(BytesIO(export_verbose_pricing_workbook(configuration)))
+        try:
+            sheet = book[COMBINED_SHEET]
+            sheet.delete_cols(10)
             self.assertEqual(tuple(cell.value for cell in sheet[1]), PRE_MANUFACTURER_PRODUCT_SERVICE_HEADERS)
             legacy = import_pricing_workbook(_serialize_exact(book, escape_text=True), 'older-layout.xlsx', configuration)
             self.assertEqual(legacy['summary']['inventory']['updated'], 0)
@@ -222,7 +228,7 @@ class PricingManufacturerTests(unittest.TestCase):
     def test_truly_older_templates_preserve_newer_manual_manufacturer_but_new_blank_column_clears(self):
         # The historical hidden snapshot has no manufacturer field at all.
         # It must not erase metadata the user entered after this file existed.
-        older = export_pricing_workbook({})
+        older = export_verbose_pricing_workbook({})
         for value in ('Newer manual manufacturer', ''):
             current = {'inventory': {'204': {'manufacturer': value}}, 'rates': {}}
             for previous_columns in (8, 9):
@@ -242,7 +248,7 @@ class PricingManufacturerTests(unittest.TestCase):
                     self.assertEqual(result['summary']['inventory']['updated'], 0)
             # The new format does have a visible Manufacturer field. Its blank
             # clears newer metadata even if its hidden snapshot was older.
-            new_format = import_pricing_workbook(older, 'new-visible-column.xlsx', current)
+            new_format = import_pricing_workbook(export_pricing_workbook({}), 'new-visible-column.xlsx', current)
             retained = next(item for item in effective_catalog(new_format['configuration'])['inventory'] if item['id'] == '204')
             self.assertEqual(retained['manufacturer'], '')
 
@@ -255,7 +261,7 @@ class PricingManufacturerTests(unittest.TestCase):
         historical = {'catalog': catalog, 'inventory': {}, 'rates': {}}
         current = {**historical, 'rates': {identity: {'manufacturer': 'Current service metadata'}}}
         exported = export_pricing_workbook(historical)
-        book = load_workbook(BytesIO(exported))
+        book = load_workbook(BytesIO(export_verbose_pricing_workbook(historical)))
         try:
             book[COMBINED_SHEET].delete_cols(10)
             older = _serialize_exact(book, escape_text=True)

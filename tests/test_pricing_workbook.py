@@ -21,9 +21,13 @@ from estimator.calculator import calculate
 from estimator.catalog import ValidationError, baseline, effective_catalog
 from estimator.pricing_workbook import (
     INVENTORY_HEADERS, RATE_HEADERS, PROPERTY_HEADERS, COMBINED_HEADERS, COMPACT_HEADERS, COMBINED_SHEET,
-    _legacy_pricing_workbook,
+    _legacy_pricing_workbook, _product_service_export, VERBOSE_PRODUCT_SERVICE_HEADERS, VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS,
     import_pricing_workbook, _format_sheet, _serialize_exact,
 )
+
+
+def export_verbose_pricing_workbook(configuration):
+    return _product_service_export(configuration, VERBOSE_PRODUCT_SERVICE_VISIBLE_HEADERS, VERBOSE_PRODUCT_SERVICE_HEADERS)
 
 
 def export_compact_pricing_workbook(configuration):

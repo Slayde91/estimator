@@ -172,7 +172,7 @@ async function openProjectCopy() {
 
   await enterLibraries(); await chooseLibrary(page, 'pricing');
   await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first();
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();
   const priceIdentity = await price.evaluate(control => ({ id: control.closest('tr').dataset.priceId, kind: control.closest('tr').dataset.priceKind }));
   await price.fill('789.12'); await price.press('Tab');
   await chooseLibrary(page, 'penetration');

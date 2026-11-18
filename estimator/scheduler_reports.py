@@ -109,7 +109,7 @@ def report(db, viewer, settings, query):
                 add(left,right,'paid')
         job, job_label, job_chart_label, project, project_label = _assignment(entry)
         for day, values in days.items():
-            rows.append({'day':day, 'member':entry['member_id'], 'job':job, 'job_label':job_label,
+            rows.append({'day':day, 'entry_id':entry['id'], 'member':entry['member_id'], 'job':job, 'job_label':job_label,
                          'job_chart_label':job_chart_label, 'project':project, 'project_label':project_label,
                          'clock_in':begin.astimezone(zone).isoformat(timespec='seconds'),
                          'clock_out':finish.astimezone(zone).isoformat(timespec='seconds'), **values})

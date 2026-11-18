@@ -68,7 +68,7 @@ class ProductServicePricingTests(unittest.TestCase):
             finally:
                 book.close()
 
-    def test_export_has_ten_visible_columns_and_one_numeric_yield(self):
+    def test_export_exposes_calculation_inputs_and_omits_item_code(self):
         book = load_workbook(BytesIO(self.exported))
         try:
             sheet = book[COMBINED_SHEET]
@@ -76,7 +76,9 @@ class ProductServicePricingTests(unittest.TestCase):
             visible = [cell.value for cell in sheet[1] if not sheet.column_dimensions[cell.column_letter].hidden]
             self.assertEqual(tuple(visible), PRODUCT_SERVICE_VISIBLE_HEADERS)
             self.assertEqual(tuple(cell.value for cell in sheet[1]), PRODUCT_SERVICE_HEADERS)
-            self.assertEqual(sheet.auto_filter.ref, 'A1:J418')
+            self.assertEqual(sheet.auto_filter.ref, 'A1:P418')
+            self.assertNotIn('Item code', headers)
+            self.assertNotIn('Weight', headers)
             number = next(row[0].row for row in sheet if sheet.cell(row[0].row, headers['Inventory ID']).value == '204')
             self.assertEqual(sheet.cell(number, headers['Yield']).value, 142)
             self.assertEqual(sheet.cell(number, headers['Use yields']).value, '142;142')
@@ -97,8 +99,31 @@ class ProductServicePricingTests(unittest.TestCase):
         self.assertIn(product['sales_description'], lists['E'])
         self.assertIn(product['sales_description'], lists['AR'])
 
+    def test_firestopping_dimensions_edit_without_losing_pricing_metadata(self):
+        catalog = baseline()
+        product = next(item for item in catalog['inventory'] if item['id'] == '223')
+        original_area = 0.7200000000012345
+        product['properties'].update(weight=4.175, thickness_mm=50, volume_ml='existing reference', sqm=original_area)
+        current = {'catalog': catalog}
+        exported = export_pricing_workbook(current)
+        payload = edit(exported, [('223', {
+            'Width (mm)': 620, 'Length (mm)': 1280, 'Area (m²)': float(format(original_area, '.15g')),
+        })], ordinary_save=True)
+        configuration = self.imported(payload, current)['configuration']
+        edited = next(item for item in effective_catalog(configuration)['inventory'] if item['id'] == '223')
+        self.assertEqual(edited['item_code'], product['item_code'])
+        self.assertEqual(edited['properties'], {
+            **product['properties'], 'width_mm': 620, 'length_mm': 1280,
+        })
+        values, selections = inventory_lists(configuration)
+        row = selections['M'].index(product['sales_description']) + 1
+        self.assertEqual(tuple(values[f'{column}{row}'] for column in 'OPQ'), (620, 1280, original_area))
+        bad_dimensions = edit(exported, [('223', {'Length (mm)': 'unknown'})])
+        with self.assertRaisesRegex(ValidationError, 'Length.*must contain a number'):
+            self.imported(bad_dimensions, current)
+
     def test_previous_eight_column_template_remains_supported(self):
-        book = load_workbook(BytesIO(self.exported))
+        book = load_workbook(BytesIO(pricing_fixtures.export_verbose_pricing_workbook({})))
         try:
             sheet = book[COMBINED_SHEET]
             sheet.delete_cols(10)  # Manufacturer was added after this template.
@@ -276,14 +301,15 @@ class ProductServicePricingTests(unittest.TestCase):
         self.assertEqual((new['price'], new['price_mode']), (2222, 'inventory'))
         book = load_workbook(BytesIO(self.exported))
         sheet = book[COMBINED_SHEET]
-        values = {'Product/Service': 'New shared coating', 'Item code': 'new-coating',
+        values = {'Product/Service': 'New shared coating',
                   'Supplier price': 100, 'Markup': .25, 'Sell price': None,
                   'Group': 'primers;topcoats', 'Yield': 25}
         sheet.append([values.get(header) for header in PRODUCT_SERVICE_HEADERS])
         payload = _serialize_exact(book, escape_text=True)
         book.close()
         added = effective_catalog(self.imported(payload)['configuration'])
-        product = next(item for item in added['inventory'] if item['item_code'] == 'new-coating')
+        product = next(item for item in added['inventory'] if item.get('product_service') == 'New shared coating')
+        self.assertEqual(product['item_code'], '')
         self.assertEqual(product['sales_price'], 125)
         for group in ('primers', 'topcoats'):
             rate = next(rate for rate in added['rate_groups'][group] if rate['inventory_id'] == product['id'])

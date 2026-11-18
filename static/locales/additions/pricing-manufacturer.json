@@ -3,5 +3,65 @@
     "제조업체 이름은 제어 문자 없이 최대 200자여야 합니다.",
     "Dapat hindi lalampas sa 200 character ang tagagawa at walang mga control character.",
     "Tên nhà sản xuất không được vượt quá 200 ký tự và không chứa ký tự điều khiển."
+  ],
+  "Length (mm)": [
+    "길이(mm)",
+    "Haba (mm)",
+    "Chiều dài (mm)"
+  ],
+  "Pricing mode": [
+    "가격 설정 방식",
+    "Paraan ng pagpepresyo",
+    "Cách định giá"
+  ],
+  "Supplier markup": [
+    "공급가 가산율",
+    "Patong sa presyo ng supplier",
+    "Phụ phí trên giá nhà cung cấp"
+  ],
+  "Manual": [
+    "수동",
+    "Manu-mano",
+    "Thủ công"
+  ],
+  "Price source": [
+    "가격 출처",
+    "Pinagmulan ng presyo",
+    "Nguồn giá"
+  ],
+  "Sell rate": [
+    "판매 단가",
+    "Singil sa pagbebenta",
+    "Đơn giá bán"
+  ],
+  "Use yields": [
+    "용도별 적용량",
+    "Saklaw kada paggamit",
+    "Định mức theo mục đích sử dụng"
+  ],
+  "Enter a nonnegative number or leave blank.": [
+    "0 이상의 숫자를 입력하거나 비워 두세요.",
+    "Maglagay ng numerong hindi negatibo o iwanang blangko.",
+    "Nhập số không âm hoặc để trống."
+  ],
+  "Enter one value per Main Estimator group, including blank slots.": [
+    "기본 견적기 그룹마다 값을 하나씩 입력하고 빈 자리도 유지하세요.",
+    "Maglagay ng isang halaga sa bawat pangkat ng pangunahing Estimator, kasama ang mga puwang na blangko.",
+    "Nhập một giá trị cho mỗi nhóm trong bộ ước tính chính, kể cả các ô trống."
+  ],
+  "Enter Inventory or Override for each price source.": [
+    "각 가격 출처에 Inventory 또는 Override를 입력하세요.",
+    "Ilagay ang Inventory o Override para sa bawat pinagmulan ng presyo.",
+    "Nhập Inventory hoặc Override cho từng nguồn giá."
+  ],
+  "Set Price source to Override before editing Sell rate.": [
+    "판매 단가를 수정하기 전에 가격 출처를 Override로 설정하세요.",
+    "Itakda sa Override ang pinagmulan ng presyo bago baguhin ang singil sa pagbebenta.",
+    "Đặt nguồn giá thành Override trước khi sửa đơn giá bán."
+  ],
+  "This group does not use a yield.": [
+    "이 그룹은 적용량을 사용하지 않습니다.",
+    "Hindi gumagamit ng saklaw ang pangkat na ito.",
+    "Nhóm này không sử dụng định mức."
   ]
 }

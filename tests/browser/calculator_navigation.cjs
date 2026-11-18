@@ -142,7 +142,7 @@ async function workbook(title) {
   // Menu navigation uses the established library confirmation, including its
   // cancellation behavior. An explicit Continue retains the unsaved prices.
   await page.getByRole('button', { name: 'Libraries', exact: true }).click(); await chooseLibrary(page, 'pricing'); await page.locator('#pricing-scope').selectOption('library');
-  const price = page.locator('#pricing-body [data-price-field="supplier_price"]').first(); await price.fill('789.12345'); await price.press('Tab');
+  const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first(); await price.fill('789.12345'); await price.press('Tab');
   const priceDisplay = await price.inputValue(); assert.equal(priceDisplay, '789.12');
   const guarded = await snapshots(); await chooseCalculator(page, 'Steel (board)');
   const dialog = page.getByRole('dialog'); await expect(dialog).toBeVisible(); await expect(dialog.getByRole('heading')).toHaveText('Unsaved Pricing Library');

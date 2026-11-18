@@ -110,6 +110,7 @@ async function existingReportLink(scope, id) {
   for (const id of [info.missing_ids[0], info.missing_ids.at(-1), info.assigned_id]) {
     await technical.locator(`[data-library-record="${id}"]`).click();
     const detail = technical.locator('[data-library-detail="technical"]'); await expect(detail).toBeVisible();
+    await expect(detail.getByText('CLASSIFIRE System ID',{exact:true}).locator('..').locator('dd')).toHaveText(/^CF-\d+$/);
     evidence.checks.nativeLinks.push(await existingReportLink(detail, id));
     await page.screenshot({ path: path.join(output, `report-link-${evidence.checks.nativeLinks.length}.png`) });
     await detail.getByRole('button', { name: 'Back to results', exact: true }).click(); await settled(technical);

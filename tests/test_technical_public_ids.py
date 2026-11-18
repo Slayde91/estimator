@@ -66,14 +66,20 @@ class TechnicalPublicIdTests(unittest.TestCase):
                 lib.technical_edits.save(key, 0, 'c' * 64, record, created=True)
             for key, maker, source in [('supplier-z', 'Snap', 'SNAP 3100'), ('supplier-m', 'Allproof', None),
                                         ('supplier-b', 'Trafalgar', '7612'), ('supplier-a', 'Promat', 'sys_var_8811_au'),
-                                        ('native-firefly', 'Firefly', 'V1'), ('native-boss', 'BOSS', 'BF-2001'),
-                                        ('existing-fendix', 'Fendix', None)]:
+                                        ('native-firefly', 'Firefly', 'V1'), ('native-boss', 'BOSS', 'BF-2001')]:
                 insert(key, maker, source)
+            before = dict(lib._load()['_technical_public_ids'])
+            insert('existing-fendix', 'Fendix')
             choices = lib._load()['_technical_public_ids']
+            self.assertEqual({key: choices[key] for key in before}, before)
             self.assertEqual([choices[k] for k in ('supplier-a', 'supplier-b', 'supplier-m', 'supplier-z')],
                              ['CF-01', 'CF-02', 'CF-03', 'CF-04'])
             self.assertEqual([choices[k] for k in ('native-firefly','native-boss','existing-fendix')],
-                             ['V1','BF-2001','existing-fendix'])
+                             ['V1','BF-2001','CF-05'])
+            for key in ('supplier-a','supplier-b','supplier-m','supplier-z','existing-fendix'):
+                self.assertEqual(lib.detail('technical',key)['classifire_system_id'],choices[key])
+            self.assertNotIn('classifire_system_id',lib.detail('technical','native-firefly'))
+            self.assertNotIn('classifire_system_id',lib.detail('technical','native-boss'))
             key = 'supplier-z'
             edit = lib.technical_edit(key)
             rec = edit['record']

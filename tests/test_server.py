@@ -1,6 +1,5 @@
 import base64
-import csv
-from io import BytesIO, StringIO
+from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
@@ -315,47 +314,27 @@ class ServerTests(unittest.TestCase):
             self.assertNotIn("Row type", columns)
             self.assertEqual(len(records), 393)
             self.assertEqual(len({row[columns["Inventory ID"] - 1] for row in records}), 393)
-            use_columns = ("Group", "Selection name", "Price source", "Sell rate",
-                           "Yield type", "Use yields", "Rate ID", "Use order")
-
             def read_uses(record):
-                values = {name: record[columns[name] - 1] for name in use_columns}
-                if all(value in (None, "") for value in values.values()):
-                    return {name: [] for name in use_columns}
-                result = {name: next(csv.reader(StringIO(value, newline=""), delimiter=";", strict=True))
-                          if isinstance(value, str) and value else [value]
-                          for name, value in values.items()}
-                self.assertEqual(len({len(entries) for entries in result.values()}), 1)
-                return result
+                return json.loads(record[columns["Saved values"] - 1])["uses"]
 
-            self.assertEqual(sum(len(read_uses(record)["Rate ID"]) for record in records), 154)
-            # Remove one choice from the eight editable lists; units are derived.
+            self.assertNotIn("Item code", columns)
+            self.assertEqual(sum(len(read_uses(record)) for record in records), 154)
+            # Remove an estimator choice through the visible group list.
             removed_choice = None
             for number, record in enumerate(records, 2):
                 uses = read_uses(record)
-                for index, (group, name) in enumerate(zip(uses["Group"], uses["Selection name"])):
-                    if group != "sprays" or name != "Promat Cafco 300":
+                for index, use in enumerate(uses):
+                    if use["group"] != "sprays" or use["rate"]["name"] != "Promat Cafco 300":
                         continue
                     self.assertIsNone(removed_choice)
-                    removed_choice = (record[columns["Inventory ID"] - 1], uses["Rate ID"][index])
-                    for heading, entries in uses.items():
-                        entries.pop(index)
-                        value = None
-                        if len(entries) == 1 and not isinstance(entries[0], str):
-                            value = entries[0]
-                        elif entries:
-                            encoded = StringIO(newline="")
-                            csv.writer(encoded, delimiter=";").writerow(entries)
-                            value = encoded.getvalue()[:-2]
-                        sheet.cell(number, columns[heading]).value = value
+                    removed_choice = (record[columns["Inventory ID"] - 1], use["rate"]["id"])
+                    sheet.cell(number, columns["Group"]).value = ";".join(
+                        current["group"] for other_index, current in enumerate(uses) if index != other_index)
                     break
             self.assertIsNotNone(removed_choice)
-            record = {"Inventory ID": "qa-new-product", "Item code": "QA-001",
-                      "Product/Service": "Replacement spray", "Product name": "Replacement spray", "Sales description": "Replacement spray",
+            record = {"Product/Service": "Replacement spray",
                       "Pricing mode": "Supplier markup", "Supplier price": 100, "Markup": .25,
-                      "Sell price": 125, "Rate ID": "qa-new-rate", "Group": "sprays",
-                      "Selection name": "Replacement spray", "Price source": "Inventory", "Sell rate": 125,
-                      "Yield type": "Not used", "Use order": 999}
+                      "Sell price": 125, "Group": "sprays", "Price source": "Inventory"}
             sheet.append([record.get(header) for header in columns])
             stream = BytesIO()
             workbook.save(stream)

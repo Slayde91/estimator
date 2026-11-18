@@ -651,7 +651,8 @@ class ReferenceLibrary:
             manufacturers = {}
             if data:
                 for key in data['_visible'][kind]:
-                    names = data['_records'][kind][key].get('filter_values', {}).get('manufacturer', [])
+                    facets = data['_technical_discovery'][key] if kind == 'technical' else data['_records'][kind][key].get('filter_values', {})
+                    names = facets.get('manufacturer', [])
                     for name in set(names or ['Manufacturer not recorded']):
                         manufacturers[name] = manufacturers.get(name, 0) + 1
             counts['manufacturers'] = [{'name': name, 'count': count} for name, count in sorted(manufacturers.items(), key=lambda item: item[0].casefold())]

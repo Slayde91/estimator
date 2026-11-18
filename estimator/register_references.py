@@ -233,7 +233,8 @@ class ReferenceIndex:
         return result
 
     def manufacturer(self, identifier):
-        values = self.records[identifier].get('filter_values', {}).get('manufacturer', [])
+        facets = self.data.get('_technical_discovery', {}).get(identifier, self.records[identifier].get('filter_values', {}))
+        values = facets.get('manufacturer', [])
         return ' / '.join(sorted(set(values), key=str.casefold)) or 'Manufacturer not recorded'
 
     def project(self, contexts, offset=0, limit=100, *, report_offset=0, report_limit=None, excel=False):

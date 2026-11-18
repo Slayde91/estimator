@@ -173,7 +173,7 @@ async function checkWorkspaceTabs(info) {
   await page.evaluate(()=>window.CeasefireI18n.setLanguage('en',false));
   await page.locator('#library-navigation-toggle').click();await idle();await selectLibrary('pricing');
   await page.locator('#pricing-scope').selectOption('library');
-  const price=page.locator('#pricing-body [data-price-field="supplier_price"]').first();await price.fill('789.12345');await price.press('Tab');
+  const price=page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();await price.fill('789.12345');await price.press('Tab');
   await expect(price).toHaveValue('789.12');const dirty=await workspaceSnapshot();
   await libraryTabs.locator('[data-library-kind="technical"]').click();
   const prompt=page.getByRole('dialog',{name:'Unsaved Pricing Library',exact:true});await expect(prompt).toBeVisible();

@@ -204,10 +204,11 @@ class PassiveFireRegisterTests(unittest.TestCase):
 
     def test_all_access_branches_render_entered_evidence_and_project_identity(self):
         entry = completed_entry()
+        entry['comments'] = 'First <site note>\nSecond & final note'
         entry['signature_details'] = {'member_id': str(uuid.uuid4()), 'name': 'Inspector <A> & Brown', 'date': '2026-11-15'}
         for access, included, excluded in [
-            ('Yes', 'SIDE-B', 'Access blocked by wall'),
-            ('No', 'Access blocked by wall', 'SIDE-B'),
+            ('Yes', 'SIDE-B', 'Additional photos'),
+            ('No', 'Additional photos', 'SIDE-B'),
             ('NA', 'Topside only', 'SIDE-B'),
         ]:
             with self.subTest(access=access):
@@ -223,7 +224,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 ids = '001 / 001-2' if access == 'Yes' else '001'
                 lines = ' '.join(content.split())
                 self.assertIn(f'Penetration ID {ids} ', lines)
-                self.assertIn('Name Inspector <A> & Brown Date 15/11/2026 Signature', lines)
+                self.assertIn('Comments First <site note> Second & final note Name Inspector <A> & Brown Date 15/11/2026 Signature', lines)
                 for value in ('PN-TEST', 'Riser <01> & plant', 'Signature', 'Basement west',
                               'Side 1 - 001','Side 1 - 002',
                               'SIDE-A', 'Before', 'During', 'After', 'Label', included,
@@ -233,6 +234,21 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 if access=='Yes':
                     self.assertIn('Side 2 - 001-2', content)
                 self.assertTrue(any(image.image.size == (320, 180) for page in pages for image in page.images))
+
+    def test_long_comments_paginate_before_signature_and_legacy_entries_default_to_blank(self):
+        entry = completed_entry()
+        del entry['comments']
+        saved = normalize_register({'entries': [entry]})
+        self.assertEqual(saved['entries'][0]['comments'], '')
+        blank_pdf = PdfReader(BytesIO(render_register_pdf(saved, {}, company=DEFAULTS)))
+        self.assertNotIn('Comments', ' '.join(page.extract_text() for page in blank_pdf.pages))
+        note_lines = [f'Site note line {index:03d}' for index in range(1, 101)]
+        saved['entries'][0]['comments'] = '\n'.join(note_lines)
+        self.assertEqual(normalize_register(saved), saved)
+        commented_pdf = PdfReader(BytesIO(render_register_pdf(saved, {}, company=DEFAULTS)))
+        text = ' '.join(page.extract_text() for page in commented_pdf.pages)
+        self.assertTrue(all(text.count(line) == 1 for line in note_lines))
+        self.assertLess(text.index(note_lines[-1]), text.index('Signature'))
 
     def test_selected_technical_item_exports_source_fields_links_tables_and_only_site_photos(self):
         from tempfile import TemporaryDirectory
@@ -267,7 +283,7 @@ class PassiveFireRegisterTests(unittest.TestCase):
             text = ' '.join(' '.join(page.extract_text().split()) for page in pdf.pages)
             self.assertIn('Location Riser <01> & plant Substrate Concrete/masonry wall Type Core hole', text)
             self.assertIn('Penetration ID 001 / 001-2 System ID V2 Category Plumbing & Hydraulic Service Copper pipe', text)
-            self.assertIn('Report Number Unlinked source report Access to the other side Yes Name — Date — Signature', text)
+            self.assertIn('Report Number Unlinked source report Access to the other side Yes Comments Access blocked by wall Name — Date — Signature', text)
             for omitted in ('Field Value', 'Barrier Construction', 'Service Wrap', 'Local Protection',
                             'Installation Details', 'Retain original conditions.'):
                 self.assertNotIn(omitted, text)

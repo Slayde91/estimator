@@ -86,6 +86,8 @@ async function run() {
   await createNewProject(page,{client:'Synthetic fire register'});
   await register();
   const form = page.locator('#passive-register-root');
+  const comments = form.getByRole('textbox',{name:'Comments',exact:true});
+  const commentText = 'Seal checked at the marked location.\nRecord site condition before signing.';
   const signerName = form.getByRole('textbox',{name:'Name',exact:true});
   const signingDate = form.getByRole('textbox',{name:'Date',exact:true});
   const setSignerName = name => page.evaluate(async name => {
@@ -99,6 +101,10 @@ async function run() {
   await expect(signingDate).toHaveValue('');
   await expect(signerName).toHaveJSProperty('readOnly',true);
   await expect(signingDate).toHaveJSProperty('readOnly',true);
+  await expect(comments).toHaveValue('');
+  await expect(comments).toBeEditable();
+  assert.equal(await comments.evaluate(input => input.closest('section').nextElementSibling.querySelector('h2').textContent), 'Signature');
+  await comments.fill(commentText);
   await form.getByLabel('Level/Location').fill('North wall, Level 2');
   const toolbar = form.locator('.register-toolbar');
   const footer = form.locator('.register-footer-actions:last-child');
@@ -124,6 +130,7 @@ async function run() {
   await expect(page.locator('#view-documentation')).toBeVisible();
   await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
+  await expect(comments).toHaveValue(commentText);
   const picker = form.locator('.register-library-picker');
   const library = await page.request.get(new URL('/api/libraries/technical?limit=1', page.url()).href);
   const {filters} = await library.json();
@@ -188,20 +195,24 @@ async function run() {
   await idle();
   const entry = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0];
   assert.equal(entry.location,'North wall, Level 2');
+  assert.equal(entry.comments,commentText);
   assert.deepEqual(entry.technical_filters, choices);
   const label = 'North wall, Level 2-Concrete/masonry wall-Plumbing & Hydraulic-Copper Pipes--/90/90';
   await expect(toolbar.locator('option:checked')).toHaveText('001: ' + label);
   await require('./register_plan_location.cjs').pinDrawing(page, register, info.directory);
   const access = form.getByLabel('Is the other side accessible?');
   await access.selectOption('No');
-  await expect(form.getByLabel('Comments')).toBeVisible();
+  await expect(comments).toHaveCount(1);
+  await expect(comments).toHaveValue(commentText);
   await access.selectOption('Yes');
+  await expect(comments).toHaveValue(commentText);
   await expect(toolbar.locator('option:checked')).toHaveText('001 / 001-2: ' + label);
   await expect(form.getByRole('heading',{name:'Side 2'})).toBeVisible();
   await expect(form.getByLabel('ID Number').nth(1)).toHaveValue('001-2');
   await expect(form.getByLabel('ID Number').nth(1)).toHaveJSProperty('readOnly', true);
   await access.selectOption('NA');
   await expect(form.getByRole('heading',{name:'Side 2'})).toHaveCount(0);
+  await expect(comments).toHaveValue(commentText);
   await form.getByLabel('Solution').selectOption('Topside only');
   for (const phase of ['Before Photo','During Photo','After Photo','Label Photo']) {
     const pixels = await page.evaluate(label => {
@@ -265,6 +276,18 @@ async function run() {
   const receipt = await response.json();
   assert.equal(receipt.documentation.item.kind,'passive_fire_register.pdf');
   assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
+  const signedReportText = await page.evaluate(async url => {
+    const lib = await import('/vendor/pdfjs/build/pdf.mjs');
+    lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/build/pdf.worker.mjs';
+    const loading = lib.getDocument({url});
+    try {
+      const pdf = await loading.promise;
+      const inspection = await pdf.getPage(1);
+      const {items} = await inspection.getTextContent();
+      return items.map(item => item.str).join(' ').replace(/\s+/g,' ');
+    } finally { await loading.destroy(); }
+  }, receipt.documentation.item.url);
+  assert.match(signedReportText,/Comments Seal checked at the marked location\. Record site condition before signing\. Name Inspection signer/);
   await idle();
   const savedFile = page.locator('#app-message').getByRole('link', {name:receipt.path, exact:true});
   await expect(savedFile).toBeVisible();
@@ -303,6 +326,7 @@ async function run() {
   await createNewProject(page,{client:'Synthetic second register'});
   await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('');
+  await expect(comments).toHaveValue('');
   await expect(form.getByRole('img')).toHaveCount(0);
   fs.writeFileSync(path.join(output,'dialog-mode.json'),JSON.stringify({file:'project-a.cf.json'}));
   await openProjectSection(page,'quotes');
@@ -311,6 +335,7 @@ async function run() {
   await expect(page.locator('#client')).toHaveValue('Synthetic fire register');
   await idle(); await register();
   await expect(form.getByLabel('Level/Location')).toHaveValue('North wall, Level 2');
+  await expect(comments).toHaveValue(commentText);
   await expect(form.getByRole('img')).toHaveCount(6);
   await expect(signerName).toHaveValue('Inspection signer');
   await expect(signingDate).toHaveValue('02/01/2026');
@@ -334,6 +359,7 @@ async function run() {
   await expect(form.getByRole('img',{name:'Before Photo 1',exact:true})).toHaveCount(0);
   await footer.getByRole('button',{name:'Add entry'}).click();
   await expect(form.getByLabel('ID Number')).toHaveValue('002');
+  await expect(comments).toHaveValue('');
   await form.getByLabel('Level/Location').fill('South wall');
   await footer.getByRole('button',{name:'Remove entry'}).click();
   await page.locator('#discard-dialog [value="confirm"]').click();

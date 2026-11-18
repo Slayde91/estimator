@@ -102,7 +102,9 @@
     return {member_id:memberId, name:profile.name, date};
   }
   function editor(record, key, label, values, rerender = false) {
-
+    return field(label, entryControl(record, key, values, rerender));
+  }
+  function entryControl(record, key, values, rerender = false) {
     const control = el(values ? 'select' : key === 'comments' ? 'textarea' : 'input');
     if (values) {
       const blank = el('option','','Select');
@@ -124,7 +126,7 @@
       }
     });
     control.name = key;
-    return field(label,control);
+    return control;
   }
   function customFields(entry) {
     const grid = el('div','register-grid');
@@ -319,13 +321,20 @@
     form.append(toolbar, status, card, libraryPicker.element, sideSection(entry.side1,'Side 1'));
     const access = el('section','card');
     access.append(editor(entry,'access','Is the other side accessible?',options.access,true));
-    if (entry.access === 'No') access.append(photoList(entry,'photos','Photos'), editor(entry,'comments','Comments'));
+    if (entry.access === 'No') access.append(photoList(entry,'photos','Photos'));
     if (entry.access === 'NA') access.append(editor(entry,'solution','Solution',options.solution));
     form.append(access);
     if (entry.access === 'Yes') form.append(sideSection(entry.side2,'Side 2'));
     if (window.ClassifireRegisterPlans) {
       form.append(window.ClassifireRegisterPlans.section({entry, entries, changed, el, field}));
     }
+    const comments = el('section','card register-comments');
+    const commentsHeading = el('h2','','Comments');
+    commentsHeading.id = 'passive-register-comments-heading';
+    const commentText = entryControl(entry,'comments');
+    commentText.rows = 3;
+    commentText.setAttribute('aria-labelledby', commentsHeading.id);
+    comments.append(commentsHeading, commentText);
     const sign = el('section','card');
     sign.append(el('h2','','Signature'));
     const signer = el('div','register-grid');
@@ -381,7 +390,7 @@
     sign.append(buttons);
     const footer = el('div','register-footer-actions register-actions');
     footer.append(...entryActions(entry));
-    form.append(sign, el('p','helper','Save the project to keep this register.'), footer);
+    form.append(comments, sign, el('p','helper','Save the project to keep this register.'), footer);
     root.replaceChildren(form);
     return true;
   }

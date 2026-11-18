@@ -111,6 +111,8 @@ async function importWorkbook(file,accept){
   await chooseLibrary(page,'pricing');await expect(page.locator('#pricing-scope')).toHaveValue('library');
   await expect(page.locator('#pricing-head th')).toHaveText(['Product/Service','Manufacturer','Supplier price','Markup %','Sell price',
     'Main Estimator groups','Firestopping Estimator groups','Yield','Width (mm)','Length (mm)','Area (m²)','Actions']);
+  await expect(page.locator('#pricing-body .pricing-group-add')).toHaveCount(0);
+  await expect(page.locator('#add-pricing-item')).toBeVisible();
   await page.locator('#pricing-search').fill(owner.manufacturer);await expect(row()).toBeVisible();await expect(field()).toHaveValue(owner.manufacturer);
   await findOwner();await expect(field()).toHaveAttribute('maxlength','200');await expect(field()).toHaveAccessibleName(owner.name+': Manufacturer');await field().scrollIntoViewIfNeeded();
   const sellPrice = row().locator('[data-price-field="sales_price"]');
@@ -206,23 +208,36 @@ print(json.dumps(dict(manufacturer_column=h['Manufacturer'],owner_id=sys.argv[3]
   await groupChoice(main,'mesh').check();
   await main.getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(main).toBeHidden();
-  await coatingField(mainField).locator('.pricing-group-add').click();
+  await mainTrigger.click();
   await expect(groupChoice(main,'mesh')).not.toBeChecked();
   await groupChoice(main,'mesh').check();
   await main.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(main).toBeHidden();
 
-  await coatingField(fireField).locator('.pricing-group-add').click();
+  const fireTrigger=coatingField(fireField).locator('.pricing-group-trigger');
+  await fireTrigger.click();
   await groupChoice(fire,'boards').check();
   await groupChoice(fire,'materials').check();
   await fire.getByRole('button',{name:'Apply',exact:true}).click();
   await expect(fire).toBeHidden();
+  evidence.equalYieldAndWidth=[];
   for (const width of [1440,390]) {
     await page.setViewportSize({width,height:900});
     await expect(coatingField('Yield')).toBeEditable();
-    await expect(coatingField(mainField).locator('.pricing-group-add')).toBeEnabled();
-    await expect(coatingField(fireField).locator('.pricing-group-add')).toBeEnabled();
-    await coatingField(fireField).locator('.pricing-group-trigger').click();
+    await expect(coatingField('Width (mm)')).toBeEditable();
+    await expect(coatingRow.locator('.pricing-group-add')).toHaveCount(0);
+    await expect(mainTrigger).toBeEnabled();
+    await expect(fireTrigger).toBeEnabled();
+    const yieldHeader=page.getByRole('columnheader',{name:'Yield',exact:true});
+    const widthHeader=page.getByRole('columnheader',{name:'Width (mm)',exact:true});
+    const [yieldColumn,widthColumn,yieldControl,widthControl]=await Promise.all([
+      yieldHeader,widthHeader,coatingField('Yield'),coatingField('Width (mm)'),
+    ].map(element=>element.evaluate(node=>node.getBoundingClientRect().width)));
+    await expect(widthHeader).toBeVisible();
+    assert.ok(Math.abs(yieldColumn-widthColumn)<0.5, 'Yield and Width headers have equal width at '+width);
+    assert.ok(Math.abs(yieldControl-widthControl)<0.5, 'Yield and Width inputs have equal width at '+width);
+    evidence.equalYieldAndWidth.push({viewportWidth:width,yieldColumn,widthColumn,yieldControl,widthControl});
+    await fireTrigger.click();
     await expect(fire).toBeVisible();await assertPopupFits(fire,width);
     await expect(groupChoice(fire,'boards')).toBeChecked();
     await expect(groupChoice(fire,'materials')).toBeChecked();

@@ -340,6 +340,8 @@ def _inspection_fields(report, entry, item):
     rows.append(('Access to the other side', report.p(entry['access'], 'cell')))
     if entry['access'] == 'NA':
         rows.append(('Solution', report.p(entry['solution'], 'cell')))
+    if entry['comments']:
+        rows.append(('Comments', report.p(entry['comments'])))
     signer = entry.get('signature_details') or {}
     rows.extend([('Name', report.p(signer.get('name') or '—', 'cell')),
                  ('Date', report.p(display_date(signer.get('date')) or '—', 'cell')),
@@ -394,8 +396,6 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             append_technical_tables(report, (table for table in item['tables']
                                              if table['label'].casefold() not in _INSTRUCTION_FIELDS),
                                     content, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
-        if entry['comments'] and entry['access'] == 'No':
-            report.story.extend([report.p('Comments', 'subheading'), report.p(entry['comments'])])
         for side in (('side1', 'side2') if entry['access'] == 'Yes' else ('side1',)):
             values = entry[side]
             report.story.append(Spacer(1, 6))

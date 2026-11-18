@@ -3861,12 +3861,11 @@
   "Pricing mode": "Mode de tarification",
   "Supplier markup": "Majoration du prix fournisseur",
   "Manual": "Manuel",
-  "Price source": "Source du prix",
-  "Sell rate": "Tarif de vente",
-  "Use yields": "Rendements par usage",
   "Enter a nonnegative number or leave blank.": "Saisissez un nombre positif ou nul, ou laissez le champ vide.",
-  "Enter one value per Main Estimator group, including blank slots.": "Saisissez une valeur par groupe de l’estimateur principal, cases vides comprises.",
-  "Enter Inventory or Override for each price source.": "Saisissez Inventory ou Override pour chaque source du prix.",
-  "Set Price source to Override before editing Sell rate.": "Choisissez Override comme source du prix avant de modifier le tarif de vente.",
-  "This group does not use a yield.": "Ce groupe n’utilise pas de rendement."
+  "Rate overrides": "Tarifs spécifiques",
+  "Use Main Estimator group names and = to enter individual values.": "Utilisez les noms de groupe de l’estimateur principal et le signe = pour saisir des valeurs distinctes.",
+  "Enter a valid Main Estimator group: {0}.": "Saisissez un groupe valide de l’estimateur principal : {0}.",
+  "Enter each group once: {0}.": "Saisissez chaque groupe une seule fois : {0}.",
+  "Use group = value for each entry.": "Utilisez groupe = valeur pour chaque entrée.",
+  "Use group = value when the yield units differ.": "Utilisez groupe = valeur lorsque les unités de rendement diffèrent."
 }

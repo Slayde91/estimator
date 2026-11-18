@@ -240,7 +240,7 @@ async function inspectHeader(width) {
       await expect(page.locator('#pricing-heading')).toHaveText('Pricing Library');await expect(page.locator('#pricing-heading')).toHaveCSS('font-size','18px');
       await expect(page.locator('#library-pricing .eyebrow')).toHaveCount(0);
       const pricingScroll=page.locator('#library-pricing .table-scroll'),columns=page.locator('#pricing-head th');
-      await expect(columns).toHaveCount(16);
+      await expect(columns).toHaveCount(14);
       for(const width of [1440,390]) {
         await page.setViewportSize({width,height:1000});
         await expect(pricingScroll).toHaveCSS('overflow-x',/auto|scroll/);
@@ -250,6 +250,11 @@ async function inspectHeader(width) {
             const cell=el.getBoundingClientRect(),viewport=el.closest('.table-scroll').getBoundingClientRect();
             return cell.left>=viewport.left-1 && cell.right<=viewport.right+1 && viewport.left>=-1 && viewport.right<=innerWidth+1;
           }),'Every Pricing column remains reachable inside its bounded table scroll at '+width);
+          assert.ok(await column.evaluate(el=>{
+            const label=document.createRange(),cell=el.getBoundingClientRect();
+            label.selectNodeContents(el);
+            return Array.from(label.getClientRects()).every(rect=>rect.left>=cell.left-1 && rect.right<=cell.right+1);
+          }),'Pricing headings stay within their own cells at '+width);
         }
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Pricing does not widen the page at '+width);
       }

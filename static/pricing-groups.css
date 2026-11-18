@@ -1,6 +1,6 @@
 .pricing-group-picker {
   display:grid;
-  grid-template-columns:28px minmax(0,1fr);
+  grid-template-columns:minmax(0,1fr);
   min-height:42px;
   background:var(--theme-input,#fefdfd);
   color:var(--ink);
@@ -8,31 +8,21 @@
   border-radius:8px;
 }
 .pricing-group-picker:hover,.pricing-group-picker:focus-within { border-color:var(--theme-focus,var(--accent)); }
-.pricing-group-add,.pricing-group-trigger {
-  min-width:0;
-  padding:0;
-  color:inherit;
-  background:transparent;
-}
-.pricing-group-add {
-  border-radius:7px 0 0 7px;
-  font-size:18px;
-  font-weight:600;
-  line-height:1;
-}
 .pricing-group-trigger {
   display:flex;
   justify-content:space-between;
   align-items:center;
   gap:6px;
-  padding-inline:0 9px;
-  border-radius:0 7px 7px 0;
+  min-width:0;
+  padding:0 9px;
+  color:inherit;
+  background:transparent;
+  border-radius:7px;
   text-align:start;
   font-size:12px;
 }
-.pricing-group-add:hover:not(:disabled) { color:var(--theme-focus,var(--accent)); }
-.pricing-group-add:focus-visible,.pricing-group-trigger:focus-visible { outline-offset:-3px; }
-.pricing-group-add:disabled,.pricing-group-trigger:disabled { cursor:default; }
+.pricing-group-trigger:focus-visible { outline-offset:-3px; }
+.pricing-group-trigger:disabled { cursor:default; }
 .pricing-group-caption {
   min-width:0;
   overflow:hidden;

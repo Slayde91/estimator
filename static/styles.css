@@ -403,8 +403,7 @@ dialog .actions{justify-content:flex-end}
 .pricing-table th:nth-child(3),.pricing-table th:nth-child(5){width:7%}
 .pricing-table th:nth-child(4){width:6%}
 .pricing-table th:nth-child(6),.pricing-table th:nth-child(7){width:15%}
-.pricing-table th:nth-child(8){width:9%}
-.pricing-table th:nth-child(n+9):nth-child(-n+11){width:3.8%;padding-inline:4px}
+.pricing-table th:nth-child(n+8):nth-child(-n+11){width:3.8%;padding-inline:4px}
 .pricing-table th:last-child{width:108px}
 .pricing-existing-overrides{margin-top:5px;font-size:10px}
 .pricing-existing-overrides summary{cursor:pointer}

@@ -45,7 +45,6 @@
 
   function create({label, itemName, options, selected = [], placeholder = "Choose…", onChange, disabled = false, multiple = true}) {
     const root = node("div", "pricing-group-picker");
-    const add = button("pricing-group-add", "+");
     const trigger = button("pricing-group-trigger", "");
     const caption = node("span", "pricing-group-caption");
     const chevron = node("span", "pricing-group-chevron");
@@ -53,13 +52,12 @@
     let saved = selected.slice();
 
     root.dataset.priceField = label;
-    add.disabled = trigger.disabled = disabled || !options.length;
-    add.setAttribute("aria-haspopup", "dialog");
+    trigger.disabled = disabled || !options.length;
     chevron.setAttribute("aria-hidden", "true");
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-expanded", "false");
     trigger.append(caption, chevron);
-    root.append(add, trigger);
+    root.append(trigger);
 
     function setCaption() {
       const names = [...new Set(saved)].map(value => {
@@ -71,14 +69,12 @@
       caption.textContent = summary || translate(placeholder);
       trigger.setAttribute("aria-label", `${itemName}: ${field}`);
       trigger.title = summary || field;
-      add.setAttribute("aria-label", `${translate("Add")}: ${itemName} — ${field}`);
-      add.title = translate("Add");
     }
     setCaption();
     captions.set(root, setCaption);
 
-    function open(origin, preferNew) {
-      if (origin.disabled || !root.isConnected) return;
+    function open() {
+      if (trigger.disabled || !root.isConnected) return;
       if (active?.root === root) {
         close();
         return;
@@ -141,7 +137,7 @@
         trigger.setAttribute("aria-expanded", "false");
         trigger.removeAttribute("aria-controls");
         active = null;
-        if (returnFocus && origin.isConnected) origin.focus({preventScroll: true});
+        if (returnFocus && trigger.isConnected) trigger.focus({preventScroll: true});
       }
       function outside(event) {
         if (!popup.contains(event.target) && !root.contains(event.target)) dismiss();
@@ -200,18 +196,17 @@
       document.addEventListener("focusin", outside);
       window.addEventListener("scroll", scroll, true);
       window.addEventListener("resize", refresh);
-      const focus = boxes.find(box => preferNew ? !box.checked : box.checked) || boxes[0];
+      const focus = boxes.find(box => box.checked) || boxes[0];
       focus?.focus({preventScroll: true});
       focus?.scrollIntoView({block: "nearest", inline: "nearest"});
     }
 
-    trigger.addEventListener("click", () => open(trigger, false));
+    trigger.addEventListener("click", open);
     trigger.addEventListener("keydown", event => {
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       event.preventDefault();
-      open(trigger, false);
+      open();
     });
-    add.addEventListener("click", () => open(add, true));
     return root;
   }
 

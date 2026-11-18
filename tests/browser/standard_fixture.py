@@ -27,18 +27,18 @@ def main():
     # the save-as overwrite check is reached after automatic-number validation.
     protected_path = folder / 'protected-v2.cf.json'
     store = Store(folder / 'qa.sqlite3')
-    rate = baseline()['rate_groups']['sprays'][1]['id']
-    store.save_configuration({'rates': {rate: {'price': 987.65}}})
+    rate = baseline()['rate_groups']['sprays'][1]
     legacy = export_project(store, {'estimate': {'project_no': 'STANDARD-FIXTURE',
                             'client': 'Synthetic acceptance', 'site_address': '1 Synthetic Standard Street',
                             'contact_name': 'Synthetic Standard Contact', 'contact_phone': '0400 000 001',
-                            'contact_email': 'standard@example.test', 'measurements': 'Frozen legacy project'},
+                            'contact_email': 'standard@example.test', 'measurements': 'Frozen legacy project',
+                            'configuration': {'rates': {rate['id']: {'price': 987.65}}}},
                             'calculators': {}}, edition='standard')
     legacy_path.write_bytes(legacy)
     protected = json.loads(legacy)
     protected.update(version=2, takeoffs={'evidence': 'Must remain untouched'})
     protected_path.write_text(json.dumps(protected), encoding='utf-8')
-    store.save_configuration({'rates': {rate: {'price': 123.45}}})
+    store.save_configuration({'inventory': {rate['inventory_id']: {'supplier_price': 123.45, 'markup': 0}}})
     control = folder / 'dialog-mode.json'
     control.write_text('{}', encoding='utf-8')
 

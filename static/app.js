@@ -1915,10 +1915,6 @@
       catalog.inventory.find(item => item.id === record.item.id).properties[key] = value;
     });
   }
-  function independentUse(item) {
-    const override = getOverride("rates", item.id);
-    return item.price_mode === "override" || ["price", "supplier_price", "markup"].some(field => Object.hasOwn(override, field));
-  }
   function namedPricingUses(uses) {
     const occurrences = new Map();
     return uses.map(use => {
@@ -1927,7 +1923,7 @@
       return { ...use, key: occurrence === 1 ? use.group : `${use.group} #${occurrence}` };
     });
   }
-  function namedPricingValues(text, uses, parseValue) {
+  function namedPricingYields(text, uses) {
     const names = new Map(uses.map(use => [use.key.toLowerCase(), use.item.id]));
     const result = new Map();
     for (const entry of parsePricingUses(text)) {
@@ -1938,38 +1934,15 @@
       const id = names.get(normalized);
       if (!id) throw new Error(window.CeasefireI18n.translate("Enter a valid Main Estimator group: {0}.", [key]));
       if (result.has(id)) throw new Error(window.CeasefireI18n.translate("Enter each group once: {0}.", [key]));
-      result.set(id, parseValue(match[2].trim()));
+      result.set(id, parseYieldValue(match[2].trim()));
     }
     return result;
-  }
-  function setRateOverrides(record, uses, text) {
-    const values = namedPricingValues(text, uses, pricingMeasurement);
-    const edits = new Map();
-    for (const {item} of uses) {
-      const price = values.get(item.id), mode = values.has(item.id) ? "override" : "inventory";
-      if (independentUse(item) !== (mode === "override") || (mode === "override" && price !== rateSellPrice(item))) {
-        edits.set(item.id, { mode, price: price ?? inventorySellPrice(record.item) });
-      }
-    }
-    if (!edits.size) return;
-    editPricingCatalog(catalog => {
-      for (const rates of Object.values(catalog.rate_groups)) for (const rate of rates) {
-        const edit = edits.get(rate.id);
-        if (!edit) continue;
-        rate.price_mode = edit.mode;
-        rate.price = edit.price;
-        delete rate.supplier_price; delete rate.markup;
-        const patch = getOverride("rates", rate.id);
-        for (const field of ["price", "supplier_price", "markup"]) delete patch[field];
-        if (!Object.keys(patch).length) delete state.draft.rates[rate.id];
-      }
-    });
   }
   function yieldToken(value) {
     return String(value ?? "");
   }
-  function sharedPricingYield(record, namedUses = namedPricingUses(record.uses)) {
-    const uses = namedUses.filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
+  function sharedPricingYield(record) {
+    const uses = namedPricingUses(record.uses).filter(({ item }) => item.uses_yield ?? !!item.source?.yield);
     const values = uses.map(({ item }) => {
       const override = getOverride("rates", item.id);
       return (Object.hasOwn(override, "yield") ? override.yield : item.yield) ?? null;
@@ -1990,7 +1963,7 @@
   }
   function setSharedPricingYield(record, shared, text) {
     if (text.includes("=")) {
-      const values = namedPricingValues(text, shared.uses, parseYieldValue);
+      const values = namedPricingYields(text, shared.uses);
       for (const [index, {item}] of shared.uses.entries()) {
         if (!values.has(item.id)) continue;
         const value = values.get(item.id);
@@ -2147,24 +2120,13 @@
       const manufacturer = pricingFieldInput(record, "Manufacturer", getOverride(kind, item.id).manufacturer ?? item.manufacturer ?? "", (text) => setManufacturer(record, text));
       manufacturer.maxLength = 200;
       manufacturerCell.append(manufacturer); row.append(manufacturerCell);
-      const priceCells = pricingPriceCells(record, row);
-      row.append(...priceCells, pricingGroupCell(record, false), pricingGroupCell(record, true));
-      const namedUses = namedPricingUses(uses), shared = sharedPricingYield(record, namedUses);
+      row.append(...pricingPriceCells(record, row), pricingGroupCell(record, false), pricingGroupCell(record, true));
+      const shared = sharedPricingYield(record);
       const yieldCell = node("td");
       const input = pricingFieldInput(record, "Yield", shared.value, text => setSharedPricingYield(record, shared, text));
       input.title = shared.units.join("; ") || "Stored yield; not used by this item's current calculation groups";
       yieldCell.append(input);
-      const rateValues = inventoryView ? namedUses.filter(({item}) => independentUse(item))
-        .map(({key, item}) => `${key} = ${rateSellPrice(item)}`) : [];
       const groupHelp = "Use Main Estimator group names and = to enter individual values.";
-      if (rateValues.length) {
-        const details = node("details", "pricing-existing-overrides");
-        const rateInput = pricingFieldInput(record, "Rate overrides", pricingUseList(rateValues),
-          text => setRateOverrides(record, namedUses, text));
-        window.CeasefireI18n.attr(rateInput, "title", groupHelp);
-        details.append(uiNode("summary", "", "Rate overrides"), rateInput);
-        priceCells[2].append(details);
-      }
       if (shared.mixed) window.CeasefireI18n.attr(input, "aria-description", groupHelp);
       row.append(yieldCell);
       for (const [heading, key] of pricingDimensions) {

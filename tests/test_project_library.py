@@ -177,8 +177,8 @@ class ProjectLibraryTests(unittest.TestCase):
 
     def test_save_load_and_initial_link_preserve_complete_snapshot_and_other_storage(self):
         self.store.save_quote({"title": "Legacy quote", "inputs": {"B15": 17.25}})
-        spray = baseline()["rate_groups"]["sprays"][1]["id"]
-        self.store.save_configuration({"rates": {spray: {"price": 987.65}}})
+        spray = baseline()["rate_groups"]["sprays"][1]["inventory_id"]
+        self.store.save_configuration({"inventory": {spray: {"supplier_price": 987.65, "markup": 0}}})
         self.store.save_calculator_state("ductwork", {"CALCULATOR": {"B1010": "Existing local mark"}})
         before = database_rows(self.store)
         target = self.folder / "Project 17.ceasefire-project.cf.json"

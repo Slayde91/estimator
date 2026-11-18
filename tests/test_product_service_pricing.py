@@ -212,6 +212,30 @@ class ProductServicePricingTests(unittest.TestCase):
         again = self.imported(export_pricing_workbook(result), other)['configuration']
         self.assertEqual(effective_catalog(again)['rate_groups']['primers'][0], saved)
 
+    def test_active_import_uses_product_prices_in_current_and_legacy_templates(self):
+        catalog = baseline()
+        topcoat = catalog['rate_groups']['topcoats'][0]
+        topcoat.update(price_mode='override', price=1)
+        catalog['rate_groups']['topcoats'].append({
+            **topcoat, 'id': 'independent-topcoat', 'name': 'Independent coating service',
+            'inventory_id': None, 'price': 23, 'yield': 7.25,
+        })
+        previous = {'catalog': catalog, 'rates': {'primers:1': {'price': 401.25, 'yield': 71}}}
+        current = export_pricing_workbook(previous)
+        old = _product_service_export(previous, CONSOLIDATED_PRODUCT_SERVICE_VISIBLE_HEADERS,
+                                      CONSOLIDATED_PRODUCT_SERVICE_HEADERS)
+        for payload, extra in ((current, {}), (old, {'Rate overrides': 'primers = 10; topcoats = 0'})):
+            with self.subTest(legacy=bool(extra)):
+                payload = edit(payload, [('204', {'Supplier price': 300, 'Markup': .2, **extra})])
+                imported = import_pricing_workbook(payload, 'pricing.xlsx', previous, active_library=True)
+                data = effective_catalog(imported['configuration'])
+                primer = next(rate for rate in data['rate_groups']['primers'] if rate['id'] == 'primers:1')
+                topcoat = next(rate for rate in data['rate_groups']['topcoats'] if rate['id'] == 'topcoats:1')
+                service = next(rate for rate in data['rate_groups']['topcoats'] if rate['id'] == 'independent-topcoat')
+                self.assertEqual((primer['price_mode'], primer['price'], primer['yield']), ('inventory', 360, 71))
+                self.assertEqual((topcoat['price_mode'], topcoat['price'], topcoat['yield']), ('inventory', 360, 142))
+                self.assertEqual((service['inventory_id'], service['price'], service['yield']), (None, 23, 7.25))
+
     def test_legacy_overlays_and_named_yields_survive_noop_and_inventory_edit(self):
         config = {'rates': {'primers:1': {'price': 401.1234567890123, 'yield': 71.12345678901234},
                             'topcoats:1': {'yield': 142}}, 'inventory': {'204': {'product_service': 'Shared coating'}}}

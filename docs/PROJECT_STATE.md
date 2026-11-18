@@ -232,12 +232,11 @@ draft; saving/applying remains necessary. Use current pricing explicitly
 replaces project prices with the last saved shared library, without rewriting
 the existing project file until Save Project.
 
-Inventory products have one row with matching semicolon lists for uses,
-selection names, rate overrides, yields and editable units. Standalone rates
-retain separate rows. Blank overrides follow the item sell price; historical
-frozen project rates remain explicit overrides until cleared. Units describe
-the yield basis and do not perform a conversion. Pricing XLSX exports add Yield
-unit and retain older workbook import formats.
+Inventory products have one row with estimator group selections and yields.
+Every linked use in the shared library takes the product's Sell price. Standalone
+rates retain their own prices. Older Excel layouts still import, and linked uses
+take the product's Sell price on import. Existing project snapshots retain their
+saved prices. The Excel Yield unit describes the calculation unit.
 
 All PDF/XLSX table headings and data, plus main calculator schedule controls,
 are centred. New XLSX schedule templates omit Line but retain 1,000 rows;

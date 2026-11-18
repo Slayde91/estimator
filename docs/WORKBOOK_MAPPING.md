@@ -48,7 +48,7 @@ All 377 numeric supplier records have H equal to P within floating-point represe
 
 The user explicitly requires supplier/markup edits to affect estimates. The application therefore makes an intentional extension to Excel's stored H column: when supplier price or inventory markup is overridden, compute `supplier_price*(1+markup)` and propagate it to every linked rate. Unmodified items continue to use exact imported H. Manual labour/service rows instead expose their sales price. Source data and overrides remain separate so restoring defaults is deterministic.
 
-An explicit rate override can replace that option's price or yield. It takes precedence for that one rate; changing a shared inventory item updates every linked option. Display-name edits follow the source B/G column and leave selection identifiers stable. Configuration rejects invalid types, non-finite numbers, negative supplier/sales prices or yields, markup below -100%, and unknown IDs/fields. These are application configuration safeguards; they are not presented as rules extracted from Excel. Calculator numeric-input parity is separate from catalogue-edit validation.
+Every linked option in the current pricing library uses its product's Sell price. Standalone rates have their own prices, and groups can retain individual yields. Saved project snapshots retain legacy rate prices. Display-name edits follow the source B/G column and preserve selection identifiers. The application validates types, finite numbers, nonnegative prices and yields, markup of at least -100%, and known IDs and fields.
 
 ## Lists and dropdown dependencies
 

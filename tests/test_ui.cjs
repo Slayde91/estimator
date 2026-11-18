@@ -409,9 +409,8 @@ let passed=0;
     ['firestopping','Firestopping Estimator'],['firestopping:collars','Firestopping Estimator — collars'],['firestopping:wraps','Firestopping Estimator — wraps'],['firestopping:materials','Firestopping Estimator — materials'],['not-used','Not used in either estimator']]);
   const originalPricing=JSON.stringify(pricingFixture);
   const initialMixedYield='primers = 10.123456; topcoats = 8';
-  const initialRateOverrides='topcoats = 180.123456';
   assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat','unused','manual','team','duplicate-name']);
-  assert.equal(byId('pricing-body').children.length,5);assert.equal(pricingNodes().filter(node=>node.tagName==='details').length,1);
+  assert.equal(byId('pricing-body').children.length,5);assert.equal(pricingNodes().filter(node=>node.tagName==='details').length,0);
   assert.deepEqual(byId('pricing-head').children[0].children.map(cell=>cell.textContent),[
     'Product/Service','Manufacturer','Supplier price','Markup %','Sell price','Main Estimator groups',
     'Firestopping Estimator groups','Yield','Width (mm)','Length (mm)','Area (m²)','Actions']);
@@ -421,9 +420,8 @@ let passed=0;
   assert.deepEqual(productInput('coat','Firestopping Estimator groups').selected,[]);
   assert.equal(productInput('team','Firestopping Estimator groups').disabled,true);
   assert.equal(productInput('coat','Yield').value,initialMixedYield);assert.equal(productInput('coat','Yield unit'),undefined);assert.equal(productInput('coat','Yield').title,'m² / unit');
-  assert.equal(productInput('coat','Rate overrides').value,initialRateOverrides);assert.equal(productInput('team','Yield').value,'');
-  assert.equal(productInput('team','Rate overrides'),undefined);
-  assert.equal(productInput('manual','Rate overrides'),undefined);
+  assert.ok(pricingNodes().every(node=>node.dataset.priceField!=='Rate overrides'));
+  assert.equal(productInput('team','Yield').value,'');
   assert.ok(!pricingNodes().some(node=>node.className==='subtext pricing-rate-notice'));
   assert.equal(audit.state.pricingDirty,false);assert.equal(JSON.stringify(pricingFixture),originalPricing);passed++;
 
@@ -514,18 +512,7 @@ let passed=0;
   // Viewing or leaving precise values alone never produces rounding overrides.
   const initialPricing=JSON.stringify(audit.state.draft);
   await productInput('coat','supplier_price').emit('blur');await productInput('coat','Yield').emit('change');
-  await productInput('coat','Rate overrides').emit('change');
   assert.equal(JSON.stringify(audit.state.draft),initialPricing);assert.equal(productInput('coat','Yield').value,initialMixedYield);passed++;
-
-  // Punctuation-only and repeated overrides fail without changing a matching group's price.
-  for (const value of ['; ;', 'topcoats = 0; topcoats = 1']) {
-    const invalidRate=await editList('coat','Rate overrides',value);
-    assert.equal(invalidRate.getAttribute('aria-invalid'),'true');
-    assert.equal(JSON.stringify(audit.state.draft),initialPricing);
-  }
-  await editList('coat','Rate overrides',initialRateOverrides);
-  assert.equal(productInput('coat','Rate overrides').getAttribute('aria-invalid'),undefined);
-  assert.equal(JSON.stringify(audit.state.draft),initialPricing);passed++;
 
   // Filters find every use, standalone rate and unused inventory item without changing membership.
   byId('rate-group').value='primers';await byId('rate-group').emit('change');assert.deepEqual(productRows().map(row=>row.dataset.priceId),['coat']);
@@ -552,7 +539,7 @@ let passed=0;
   // Supplier edits update the shared sell price while independent rates retain their price.
   productInput('coat','supplier_price').value='200';await productInput('coat','supplier_price').emit('input');
   assert.equal(productInput('coat','sales_price').value,'240.00');
-  assert.equal(productInput('coat','Rate overrides').value,initialRateOverrides);assert.equal(productInput('team','Rate overrides'),undefined);
+  assert.equal(productInput('coat','Rate overrides'),undefined);
   assert.equal(productRows()[0].children[3].children.length,1);
   assert.equal(audit.state.catalog.rate_groups.topcoats[0].price,180.123456);
   await editList('coat','Yield','12.75');
@@ -616,7 +603,7 @@ let passed=0;
   const unaffected=JSON.stringify(audit.state.draft.inventory.manual);
   await productRows().find(row=>row.dataset.priceId==='coat').children.at(-1).children[0].emit('click');
   assert.equal(audit.state.catalog.inventory[0].item_code,'P-1');assert.deepEqual(productInput('coat','Main Estimator groups').selected,['primers','topcoats']);
-  assert.equal(productInput('coat','Yield').value,initialMixedYield);assert.equal(productInput('coat','Rate overrides').value,initialRateOverrides);
+  assert.equal(productInput('coat','Yield').value,initialMixedYield);
   assert.equal(productInput('coat','Yield').title,'m² / unit');assert.equal(audit.state.draft.rates.topcoat,undefined);
   assert.equal(audit.state.draft.inventory.coat,undefined);assert.equal(JSON.stringify(audit.state.draft.inventory.manual),unaffected);
   assert.equal(audit.state.draft.rates.team.supplier_price,1050);passed++;
@@ -643,7 +630,9 @@ let passed=0;
   audit.refreshPricingCatalog();audit.renderPricing();await editList('coat','Product/Service','CHANGED');
   await productRows().find(row=>row.dataset.priceId==='coat').children.at(-1).children[0].emit('click');
   assert.equal(JSON.stringify(audit.state.draft),JSON.stringify(frozenPricing));
-  assert.equal(productInput('coat','Rate overrides').value,'primers = 555; topcoats = 180.123456');
+  assert.equal(productInput('coat','Rate overrides'),undefined);
+  assert.equal(audit.state.draft.rates.primer.price,555);
+  assert.equal(audit.state.draft.catalog.rate_groups.topcoats[0].price,180.123456);
   assert.deepEqual(copy(audit.state.configuration),{inventory:{},rates:{}});audit.state.pricingScope='library';audit.state.quoteConfiguration=null;passed++;
 
   // Reset confirmation cannot replace a different scope or a newer draft, and a reset stays unsaved.

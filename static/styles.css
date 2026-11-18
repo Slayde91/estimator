@@ -253,7 +253,7 @@ td.numeric,.numeric{text-align:right;font-variant-numeric:tabular-nums}
 #library-pricing>.card :where(button,select,textarea,input:not([type=checkbox],[type=radio],[type=hidden],[type=file])){box-sizing:border-box;height:var(--library-control-height);min-height:var(--library-control-height);padding-block:0}
 #library-pricing>.card textarea{padding-block:6px}
 #library-pricing>.card .icon-only{width:var(--library-control-height);min-width:var(--library-control-height);padding-inline:0}
-.pricing-table th:first-child{width:14%;min-width:0}
+.pricing-table th:first-child{width:13%;min-width:0}
 .pricing-table th:nth-child(2){width:8%;min-width:0}
 .pricing-table input{width:100%;min-width:0;max-width:100%;font-size:12px;padding:7px}
 .pricing-table input[type=number]{min-width:0;max-width:100%;text-align:right}
@@ -405,6 +405,7 @@ dialog .actions{justify-content:flex-end}
 .pricing-table th:nth-child(6){width:9%}
 .pricing-table th:nth-child(7),.pricing-table th:nth-child(8){width:8%}
 .pricing-table th:nth-child(9),.pricing-table th:nth-child(10){width:10%}
+.pricing-table th:nth-child(n+11):nth-child(-n+13){width:3.6%;padding-inline:4px}
 .pricing-table th:last-child{width:108px}
 .pricing-table .pricing-row-actions .icon-only{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle}
 

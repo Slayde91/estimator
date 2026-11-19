@@ -74,6 +74,37 @@ class ProjectDocumentationTests(unittest.TestCase):
         self.certificates.publish(certificate, path); self.docs.publish(documents, path)
         return path, certificate, documents
 
+    def test_new_pdf_names_use_the_archived_revision_and_keep_legacy_names(self):
+        self.docs = ProjectDocumentation(self.certificates, kinds={
+            row['id']: row['label'] for row in document_catalog('full')
+        })
+        cases = {
+            'passive_fire_register.pdf': ('CLASSIFIRE-Passive-Fire-Inspections-R1.pdf', 'PASSIVE_FIRE_INSPECTIONS'),
+            'passive_fire_registers.pdf': ('CLASSIFIRE-Passive-Fire-Register-R1.pdf', 'PASSIVE_FIRE_REGISTER'),
+            'duct_inspections.pdf': ('CLASSIFIRE-Duct-Inspections-R1.pdf', 'DUCT_INSPECTIONS'),
+            'duct_register.pdf': ('CLASSIFIRE-Duct-Register-R1.pdf', 'DUCT_REGISTER'),
+            'structural_steel_inspections.pdf': ('CLASSIFIRE-Structural-Steel-Inspections-R1.pdf', 'STEEL_INSPECTIONS'),
+            'structural_steel_register.pdf': ('CLASSIFIRE-Structural-Steel-Register-R1.pdf', 'STEEL_REGISTER'),
+            'commercial.quote': ('Quote-QU-05-R1.pdf', 'QU-05'),
+            'commercial.work_order': ('Work-Order-WO-05-R1.pdf', 'WO-05'),
+            'commercial.purchase_order': ('Purchase-Order-PO-05-R1.pdf', 'PO-05'),
+            'swms': ('SAFE-WORK-METHOD-STATEMENT-SWMS-04-R1.pdf', 'SWMS-04'),
+        }
+        with self.docs._connect(self.docs._workspace(self.workspace)) as db:
+            for kind, (legacy, stem) in cases.items():
+                request_id, stamp = str(uuid.uuid4()), fingerprint(kind)
+                first = self.record(kind=kind, filename=legacy, request_id=request_id, input_fingerprint=stamp)['item']
+                self.assertEqual(first['filename'], f'{stem}-1.pdf')
+                db.execute('UPDATE documentation_revisions SET filename=? WHERE id=?', (legacy, first['id']))
+                db.commit()
+                later = self.record(kind=kind, filename=legacy)['item']
+                self.assertEqual(later['filename'], f'{stem}-2.pdf')
+                replay = self.docs.replay(self.workspace, request_id, stamp)['item']
+                self.assertEqual(replay['filename'], legacy)
+                archived = self.docs.read(self.workspace, replay['id'])
+                self.assertEqual(archived['item']['filename'], legacy)
+                self.assertEqual(archived['payload'], self.body)
+
     def test_revision_numbers_bind_kind_source_and_format_not_display_filename(self):
         first = self.record()
         second = self.record(filename='Renamed.pdf')

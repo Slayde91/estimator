@@ -171,7 +171,8 @@ class SavedCommercial:
             if action == 'issue':
                 # A failed physical write can now be retried against the durable
                 # project history without producing another document number.
-                result = {**self.projects.write_download(DownloadDestination(path.parent, 'project'), result['filename'], result['pdf']),
+                result = {**self.projects.write_download(DownloadDestination(path.parent, 'project'),
+                                                        receipt['item']['filename'], result['pdf']),
                           'document': result['document']}
                 response = {'result': result, 'revision': session['revision']}
                 session['last_download'] = {'fingerprint': fingerprint, 'response': response}

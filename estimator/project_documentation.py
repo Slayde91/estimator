@@ -20,6 +20,7 @@ import uuid
 from .catalog import ValidationError
 from .project_temp import open_project_temp
 from .evidence_files import _directory, _open_regular, _hash_stream
+from .revision_filenames import revision_filename
 
 MAX_ARTIFACT_BYTES = 256 * 1024 * 1024
 MAX_REVISIONS = 1000
@@ -397,6 +398,8 @@ class ProjectDocumentation:
                        'sequence': len(rows) + 1, 'created_at': datetime.now(timezone.utc).isoformat(),
                        'filename': filename, 'media_type': media_type, 'size': size, 'sha256': digest,
                        'request_id': request_id, 'input_fingerprint': input_fingerprint}
+                if media_type == PDF:
+                    row['filename'] = revision_filename(kind, filename, row['revision'])
                 self._validate_rows(current['project_id'], rows + [row])
                 destination = self.root / 'blobs' / (digest + EXTENSIONS[media_type])
                 _publish_file(staged, destination, digest, size, MAX_ARTIFACT_BYTES)

@@ -194,6 +194,9 @@ async function run(edition) {
     const response = await downloadResponse, result = await response.json();
     assert.equal(response.status(),200,JSON.stringify(result)); assert.equal(result.saved,true);
     assert.ok(result.path.startsWith(directory)); assert.equal(fs.readFileSync(result.path).subarray(0,5).toString(),'%PDF-');
+    const reference = saved.swms.documents[0].reference;
+    assert.equal(path.basename(result.path), reference + '-1.pdf');
+    assert.equal(result.documentation.item.filename, reference + '-1.pdf');
     await expect(host.locator('.swms-message')).toContainText('SWMS PDF saved.'); await idle();
     await expect(host.locator('.project-kanban')).toHaveCount(0);
     await expect(host.locator('.swms-revisions a')).toHaveCount(1);
@@ -207,6 +210,15 @@ async function run(edition) {
     await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
     const second = await secondResponse;
     assert.equal(second.status(),200,await second.text());
+    const secondResult = await second.json();
+    const secondName = reference + '-2.pdf';
+    assert.equal(path.basename(secondResult.path), secondName);
+    assert.equal(secondResult.documentation.item.filename, secondName);
+    const archived = await page.request.get(base + secondResult.documentation.item.url);
+    assert.equal(archived.status(), 200);
+    assert.match(archived.headers()['content-disposition'], /inline/);
+    assert.ok(archived.headers()['content-disposition'].includes(secondName));
+    assert.deepEqual(await archived.body(), fs.readFileSync(secondResult.path));
     await expect(host.locator('.swms-message')).toContainText('SWMS PDF saved.'); await idle();
     await page.evaluate(()=>{window.originalSWMSDownload=window.CeasefireDownloads.save;window.CeasefireDownloads.save=async()=>({cancelled:true});});
     await host.getByRole('button',{name:'Download PDF',exact:true}).first().click();
@@ -215,6 +227,8 @@ async function run(edition) {
     await page.evaluate(()=>{window.CeasefireDownloads.save=window.originalSWMSDownload;});
     await host.getByRole('button',{name:'Back to Documents',exact:true}).last().click();
     await expect(page.locator('#view-documentation')).toBeVisible();await idle();
+    await page.locator('button[data-revisions-kind="swms"]').click();
+    await expect(page.locator('#documentation-revisions-list small').first()).toHaveText(secondName);
     await openProjectSection(page,'swms');
     await expect(host.getByRole('img',{name:'Project manager drawn signature'})).toBeVisible();
     await expect(host.locator('.swms-step-table tbody tr')).toHaveCount(46);

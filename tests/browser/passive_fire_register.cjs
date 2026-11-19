@@ -48,9 +48,12 @@ async function downloadRegister(expectFile) {
     assert.equal(result.status(),200,await result.text());
     const receipt = await result.json();
     assert.equal(receipt.documentation.item.kind,'passive_fire_registers.pdf');
+    assert.equal(receipt.documentation.item.filename,'PASSIVE_FIRE_REGISTER-1.pdf');
+    assert.equal(path.basename(receipt.path),'PASSIVE_FIRE_REGISTER-1.pdf');
     const saved = fs.readFileSync(receipt.path);
     const revision = await page.request.get(new URL(receipt.documentation.item.url,page.url()).href);
     assert.deepEqual(await revision.body(),saved);
+    assert.ok(revision.headers()['content-disposition'].includes('filename="PASSIVE_FIRE_REGISTER-1.pdf"'));
     const plan = await page.evaluate(async url => {
       const lib = await import('/vendor/pdfjs/build/pdf.mjs');
       lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/build/pdf.worker.mjs';
@@ -275,6 +278,8 @@ async function run() {
   assert.equal(response.status(),200,await response.text());
   const receipt = await response.json();
   assert.equal(receipt.documentation.item.kind,'passive_fire_register.pdf');
+  assert.equal(receipt.documentation.item.filename,'PASSIVE_FIRE_INSPECTIONS-1.pdf');
+  assert.equal(path.basename(receipt.path),'PASSIVE_FIRE_INSPECTIONS-1.pdf');
   assert.equal(fs.readFileSync(receipt.path).subarray(0,5).toString(),'%PDF-');
   const signedReportText = await page.evaluate(async url => {
     const lib = await import('/vendor/pdfjs/build/pdf.mjs');
@@ -295,6 +300,14 @@ async function run() {
   await expect(savedFile).toHaveAttribute('target', '_blank');
   assert.deepEqual(await (await page.request.get(new URL(receipt.download_url, page.url()).href)).body(), fs.readFileSync(receipt.path));
   await downloadRegister(true);
+  for (const [kind,filename] of [['passive_fire_register.pdf','PASSIVE_FIRE_INSPECTIONS-1.pdf'],
+                                ['passive_fire_registers.pdf','PASSIVE_FIRE_REGISTER-1.pdf']]) {
+    const row = page.locator(`tr[data-document-kind="${kind}"]`);
+    await row.locator('button[data-revisions-kind]').click();
+    const pane = page.locator('#documentation-revisions-pane');
+    await expect(pane.getByText(filename,{exact:true})).toBeVisible();
+    await pane.getByRole('button',{name:'Close revision history'}).click();
+  }
   await register();
   const savedFinal = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
   await page.locator('#save-current-project').click();

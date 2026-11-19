@@ -559,7 +559,14 @@ class SwmsDocuments:
             if not isinstance(pdf, bytes) or not pdf.startswith(b'%PDF-') or len(pdf) > MAX_PDF_BYTES:
                 raise ValidationError('The generated SWMS PDF is invalid or exceeds 64 MiB.')
             issued_id = str(uuid.uuid4())
-            filename = f"SAFE-WORK-METHOD-STATEMENT-{document.get('reference') or identity[:8]}-R{version}.pdf"
+            reference = document['reference']
+            # Direct issue receipts use the issue count. Draft edits advance
+            # the version independently, and older issues used a fixed prefix.
+            revision = db.execute(
+                'SELECT COUNT(*) + 1 FROM swms_issued WHERE project_id=? AND (filename GLOB ? OR filename GLOB ?)',
+                (project, f'{reference}-[0-9]*.pdf', f'SAFE-WORK-METHOD-STATEMENT-{reference}-R[0-9]*.pdf'),
+            ).fetchone()[0]
+            filename = f'{reference}-{revision}.pdf'
             db.execute('INSERT INTO swms_issued VALUES(?,?,?,?,?,?)', (issued_id, project, request_id, fingerprint, filename, pdf))
             # A successful issue is a real draft mutation. Advance its CAS version
             # so another window cannot overwrite the newly recorded initials.

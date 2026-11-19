@@ -1610,8 +1610,9 @@ class CommercialDocuments:
             document['version'] += 1
             document['updated_at'] = datetime.now(timezone.utc).isoformat()
             issued_id = str(uuid.uuid4())
-            revision = '' if kind == 'quote' else '-R' + str(document['version'])
-            filename = KINDS[kind].replace(' ', '-') + '-' + label + revision + '.pdf'
+            revision = db.execute('SELECT COUNT(*) + 1 FROM commercial_issued WHERE project_id=? AND document_id=?',
+                                  (project, identity)).fetchone()[0]
+            filename = f'{label}-{revision}.pdf'
             # New quote issues already travel in short_quote_counters. Writing
             # them into the old Q ledger would inflate the legacy high-water
             # mark at startup and override a colleague's six-digit series.

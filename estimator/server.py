@@ -24,6 +24,7 @@ from .storage import Store, WORKFLOWS
 from .edition import excluded_route, features, render_index, require_project_edition, validate_edition
 from .travel import TravelService, TravelError
 from .follow_up import project_response
+from .revision_filenames import revision_filename
 
 MAX_BODY = 24 * 1_048_576
 MAX_PRICING_FILE = 5 * 1_048_576
@@ -206,6 +207,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self.wfile.write(body)
 
         def send_download(self, payload, content_type, filename, destination=None, *, frozen_pdf=False, pdf_kind=None):
+            identity = self._documentation_identity or export_identity(urlsplit(self.path).path, {})
+            filename = revision_filename(identity[0] if identity else None, filename)
             if content_type.split(';', 1)[0].strip() == 'application/pdf' and not frozen_pdf:
                 from .pdf_cover import prepend_cover_pdf
                 company = self.pdf_company_details(pdf_kind)
@@ -221,7 +224,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 self._documentation_receipt = retained
                 if retained['replayed']:
                     existing = documentation.read(workspace, retained['item']['id'])
-                    payload, content_type, filename = existing['payload'], existing['item']['media_type'], existing['item']['filename']
+                    payload, content_type = existing['payload'], existing['item']['media_type']
+            if retained is not None:
+                filename = retained['item']['filename']
             token = getattr(self, '_download_progress_token', None)
             download_progress.update(token, 90, 'saving')
             if destination is not None:

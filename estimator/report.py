@@ -14,7 +14,7 @@ from html import unescape
 import math
 from pathlib import Path
 import re
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, quoteattr
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
@@ -222,6 +222,15 @@ class _Report:
     def rich(self, markup, style="cell"):
         """Only call with authored markup and explicitly escaped dynamic values."""
         return Paragraph(markup, self.styles[style])
+
+    def report_links(self, references):
+        parts = []
+        for reference in references:
+            label = _escaped(reference['label']).replace('\n', '<br/>')
+            url = reference.get('url')
+            parts.append(f'<link href={quoteattr(url)}><font color="#0645ad"><u>{label}</u></font></link>'
+                         if url else label)
+        return self.rich(' | '.join(parts))
 
     def value(self, cell, **formatting):
         if cell in self.errors:

@@ -6,7 +6,7 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer
 
-from .assessment_references import UNAVAILABLE_RESULT
+from .assessment_references import UNAVAILABLE_RESULT, saved_report_references
 from .calculator_inspections import PHOTOS, inspection_number, normalize_inspection_register, recorded_thickness
 from .catalog import ValidationError
 from .company_settings import company_logo
@@ -27,12 +27,12 @@ _COMMON_FIELDS = (
     ('report', 'Report'), ('required_thickness', 'Required Thickness (mm)'),
 )
 _REGISTER_COLUMNS = (
-    ('Product', 89), ('FRL', 64), ('Qty', 24), ('Length (m)', 47), ('Report', 63),
+    ('Product', 89), ('FRL', 64), ('Qty', 24), ('Length (m)', 47), ('Report', 73),
     ('Required Thickness (mm)', 54), ('Recorded Thickness (mm)', 54), ('Number of Readings', 51),
 )
 _REGISTER_SOURCE = {
     'duct': (('Duct Size (mm)', 48),),
-    'steel': (('Section ID', 48), ('Critical Temp (°C)', 40)),
+    'steel': (('Section ID', 52), ('Critical Temp (°C)', 40)),
 }
 
 
@@ -68,12 +68,17 @@ def _rows(entry, kind):
     ]
 
 
+def _field_cell(report, label, value, calculator_id=None):
+    if label == 'Report' and value:
+        return report.report_links(saved_report_references(calculator_id, value))
+    return report.p(str(value) if value not in (None, '') else '—', 'cell')
+
+
 def _summary_rows(report, entries, kind, labels, widths):
     rows = []
     for entry in entries:
         facts = dict(_rows(entry, kind))
-        detail = [report.p(str(facts[label]) if facts[label] not in (None, '') else '—', 'cell')
-                  for label in labels]
+        detail = [_field_cell(report, label, facts[label], entry['row']['calculator_id']) for label in labels]
         for index, photos in enumerate(zip_longest(*(entry[phase] for phase in PHOTOS))):
             cells = detail if index == 0 else detail[:2] + [''] * (len(detail) - 2)
             rows.append(cells + register_photo_cells(photos, widths[-len(PHOTOS):]))
@@ -124,8 +129,8 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
                                  topMargin=90, bottomMargin=43, title=title, author=company.get('name') or 'CLASSIFIRE')
 
-    def field_table(rows):
-        cells = [[report.p(label, 'head'), report.p(str(value) if value not in (None, '') else '—', 'cell')]
+    def field_table(rows, calculator_id=None):
+        cells = [[report.p(label, 'head'), _field_cell(report, label, value, calculator_id)]
                  for label, value in rows]
         return report.table(None, cells, [content * .34, content * .66], compact=True,
                             row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
@@ -139,7 +144,7 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
     for index, entry in enumerate(entries):
         if index:
             report.story.append(PageBreak())
-        report.story.extend((field_table(_rows(entry, kind)), Spacer(1, 6)))
+        report.story.extend((field_table(_rows(entry, kind), entry['row']['calculator_id']), Spacer(1, 6)))
         _append_evidence(report, f'Inspection {inspection_number(entry)}',
                          ((label, entry[phase]) for phase, label in PHOTOS.items()), content)
 

@@ -438,14 +438,6 @@ class _ScheduleReport(_Report):
     def numeric(self, value, **formatting):
         return self.p(self.display(value, **formatting), 'numeric')
 
-    def report_links(self, references):
-        parts = []
-        for reference in references:
-            label = escape(reference['label'])
-            parts.append(f'<link href="{escape(reference["url"], {chr(34): "&quot;"})}">{label}</link>'
-                         if reference.get('url') else label)
-        return Paragraph(' | '.join(parts), self.styles['cell'])
-
     def pairs(self, values):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')

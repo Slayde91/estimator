@@ -10,6 +10,7 @@ import math
 import re
 
 from .catalog import ROOT
+from .library_report_links import valid_manual_report_url
 
 
 _PUBLIC = {
@@ -38,10 +39,23 @@ def _links():
             for label, (section, title) in _PUBLIC.items()}
 
 
-def _references(labels):
+def _reference(label):
     # Exact editions stay distinct: only a source evaluated under the reviewed
     # current report gets its URL. Historic captions are never silently relabelled.
-    return [{'label': label, 'url': _links().get(label)} for label in dict.fromkeys(labels)]
+    url = _links().get(label)
+    if not valid_manual_report_url(url) or not url.startswith('https://'):
+        url = None
+    return {'label': label, 'url': url}
+
+
+def _references(labels):
+    return [_reference(label) for label in dict.fromkeys(labels)]
+
+
+def saved_report_references(calculator_id, caption):
+    """Resolve exact report numbers stored in an inspection row snapshot."""
+    return [_reference(label) if _PUBLIC.get(label, (None,))[0] == calculator_id else {'label': label, 'url': None}
+            for label in caption.split(' | ')]
 
 
 UNAVAILABLE_RESULT = 'N / A'

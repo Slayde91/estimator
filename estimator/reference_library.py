@@ -16,7 +16,7 @@ from .technical_configuration_review import validate_configuration_review
 from .technical_duplicates import reviewed_groups, consolidate_links
 from .technical_catalog_policy import public_records
 from .technical_table_navigation import validate_table_navigation
-from .technical_public_ids import public_caption, public_item
+from .technical_public_ids import exact_classifire_match, public_caption, public_item
 from .technical_orientation import prepare_selector_orientation_context
 from .library_substrates import canonical_substrate, classify_substrates, substrate_options
 from .technical_record_corrections import correct_report_captions
@@ -609,7 +609,9 @@ class ReferenceLibrary:
             tokens = search.split()
             matches = []
             if data:
-                for key in data['_visible'][kind]:
+                exact_id = exact_classifire_match(data, search) if kind == 'technical' else None
+                candidates = (exact_id,) if exact_id else data['_visible'][kind]
+                for key in candidates:
                     item = data['_technical_public_records'][key] if kind == 'technical' else data['_records'][kind][key]
                     linked = bool(data['_links'][kind][key])
                     if (reference == 'linked' and not linked) or (reference == 'unlinked' and linked):
@@ -624,10 +626,11 @@ class ReferenceLibrary:
                     if any(value not in values.get(name, []) for name, value in chosen.items()):
                         continue
                     if text_query is not None:
-                        score = text_query.rank(item, values, data.get('_technical_public_ids', {}).get(key),
-                                                data['_searches'][kind][key],
-                                                direct_service=bool(browse_service and browse_service in values.get('services', [])),
-                                                field_values=data.get('_technical_relevance_fields', {}).get(key))
+                        score = (0,) if exact_id else text_query.rank(
+                            item, values, data.get('_technical_public_ids', {}).get(key),
+                            data['_searches'][kind][key],
+                            direct_service=bool(browse_service and browse_service in values.get('services', [])),
+                            field_values=data.get('_technical_relevance_fields', {}).get(key))
                         if score is not None:
                             matches.append((score, tie_key(key), key))
                     elif all(token in data['_searches'][kind][key] for token in tokens):

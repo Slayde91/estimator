@@ -84,6 +84,138 @@ class TechnicalVariantTests(unittest.TestCase):
         self.assertEqual(set(self.project().records), expected)
         self.assertNotEqual(variant_id('source-a', 'configuration-1'), variant_id('source-b', 'configuration-1'))
 
+    def approved_walls(self):
+        table = {'columns': ['Approved Walls', 'FRL', 'FRL Without Servowrap', 'Max Opening size'],
+                 'rows': [['Concrete wall 100 mm', '-/90/90', '-/90/-', '587 x 990'],
+                          ['AAC wall 150 mm', '-/60/60', '-/60/-', '1100 x infinite']]}
+        additional = {'columns': ['Fastener'], 'rows': [['Use the reviewed detail']]}
+        for record in (self.raw, self.record):
+            fields = {field['label']: field for field in record['fields']}
+            fields['Barrier Construction'].update(table=deepcopy(table), tables=[deepcopy(additional)])
+            fields['FRL']['table_links'] = [{'field': 'Barrier Construction', 'table_index': 0}]
+            fields['Installation Details']['table_links'] = [{'field': 'Barrier Construction', 'table_index': 1}]
+        family = self.plan['families'][0]
+        family.update(item_sha256=source_fingerprint(self.raw), projection_sha256=projection_fingerprint(self.record))
+        family['tables'][0]['sha256'] = source_fingerprint(table)
+        for index, (variant, rating, opening, wrap) in enumerate(zip(
+                family['variants'], ('-/90/90', '-/60/-'), ('587 mm × 990 mm', '1100 mm × unlimited'),
+                ('600 mm both sides', 'Wrap Free'))):
+            variant['selections'][0].update(columns=[0, index + 1, 3], hide_table=True)
+            variant['fields'].update({'FRL': rating, 'Maximum Opening Size': opening, 'Service Wrap': wrap})
+            variant['facets']['frl'] = [rating]
+        return family, additional
+
+    def test_hidden_wall_table_preserves_selected_facts_and_only_its_links_are_removed(self):
+        _, additional = self.approved_walls()
+        original = deepcopy(self.record)
+        projected = self.project()
+        for key, rating, opening in (('source-a', '-/90/90', '587 mm × 990 mm'),
+                                     (variant_id('source-a', 'configuration-1'), '-/60/-', '1100 mm × unlimited')):
+            item = projected.records[key]
+            fields = {field['label']: field for field in item['fields']}
+            self.assertEqual(fields['FRL']['value'], rating)
+            self.assertNotIn('table_links', fields['FRL'])
+            self.assertEqual(fields['Maximum Opening Size']['value'], opening)
+            self.assertEqual(fields['Barrier Construction']['table'], additional)
+            self.assertNotIn('tables', fields['Barrier Construction'])
+            self.assertEqual(fields['Installation Details']['table_links'],
+                             [{'field': 'Barrier Construction', 'table_index': 0}])
+            self.assertEqual(item['images'], original['images'])
+            self.assertEqual(item['sources'], original['sources'])
+            self.assertEqual(projected.discovery[key]['frl'], [rating])
+        self.assertEqual(self.record, original)
+
+    def test_hidden_wall_table_rejects_unbound_or_lost_facts(self):
+        cases = (
+            ('rows', 'row or column is unavailable'),
+            ('full rating', 'FRL must match the scalar Service Wrap'),
+            ('wrap-free spelling', 'FRL must match the scalar Service Wrap'),
+            ('different rating', 'FRL must equal the selected source cell'),
+            ('missing rating column', 'exactly one selected FRL column'),
+            ('missing opening column', 'cannot omit substantive non-rating columns'),
+            ('swapped opening', 'preserve the selected Maximum Opening Size'),
+            ('other wall', 'preserve the selected Barrier Construction'),
+        )
+        for change, message in cases:
+            self.setUp()
+            family, _ = self.approved_walls()
+            variant = family['variants'][1]
+            selection = variant['selections'][0]
+            if change == 'rows':
+                selection['row_index'] = 2
+            elif change in ('full rating', 'wrap-free spelling'):
+                selection['columns'] = [0, 1, 3]
+                variant['fields']['FRL'] = '-/60/60'
+                variant['facets']['frl'] = ['-/60/60']
+                if change == 'wrap-free spelling':
+                    variant['fields']['Service Wrap'] = 'Wrap-free'
+            elif change == 'different rating':
+                variant['fields']['FRL'] = '-/120/-'
+                variant['facets']['frl'] = ['-/120/-']
+            elif change == 'missing rating column':
+                selection['columns'] = [0, 3]
+            elif change == 'missing opening column':
+                selection['columns'] = [0, 2]
+            elif change == 'swapped opening':
+                variant['fields']['Maximum Opening Size'] = '900 mm × 1100 mm'
+            elif change == 'other wall':
+                variant['fields']['Barrier Construction'] = 'Different wall'
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, message):
+                self.project()
+
+    def test_hidden_reviewed_wall_table_preserves_installation_conditions(self):
+        family, additional = self.approved_walls()
+        table = {'columns': ['Reviewed wall construction', 'FRL', 'Base aperture limit',
+                             'Service configuration', 'Service wrap', 'Local protection'],
+                 'rows': [[v['fields']['Barrier Construction'], v['fields']['FRL'],
+                           v['fields']['Maximum Opening Size'], '25 mm copper',
+                           v['fields']['Service Wrap'], 'Seal the mating board edges.']
+                          for v in family['variants']]}
+        for item in (self.raw, self.record):
+            item['fields'][-1]['table'] = deepcopy(table)
+        family.update(item_sha256=source_fingerprint(self.raw), projection_sha256=projection_fingerprint(self.record))
+        family['tables'][0]['sha256'] = source_fingerprint(table)
+        for variant in family['variants']:
+            variant['selections'][0]['columns'] = list(range(6))
+            variant['fields'].update({'Service Size / Configuration': '25 mm copper',
+                                      'Installation Details': 'Keep exact instructions.\nSeal the mating board edges.'})
+        result = self.project()
+        field = next(field for field in result.records['source-a']['fields'] if field['label'] == 'Barrier Construction')
+        self.assertEqual(field['table'], additional)
+        family['variants'][0]['fields']['Installation Details'] = 'Keep exact instructions.'
+        with self.assertRaisesRegex(ValueError, 'preserve the selected Installation Details'):
+            self.project()
+
+    def test_source_hold_retains_parent_without_an_assessed_rating_or_a_visible_rating_table(self):
+        family, additional = self.approved_walls()
+        variant = family['variants'][0]
+        reason = 'The source does not establish this wall thickness.'
+        variant['hold_reason'] = reason
+        variant['selections'] = [{'field': 'Barrier Construction', 'table_index': 0,
+                                  'row_indices': [], 'columns': None}]
+        variant['fields'].update({'FRL': 'Not specified', 'Maximum Opening Size': '', 'Assessment Status': reason})
+        variant['facets']['frl'] = ['Not specified']
+        result = self.project()
+        item = result.records['source-a']
+        fields = {field['label']: field for field in item['fields']}
+        self.assertEqual(fields['Barrier Construction']['table'], additional)
+        self.assertEqual(fields['FRL']['value'], 'Not specified')
+        self.assertNotIn('table_links', fields['FRL'])
+        self.assertEqual(fields['Maximum Opening Size']['value'], '')
+        self.assertEqual(fields['Assessment Status']['value'], reason)
+        self.assertEqual(result.discovery['source-a']['frl'], ['Not specified'])
+        self.assertEqual(item['images'], self.record['images'])
+        self.assertEqual(item['sources'], self.record['sources'])
+        for update in (
+                {'existing_id': None},
+                {'facets': {**variant['facets'], 'frl': ['-/90/90']}},
+                {'fields': {**variant['fields'], 'Maximum Opening Size': '587 × 990 mm'}},
+                {'selections': [{**variant['selections'][0], 'row_indices': [0]}]}):
+            invalid = deepcopy(self.plan)
+            invalid['families'][0]['variants'][0].update(update)
+            with self.subTest(update=update), self.assertRaisesRegex(ValueError, 'A source hold'):
+                self.project(invalid)
+
     def test_source_asset_public_and_discovery_drift_all_fail_closed(self):
         for kind in ('source', 'asset', 'public', 'discovery'):
             self.setUp()

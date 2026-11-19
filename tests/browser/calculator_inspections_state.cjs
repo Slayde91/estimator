@@ -72,6 +72,30 @@ async function checkInspectionState(browser) {
     assert.equal(before.value.steel.entries[0].source_estimate_id,'estimate-1');
     await page.evaluate(snapshot => window.ClassifireCalculatorInspections.markSaved(snapshot),before);
     assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.hasProjectChanges()),false);
+    const steelCustom = steel.getByRole('checkbox',{name:'Custom entry',exact:true});
+    await steelCustom.check();
+    await expect(steelCustom).toBeFocused();
+    await expect(steel.locator('input[name=inspection_steel_method]:disabled')).toHaveCount(3);
+    await expect(steel.getByLabel('Calculator register row')).toBeDisabled();
+    await expect(steel.getByRole('button',{name:'Refresh register',exact:true})).toBeDisabled();
+    await expect(steel.locator('tbody')).toHaveCount(0);
+    const steelFields = {
+      Location:'Roof level', 'Section ID':'180UB22', 'Critical Temp (°C)':'540',
+      Product:'Custom steel coating', FRL:'90 min', Qty:'2', 'Length (m)':'3.25',
+      Report:'ASSESS-S-02', 'Required Thickness (mm)':'34',
+    };
+    for (const [name,value] of Object.entries(steelFields)) await steel.getByLabel(name,{exact:true}).fill(value);
+    const steelEntry = await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value.steel.entries[0]);
+    assert.deepEqual(steelEntry.custom_item,{location:'Roof level',section_id:'180UB22',critical_temp:540,product:'Custom steel coating',
+      frl:'90 min',quantity:2,length:3.25,report:'ASSESS-S-02',required_thickness:'34'});
+    assert.deepEqual(steelEntry.row,before.value.steel.entries[0].row);
+    assert.equal(steelEntry.source_estimate_id,'estimate-1');
+    await steelCustom.uncheck();
+    await expect(steel.getByLabel('Calculator register row')).toHaveValue('10');
+    await expect(steel.locator('tbody')).toContainText('310UB40.4');
+    await steelCustom.check();
+    await expect(steel.getByLabel('Section ID',{exact:true})).toHaveValue('180UB22');
+    await steelCustom.uncheck();
     await steel.getByRole('checkbox',{name:'Steel (intumescent)',exact:true}).check();
     await expect(steel.locator('input[name=inspection_steel_method]:checked')).toHaveCount(1);
     await expect(steel.getByRole('checkbox',{name:'Steel (board)',exact:true})).not.toBeChecked();
@@ -204,6 +228,34 @@ async function checkInspectionState(browser) {
     await expect(duct.locator('tbody')).toContainText('2 x 38mm');
     await expect(inspectionDate).toHaveValue('2025-12-19');
     await expect(signingDate).toHaveValue('02/01/2026');
+    const ductCustom = duct.getByRole('checkbox',{name:'Custom entry',exact:true});
+    await ductCustom.check();
+    await expect(duct.getByLabel('Calculator register row')).toBeDisabled();
+    await expect(duct.getByRole('button',{name:'Refresh register',exact:true})).toBeDisabled();
+    await expect(duct.getByLabel('Section ID',{exact:true})).toHaveCount(0);
+    const ductFields = {
+      Location:'Level 8', 'Duct Size (mm)':'800 × 500', Product:'Custom duct wrap',
+      FRL:'120/120/120', Qty:'3', 'Length (m)':'7.25', Report:'ASSESS-D-02',
+      'Required Thickness (mm)':'2 × 38 mm',
+    };
+    for (const [name,value] of Object.entries(ductFields)) await duct.getByLabel(name,{exact:true}).fill(value);
+    const customSnapshot = await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value);
+    const requestCount = requests.length;
+    await page.evaluate(value => {window.ClassifireCalculatorInspections.applyProject(value);return window.ClassifireCalculatorInspections.open('duct');},customSnapshot);
+    assert.equal(requests.length,requestCount);
+    await expect(ductCustom).toBeChecked();
+    await expect(duct.getByLabel('Duct Size (mm)',{exact:true})).toHaveValue('800 × 500');
+    await expect(duct.getByLabel('Calculator register row')).toBeDisabled();
+    await expect(duct.locator('img')).toHaveCount(5);
+    await expect(signingDate).toHaveValue('02/01/2026');
+    await duct.locator('.register-toolbar').getByRole('button',{name:'Download PDF',exact:true}).click();
+    const customExport = await page.evaluate(() => window.lastDownload.payload.register.entries[0]);
+    assert.deepEqual(customExport.custom_item,{location:'Level 8',duct_size:'800 × 500',product:'Custom duct wrap',
+      frl:'120/120/120',quantity:3,length:7.25,report:'ASSESS-D-02',required_thickness:'2 × 38 mm'});
+    assert.deepEqual(customExport.row,snapshot.duct.entries[0].row);
+    await ductCustom.uncheck();
+    await expect(duct.getByLabel('Calculator register row')).toHaveValue('10');
+    assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value.duct.entries[0].custom_item),undefined);
     await duct.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(signingDate).toHaveValue('');
     await expect(inspectionDate).toHaveValue('2025-12-19');
@@ -220,6 +272,12 @@ async function checkInspectionState(browser) {
     await expect(inspectionDate).toHaveValue(todayInSydney);
     await inspectionDate.fill('');
     assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value),null);
+    await ductCustom.check();
+    await expect(duct.getByLabel('Duct Size (mm)',{exact:true})).toHaveValue('');
+    const newCustom = await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value.duct.entries[0]);
+    assert.equal(newCustom.row,null);
+    assert.equal(newCustom.source_estimate_id,undefined);
+    assert.deepEqual(newCustom.custom_item,{});
     assert.ok(requests.every(request => JSON.stringify(request.schedule_rows)==='[10]' && request.inputs.synthetic));
     assert.deepEqual(errors,[]);
   } finally {await page.close();}

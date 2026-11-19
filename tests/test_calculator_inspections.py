@@ -13,8 +13,10 @@ from pypdf import PdfReader
 from reportlab.pdfgen.canvas import Canvas
 
 from estimator.calculator_inspection_report import render_calculator_inspections
-from estimator.calculator_inspections import (PHOTOS, inspection_calculator_rows, normalize_calculator_inspections,
-                                               preserve_inspection_numbers, recorded_thickness)
+from estimator.calculator_inspections import (
+    PHOTOS, inspection_calculator_rows, inspection_row, missing_custom_fields, normalize_calculator_inspections,
+    preserve_inspection_numbers, recorded_thickness,
+)
 from estimator.calculator_register import build_calculator_register
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
@@ -177,6 +179,66 @@ class CalculatorInspectionTests(unittest.TestCase):
         entry['signature_details']['member_id'] = 'someone else'
         with self.assertRaisesRegex(ValidationError, 'staff member'):
             normalize_calculator_inspections({'duct': register})
+
+    def test_custom_items_retain_recorded_source_through_native_project_round_trip(self):
+        duct = _register(self.duct, [74])
+        duct_entry = duct['entries'][0]
+        duct_entry['row'] = None
+        duct_entry['custom_item'] = {
+            'location': 'Basement', 'duct_size': '400 x 300', 'product': 'Test product',
+            'frl': '60/60/60', 'quantity': 1, 'length': 2.5, 'report': 'Test assessment 31',
+            'required_thickness': '2 × 38 mm',
+        }
+        steel = _register(self.board, [30])
+        steel_entry = steel['entries'][0]
+        steel_entry['source_estimate_id'] = 'estimate-1'
+        steel_entry['custom_item'] = {
+            'location': 'Roof', 'section_id': '200UB22', 'critical_temp': 550, 'product': 'Test product',
+            'frl': '90 min', 'quantity': 2, 'length': 5, 'report': 'Test assessment 32',
+            'required_thickness': '30.5 mm',
+        }
+        registers = {'duct': duct, 'steel': steel}
+        with tempfile.TemporaryDirectory() as path:
+            store = Store(Path(path) / 'disposable.sqlite3')
+            data = export_project(store, {'estimate': {}, 'calculator_inspections': registers})
+            recovered = load_project_bytes(store, data)['calculator_inspections']
+        self.assertEqual(recovered, registers)
+        for kind, register in recovered.items():
+            value = register['entries'][0]
+            self.assertEqual(inspection_row(value), value['custom_item'])
+            self.assertEqual(missing_custom_fields(value, kind), [])
+        recovered_entry = recovered['steel']['entries'][0]
+        del recovered_entry['custom_item']
+        self.assertEqual(inspection_row(recovered_entry), self.board)
+        self.assertEqual(recovered_entry['source_estimate_id'], 'estimate-1')
+        preserve_inspection_numbers(registers, recovered)
+
+    def test_custom_drafts_normalize_blanks_and_reject_invalid_input(self):
+        register = _register(self.board, [])
+        entry = register['entries'][0]
+        entry['custom_item'] = {'location': '  West corridor  '}
+        normalized = normalize_calculator_inspections({'steel': register})['steel']['entries'][0]
+        self.assertEqual(normalized['custom_item']['location'], 'West corridor')
+        self.assertIsNone(normalized['custom_item']['critical_temp'])
+        self.assertEqual(normalized['custom_item']['required_thickness'], '')
+        self.assertEqual(missing_custom_fields(normalized, 'steel'), [
+            'Section ID', 'Critical Temp (°C)', 'Product', 'FRL', 'Qty', 'Length (m)', 'Report',
+            'Required Thickness (mm)',
+        ])
+        for field, value in [
+            ('duct_size', '400 x 300'),
+            ('calculator_id', 'steel_board'),
+            ('quantity', True),
+            ('length', -2.5),
+            ('critical_temp', float('inf')),
+            ('required_thickness', '0 x 38 mm'),
+            ('required_thickness', '2 x 0 mm'),
+            ('required_thickness', 'N / A'),
+        ]:
+            with self.subTest(field=field, value=value):
+                entry['custom_item'] = {field: value}
+                with self.assertRaises(ValidationError):
+                    normalize_calculator_inspections({'steel': register})
 
     def test_reports_include_photos_reading_count_and_exact_plan_pin(self):
         with tempfile.TemporaryDirectory() as path:

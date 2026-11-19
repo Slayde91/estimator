@@ -26,6 +26,11 @@ CALCULATOR_REGISTER_ROUTES = {
     '/api/project/' + key.replace('_', '-') + '.pdf': kind
     for kind, (_, key) in CALCULATOR_REGISTERS.items()
 }
+INSPECTION_REGISTER_XLSX_ROUTES = {
+    '/api/project/passive-fire-registers.xlsx': ('passive', 'Passive Fire Register', 'passive_fire_registers'),
+    **{'/api/project/' + key.replace('_', '-') + '.xlsx': (kind, label, key)
+       for kind, (label, key) in CALCULATOR_REGISTERS.items()},
+}
 PDF_SCOPES = {'steel_vermiculite':'Steel | Spray', 'steel_intumescent':'Steel | Paint',
               'steel_board':'Steel | Board', 'ductwork':'Duct'}
 SCOPES = {'steel':'Steel', 'duct':'Duct', 'walls_floors':'Walls and floors',
@@ -70,6 +75,9 @@ def document_catalog(edition='full'):
                     add(key + '.pdf', label, 'pdf', 'calculator_inspections', kind=kind)
                     title, register_key = CALCULATOR_REGISTERS[kind]
                     add(register_key + '.pdf', title, 'pdf', 'calculator_inspections', kind=kind, action='register')
+    for kind, label, key in INSPECTION_REGISTER_XLSX_ROUTES.values():
+        adapter = 'passive_fire_register' if kind == 'passive' else 'calculator_inspections'
+        add(key + '.xlsx', label, 'xlsx', adapter, kind=kind, action='register', format='xlsx')
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
     add('swms', 'Safe Work Method Statement', 'pdf', 'swms')
@@ -107,6 +115,8 @@ def export_identity(route, body):
         return CALCULATOR_INSPECTIONS[CALCULATOR_INSPECTION_ROUTES[route]][1] + '.pdf', ''
     if route in CALCULATOR_REGISTER_ROUTES:
         return CALCULATOR_REGISTERS[CALCULATOR_REGISTER_ROUTES[route]][1] + '.pdf', ''
+    if route in INSPECTION_REGISTER_XLSX_ROUTES:
+        return INSPECTION_REGISTER_XLSX_ROUTES[route][2] + '.xlsx', ''
     if route == '/api/swms/issue':
         return 'swms', str(body.get('id', ''))
     if (route == '/api/commercial/issue' and isinstance(body.get('kind'), str)

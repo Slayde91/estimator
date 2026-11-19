@@ -11,6 +11,9 @@ INSPECTION_DOCUMENT_FILENAMES = {
     'duct_register.pdf': 'DUCT_REGISTER.pdf',
     'structural_steel_inspections.pdf': 'STEEL_INSPECTIONS.pdf',
     'structural_steel_register.pdf': 'STEEL_REGISTER.pdf',
+    'passive_fire_registers.xlsx': 'PASSIVE_FIRE_REGISTER.xlsx',
+    'duct_register.xlsx': 'DUCT_REGISTER.xlsx',
+    'structural_steel_register.xlsx': 'STEEL_REGISTER.xlsx',
 }
 
 _PREVIOUS_PREFIXES = {
@@ -31,8 +34,8 @@ def revision_filename(kind, filename, revision=None):
     if type(revision) is not int or revision < 1:
         raise ValueError('A download revision must be a positive integer.')
     if kind in INSPECTION_DOCUMENT_FILENAMES:
-        stem = INSPECTION_DOCUMENT_FILENAMES[kind].removesuffix('.pdf')
-        return f'{stem}-{revision}.pdf'
+        stem, _, extension = INSPECTION_DOCUMENT_FILENAMES[kind].rpartition('.')
+        return f'{stem}-{revision}.{extension}'
     if not filename.endswith('.pdf'):
         return filename
 

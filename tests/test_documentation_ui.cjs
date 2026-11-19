@@ -120,6 +120,27 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     await h.buttons().find(button=>button.dataset.documentKind==='project.full_product_summary.pdf').emit('click');
     assert.equal(h.adapters[0].owner,'estimate');assert.deepEqual(h.adapters[0].spec,{action:'full_product_summary'});
   });
+  await check('XLSX register exports collapse independently of PDF and schedule rows',async h=>{
+    const rows=[
+      {id:'passive_fire_registers.pdf',label:'Passive Fire Register',format:'pdf',adapter:'passive_fire_register',spec:{action:'register'}},
+      {id:'firestopping.schedule.xlsx',label:'Firestopping Schedule',format:'xlsx',adapter:'firestopping',spec:{scope:'schedule',format:'xlsx'}},
+      {id:'passive_fire_registers.xlsx',label:'Passive Fire Register',format:'xlsx',adapter:'passive_fire_register',spec:{kind:'passive',action:'register',format:'xlsx'}},
+      {id:'duct_register.xlsx',label:'Duct Register',format:'xlsx',adapter:'calculator_inspections',spec:{kind:'duct',action:'register',format:'xlsx'}},
+      {id:'structural_steel_register.xlsx',label:'Structural Steel Register',format:'xlsx',adapter:'calculator_inspections',spec:{kind:'steel',action:'register',format:'xlsx'}},
+    ];
+    h.override(path=>path==='/api/documentation/catalog'?h.response({documents:rows}):undefined);
+    await h.api.open();
+    const pdf=h.byId('documentation-pdf-rows').children;
+    const xlsx=h.byId('documentation-xlsx-rows').children;
+    const heading=row=>row.children[0].children[0].children[0];
+    assert.deepEqual(xlsx.filter(row=>!row.dataset.documentKind).map(row=>heading(row).textContent),['Schedules','Registers']);
+    const group=heading(xlsx.find(row=>!row.dataset.documentKind&&heading(row).textContent==='Registers'));
+    await group.emit('click');
+    assert.equal(group.attributes['aria-expanded'],'true');
+    assert.equal(heading(pdf[0]).attributes['aria-expanded'],'false');
+    assert.deepEqual(xlsx.filter(row=>row.dataset.documentKind&&!row.hidden).map(row=>row.dataset.documentKind),
+      ['passive_fire_registers.xlsx','duct_register.xlsx','structural_steel_register.xlsx']);
+  });
   await check('Catalog separates PDF and XLSX and displays exact project-scoped immutable revision links',async h=>{
     h.models.set(token(1),model(1,[item(1),item(2,1,{kind:'calculator.ductwork.register.xlsx',media_type:XLSX,filename:'Ductwork.xlsx'})]));
     await h.api.open();assert.equal(h.byId('documentation-pdf-rows').children.length,2);assert.equal(h.byId('documentation-xlsx-rows').children.length,4);

@@ -129,6 +129,35 @@ class CalculatorRegisterReportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, 'no completed duct inspections'):
             render_calculator_register(register('duct', [incomplete]), {}, 'duct', company=DEFAULTS)
 
+    def test_manual_inspections_use_entered_details_in_both_exports(self):
+        for kind in ('duct', 'steel'):
+            with self.subTest(kind=kind):
+                item = entry(kind, 1)
+                manual = {'location': 'Manual area F9', 'product': 'Entered product', 'frl': '90 min',
+                          'quantity': 3, 'length': 2.5, 'report': item['row']['report'],
+                          'required_thickness': '45'}
+                if kind == 'steel':
+                    manual.update(section_id='250UC72', critical_temp=575)
+                else:
+                    manual['duct_size'] = '350 x 400'
+                item['custom_item'] = manual
+                for renderer in (render_calculator_inspections, render_calculator_register):
+                    pdf = PdfReader(BytesIO(renderer(register(kind, [item]), {}, kind, company=DEFAULTS)))
+                    text = ' '.join(words(page) for page in pdf.pages)
+                    for value in ('Manual area F9', 'Entered product', '90 min', '2.5', '45',
+                                  '250UC72' if kind == 'steel' else '350 x 400'):
+                        self.assertIn(value, text)
+                    self.assertNotIn('Inspection location 1', text)
+                    self.assertEqual(report_urls(pdf.pages), set())
+                    if renderer is render_calculator_inspections:
+                        self.assertIn('Custom item', text)
+
+                item['custom_item'] = {}
+                with self.assertRaisesRegex(ValidationError, 'Inspection 001: complete .*Required Thickness'):
+                    render_calculator_inspections(register(kind, [item]), {}, kind, company=DEFAULTS)
+                with self.assertRaisesRegex(ValidationError, 'no completed'):
+                    render_calculator_register(register(kind, [item]), {}, kind, company=DEFAULTS)
+
 
 class CalculatorRegisterHTTPTests(unittest.TestCase):
     setUp = helpers.CertificationHTTPTests.setUp

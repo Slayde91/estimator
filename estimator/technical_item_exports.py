@@ -178,7 +178,7 @@ def prepare_technical_item(body, *, library, include_diagrams=True, inspection_f
             'fields': fields, 'tables': tables, 'images': images, 'sources': sources, 'related': related}
 
 
-def _field_rows(snapshot):
+def technical_export_rows(snapshot):
     for field in snapshot['fields']:
         if _hidden_field(snapshot['record'], field):
             continue
@@ -225,7 +225,7 @@ def _xlsx_table(sheet, row, columns, records, widths):
 def build_technical_item_xlsx(snapshot):
     record = snapshot['record']
     intro = [['Selected configuration', record['configuration']]] if record.get('configuration') else []
-    rows = list(_field_rows(snapshot))
+    rows = list(technical_export_rows(snapshot))
     # Preflight the actual emitted cell text before constructing any workbook.
     # Report-number fields may split into several cells; the PDF snapshot keeps
     # its existing capacity and is never restricted by Excel's per-cell bound.
@@ -292,9 +292,14 @@ def append_technical_heading(report, snapshot):
 
 
 def technical_pdf_rows(report, snapshot):
-    for label, value, url in _field_rows(snapshot):
-        cell = report.rich(f'<link href="{escape(url, quote=True)}" color="#{accent_hex()}"><u>{_escaped(value)}</u></link>') if url else report.p(value, 'cell')
-        yield label, cell
+    for label, value, url in technical_export_rows(snapshot):
+        yield label, technical_pdf_cell(report, value, url)
+
+
+def technical_pdf_cell(report, value, url):
+    if url:
+        return report.rich(f'<link href="{escape(url, quote=True)}" color="#{accent_hex()}"><u>{_escaped(value)}</u></link>')
+    return report.p(value, 'cell')
 
 
 def append_technical_tables(report, tables, content, *, row_header_color=None, grid_color=None):

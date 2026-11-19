@@ -30,6 +30,17 @@ _FAMILY = {'source_id', 'item_sha256', 'projection_sha256', 'discovery_sha256',
            'assets_sha256', 'tables', 'reviewed_tables', 'variants'}
 _FACETS = {'frl', 'substrate', 'orientation', 'category', 'services'}
 _FORBIDDEN_FIELDS = {'Manufacturer', 'Report Number', 'Diagrams & Figures', 'Technical Basis'}
+_APPROVED_WALL_FIELDS = {
+    'approved walls': 'Barrier Construction',
+    'max opening size': 'Maximum Opening Size',
+}
+_REVIEWED_WALL_FIELDS = {
+    'reviewed wall construction': 'Barrier Construction',
+    'base aperture limit': 'Maximum Opening Size',
+    'service configuration': 'Service Size / Configuration',
+    'service wrap': 'Service Wrap',
+    'local protection': 'Installation Details',
+}
 
 
 @dataclass(frozen=True)
@@ -223,7 +234,8 @@ def _shape(plan):
                     raise ValueError('Invalid replacement evidence page')
         variant_keys = set(); retained = 0
         for variant in variants:
-            if not isinstance(variant, dict) or set(variant) != {'key', 'existing_id', 'selections', 'fields', 'facets'}:
+            required_variant = {'key', 'existing_id', 'selections', 'fields', 'facets'}
+            if not isinstance(variant, dict) or not required_variant <= set(variant) <= required_variant | {'hold_reason'}:
                 raise ValueError('Invalid table variant')
             key = _text(variant['key'], 200)
             if key in variant_keys:
@@ -249,6 +261,14 @@ def _shape(plan):
             frls = facets['frl']
             if len(frls) != 1 or (not _FRL.fullmatch(frls[0]) and frls[0] not in ('N/A', 'Not specified')) or canonical_frl(frls[0]) != frls[0]:
                 raise ValueError('A table variant requires exactly one canonical FRL')
+            if 'hold_reason' in variant:
+                reason = _text(variant['hold_reason'], 2000)
+                if (variant['existing_id'] != parent or frls != ['Not specified']
+                        or fields.get('FRL') != 'Not specified'
+                        or fields.get('Maximum Opening Size') != ''
+                        or fields.get('Assessment Status') != reason
+                        or len(reason.strip()) < 20):
+                    raise ValueError('A source hold must keep the original item, clear its opening limit and explain why its FRL is not specified')
             if set(facets['orientation']) - {'Horizontal', 'Vertical'}:
                 raise ValueError('Invalid variant orientation')
             if not isinstance(selections, list) or len(selections) != len(tables):
@@ -257,7 +277,8 @@ def _shape(plan):
             for selection in selections:
                 required_selection = {'field', 'table_index', 'columns'}
                 if (not isinstance(selection, dict) or not required_selection <= set(selection)
-                        or set(selection) - required_selection not in ({'row_index'}, {'row_indices'})):
+                        or set(selection) - required_selection - {'hide_table'} not in ({'row_index'}, {'row_indices'})
+                        or ('hide_table' in selection and selection['hide_table'] is not True)):
                     raise ValueError('Invalid variant row selection')
                 key = (selection['field'], selection['table_index'])
                 if key not in table_keys or key in selected:
@@ -272,6 +293,10 @@ def _shape(plan):
                         or any(type(index) is not int or index < 0 for index in columns)
                         or columns != sorted(set(columns))):
                     raise ValueError('Invalid selected variant columns')
+                if selection.get('hide_table') and (len(rows) != 1 or columns is None):
+                    raise ValueError('A hidden variant table requires one row and explicit columns')
+                if 'hold_reason' in variant and (rows or columns is not None):
+                    raise ValueError('A source hold must remove all bound tables without selecting an assessed row')
         if retained != 1:
             raise ValueError('Exactly one variant must retain its original ID')
         total += len(variants)
@@ -387,7 +412,54 @@ def _row_ids(field, tables):
     return [[source_fingerprint([index, row]) for index, row in enumerate(table['rows'])] for table in tables]
 
 
-def _scope(record, selections):
+def _fact(value):
+    return ' '.join(value.casefold().split())
+
+
+def _opening_fact(value):
+    """Normalise only spelling/units of a simple pair, without changing axis order."""
+    text = _fact(value).replace('×', 'x')
+    match = re.fullmatch(r'(\d+(?:\.\d+)?)\s*(?:mm)?\s*x\s*(?:(\d+(?:\.\d+)?)\s*(?:mm)?|(infinite|unlimited))', text)
+    if match:
+        return match[1], match[2] if match[2] is not None else 'infinite'
+    return text
+
+
+def _validate_hidden_wall(table, row, columns, rating_columns, fields, rating):
+    names = [_fact(column) for column in table['columns']]
+    if len(names) == 4 and set(names) == _APPROVED_WALL_FIELDS.keys() | {'frl', 'frl without servowrap'}:
+        scalar = _APPROVED_WALL_FIELDS
+    elif len(names) == 6 and set(names) == _REVIEWED_WALL_FIELDS.keys() | {'frl'}:
+        scalar = _REVIEWED_WALL_FIELDS
+    else:
+        raise ValueError('Only reviewed wall tables with equivalent scalar fields may be hidden')
+    selected_ratings = set(columns) & rating_columns
+    if len(selected_ratings) != 1:
+        raise ValueError('A hidden variant table requires exactly one selected FRL column')
+    selected_rating = next(iter(selected_ratings))
+    cell = row[selected_rating]
+    if (not _FRL.fullmatch(re.sub(r'\s+', '', cell))
+            or canonical_frl(cell) != rating or fields.get('FRL') != rating):
+        raise ValueError('Hidden wall table FRL must equal the selected source cell and scalar FRL')
+    if scalar is _APPROVED_WALL_FIELDS:
+        wrap = _fact(fields.get('Service Wrap', ''))
+        no_wrap = bool(re.search(r'\b(?:wrap[- ]*free|(?:no|without) (?:servo\s*wrap|wrap))\b', wrap))
+        if (wrap in {'', 'n/a', 'none', '-', 'not applicable', 'not specified'}
+                or no_wrap != (names[selected_rating] == 'frl without servowrap')):
+            raise ValueError('Hidden approved-wall FRL must match the scalar Service Wrap condition')
+    for name, label in scalar.items():
+        cell, value = row[names.index(name)], fields.get(label, '')
+        if label == 'Maximum Opening Size':
+            preserved = _opening_fact(cell) == _opening_fact(value)
+        elif label == 'Installation Details':
+            preserved = _fact(cell) in _fact(value)
+        else:
+            preserved = _fact(cell) == _fact(value)
+        if not cell.strip() or not value.strip() or not preserved:
+            raise ValueError(f'Hidden wall table must preserve the selected {label} in its scalar field')
+
+
+def _scope(record, selections, *, fields, rating):
     by_field = {}
     for selection in selections:
         by_field.setdefault(selection['field'], {})[selection['table_index']] = selection
@@ -409,6 +481,11 @@ def _scope(record, selections):
                 raise ValueError('A variant rating table must retain one row and one FRL column')
             if selection and any(column not in columns for column in range(len(table['columns'])) if column not in rating_columns):
                 raise ValueError('Variant selection cannot omit substantive non-rating columns')
+            if selection and selection.get('hide_table'):
+                if label != 'Barrier Construction':
+                    raise ValueError('Only a scoped Barrier Construction table may be hidden')
+                _validate_hidden_wall(table, table['rows'][rows[0]], columns, rating_columns, fields, rating)
+                continue
             if not rows:
                 continue
             remap[index] = len(kept)
@@ -526,7 +603,11 @@ def project(public_records, discovery, review, *, source_records, assets):
             # Only fields are edited in place. Source evidence and other
             # parent metadata are immutable and shared by sibling variants.
             item = {**base, 'fields': deepcopy(base.get('fields', []))}
-            remaps = _scope(item, variant['selections'])
+            remaps = _scope(item, variant['selections'], fields=variant['fields'], rating=variant['facets']['frl'][0])
+            if 'hold_reason' in variant and any(
+                    re.search(r'\bfrl\b', column, re.I) for field in item['fields']
+                    for table in field_tables(field) for column in table['columns']):
+                raise ValueError('A source hold cannot retain a visible table of FRLs')
             selected_ratings = set()
             for selection in variant['selections']:
                 table = field_tables(_field(base, selection['field']))[selection['table_index']]
@@ -544,7 +625,7 @@ def project(public_records, discovery, review, *, source_records, assets):
                         selected_ratings.update(canonical_frl(value) for value in re.findall(r'(?:-|\d+)\s*/\s*(?:-|\d+)\s*/\s*(?:-|\d+)', field['value']))
                         if field['value'] in ('N/A', 'Not specified'):
                             selected_ratings.add(field['value'])
-            if variant['facets']['frl'][0] not in selected_ratings:
+            if 'hold_reason' not in variant and variant['facets']['frl'][0] not in selected_ratings:
                 raise ValueError('Assigned variant FRL is absent from the selected source configuration')
             for label, value in variant['fields'].items():
                 matching = [field for field in item.get('fields', []) if field['label'] == label]
@@ -554,6 +635,10 @@ def project(public_records, discovery, review, *, source_records, assets):
                     matching[0]['value'] = value
                 else:
                     item.setdefault('fields', []).append({'label': label, 'value': value})
+            if 'hold_reason' in variant and any(
+                    field['label'] in ('FRL', 'Blank Seal FRL') and field['value'] not in ('', 'Not specified')
+                    for field in item['fields']):
+                raise ValueError('A source hold cannot retain another scalar FRL')
             own_facets = {**deepcopy(discovery[parent]), **deepcopy(variant['facets'])}
             if set(own_facets['category']) - (set(CATEGORIES) | set(discovery[parent].get('category', []))):
                 raise ValueError('Unapproved variant Category')

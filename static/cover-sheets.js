@@ -132,6 +132,8 @@
     'project.full_product_summary.pdf':'full_product_summary','firestopping.schedule.pdf':'firestopping_schedule',
     'passive_fire_register.pdf':'passive_fire_register',
     'passive_fire_registers.pdf':'passive_fire_registers',
+    'duct_inspections.pdf':'duct_inspections','structural_steel_inspections.pdf':'structural_steel_inspections',
+    'duct_register.pdf':'duct_register','structural_steel_register.pdf':'structural_steel_register',
     'calculator.steel_vermiculite.schedule.pdf':'steel_vermiculite_schedule','calculator.steel_intumescent.schedule.pdf':'steel_intumescent_schedule',
     'calculator.steel_board.schedule.pdf':'steel_board_schedule','calculator.ductwork.schedule.pdf':'ductwork_schedule',
     'calculator.steel_vermiculite.product_summary.pdf':'steel_vermiculite_product_summary',

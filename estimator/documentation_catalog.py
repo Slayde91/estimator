@@ -18,6 +18,14 @@ CALCULATOR_INSPECTION_ROUTES = {
     '/api/project/' + key.replace('_', '-') + '.pdf': kind
     for kind, (label, key) in CALCULATOR_INSPECTIONS.items()
 }
+CALCULATOR_REGISTERS = {
+    'duct': ('Duct Register', 'duct_register'),
+    'steel': ('Structural Steel Register', 'structural_steel_register'),
+}
+CALCULATOR_REGISTER_ROUTES = {
+    '/api/project/' + key.replace('_', '-') + '.pdf': kind
+    for kind, (_, key) in CALCULATOR_REGISTERS.items()
+}
 PDF_SCOPES = {'steel_vermiculite':'Steel | Spray', 'steel_intumescent':'Steel | Paint',
               'steel_board':'Steel | Board', 'ductwork':'Duct'}
 SCOPES = {'steel':'Steel', 'duct':'Duct', 'walls_floors':'Walls and floors',
@@ -60,6 +68,8 @@ def document_catalog(edition='full'):
                 add('passive_fire_registers.pdf', 'Passive Fire Register', 'pdf', 'passive_fire_register', action='register')
                 for kind, (label, key) in CALCULATOR_INSPECTIONS.items():
                     add(key + '.pdf', label, 'pdf', 'calculator_inspections', kind=kind)
+                    title, register_key = CALCULATOR_REGISTERS[kind]
+                    add(register_key + '.pdf', title, 'pdf', 'calculator_inspections', kind=kind, action='register')
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
     add('swms', 'Safe Work Method Statement', 'pdf', 'swms')
@@ -95,6 +105,8 @@ def export_identity(route, body):
         return fixed[route], ''
     if route in CALCULATOR_INSPECTION_ROUTES:
         return CALCULATOR_INSPECTIONS[CALCULATOR_INSPECTION_ROUTES[route]][1] + '.pdf', ''
+    if route in CALCULATOR_REGISTER_ROUTES:
+        return CALCULATOR_REGISTERS[CALCULATOR_REGISTER_ROUTES[route]][1] + '.pdf', ''
     if route == '/api/swms/issue':
         return 'swms', str(body.get('id', ''))
     if (route == '/api/commercial/issue' and isinstance(body.get('kind'), str)

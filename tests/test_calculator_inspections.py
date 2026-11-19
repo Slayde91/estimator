@@ -85,6 +85,23 @@ class CalculatorInspectionTests(unittest.TestCase):
         self.assertEqual(data['steel']['entries'][0]['row']['line'], 1000)
         self.assertEqual(recorded_thickness([1, 1.01]), '1.01')
 
+    def test_corex_column_reports_missing_calculator_thickness_separately_from_readings(self):
+        inputs = {**BOARD, 'C9': 'TRAFALGAR COREX', 'D9': '100UC15', 'G9': 4, 'H9': 30, 'I9': 'Column', 'J9': 620}
+        blocked = inspection_calculator_rows('steel_board', {'CALCULATOR': inputs}, [9])
+        row = blocked['rows'][0]
+        self.assertEqual((row['critical_temp'], row['frl'], row['required_thickness'], row['report']),
+                         (620, '30 min', 'N / A', ''))
+        self.assertEqual(blocked['notes'], {
+            '1': 'The calculator has no reviewed thickness table for this member type, critical temperature and fire period.',
+        })
+        self.assertNotIn('notes', row)
+        with self.assertRaisesRegex(ValidationError, 'Steel \\(board\\), line 1, has no calculated required thickness'):
+            render_calculator_inspections(_register(row, [35]), {}, 'steel', company=DEFAULTS)
+        beam = inspection_calculator_rows('steel_board', {'CALCULATOR': {**inputs, 'I9':'Beam'}}, [9])
+        self.assertEqual(beam['rows'][0]['report'], 'FAS200445 R2.0')
+        self.assertNotEqual(beam['rows'][0]['required_thickness'], 'N / A')
+        self.assertNotIn('notes', beam)
+
     def test_location_uses_application_metadata_and_legacy_templates_still_import(self):
         raw = load_workbook_catalog('ductwork')
         definition = calculator_definition('ductwork', {'CALCULATOR': DUCT})
@@ -119,6 +136,7 @@ class CalculatorInspectionTests(unittest.TestCase):
 
     def test_open_and_save_keep_selected_rows_readings_and_identifiers(self):
         registers = {'duct': _register(self.duct, [74]), 'steel': _register(self.board, [29.5, 32.25])}
+        registers['steel']['entries'][0]['source_estimate_id'] = 'estimate-' + 'a' * 32
         with tempfile.TemporaryDirectory() as path:
             store = Store(Path(path) / 'disposable.sqlite3')
             previous = load_project_bytes(store, export_project(store, {'estimate': {}}))
@@ -136,6 +154,10 @@ class CalculatorInspectionTests(unittest.TestCase):
             preserve_inspection_numbers(registers, {'steel': registers['steel']})
         with self.assertRaisesRegex(ValidationError, 'different type'):
             normalize_calculator_inspections({'duct': {**registers['duct'], 'entries': registers['steel']['entries']}})
+        updated = deepcopy(registers)
+        updated['steel']['entries'][0]['source_estimate_id'] = 'Other estimate'
+        with self.assertRaisesRegex(ValidationError, 'valid source estimate'):
+            normalize_calculator_inspections(updated)
 
     def test_reports_include_photos_reading_count_and_exact_plan_pin(self):
         with tempfile.TemporaryDirectory() as path:

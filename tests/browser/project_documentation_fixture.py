@@ -56,6 +56,12 @@ def main():
                                {'label': 'Barrier Construction', 'value': 'Concrete wall'}])
         (library / 'library.json').write_text(json.dumps(data), encoding='utf-8')
         make_pdf(folder / 'Register plans.pdf')
+        from reportlab.pdfgen.canvas import Canvas
+        for name, caption in (('Duct cover.pdf', 'DUCT INSPECTION TEST COVER'),
+                              ('Steel cover.pdf', 'STEEL INSPECTION TEST COVER')):
+            cover = Canvas(str(folder / name), invariant=1)
+            cover.drawString(70, 705, caption)
+            cover.save()
     server = create_server(0, folder / 'qa.sqlite3', project_dialogs=Dialogs(), library_directory=library)
     print(json.dumps({'port': server.server_port, 'directory': str(folder),
                       'project': str(folder / 'project-a.cf.json')}), flush=True)

@@ -65,7 +65,7 @@ def inspection_calculator_rows(calculator_id, inputs, schedule_rows=None):
     inputs = normalize_calculator_inputs(calculator_id, blank_schedule_defaults(calculator_id, inputs))
     normalize_schedule_rows(calculator_id, inputs, schedule_rows)
     calculated = project_calculator_report(calculator_id, inputs)
-    rows = []
+    rows, notes = [], {}
     for item in calculated['rows']:
         fields = {'calculator_id': calculator_id, 'line': item['line']}
         for field, column in zip(ROW_FIELDS, _CELL_COLUMNS[calculator_id]):
@@ -82,8 +82,10 @@ def inspection_calculator_rows(calculator_id, inputs, schedule_rows=None):
                 fields[field] = ''
         fields['report'] = report_reference_text(item['report_references'])
         fields['required_thickness'] = _required_thickness(calculator_id, item)
+        if fields['required_thickness'] == UNAVAILABLE_RESULT and item.get('calculation_notes'):
+            notes[str(item['line'])] = item['calculation_notes']
         rows.append(fields)
-    return {'calculator_id': calculator_id, 'rows': rows}
+    return {'calculator_id': calculator_id, 'rows': rows, **({'notes': notes} if notes else {})}
 
 
 def _source_row(row, kind):
@@ -124,14 +126,20 @@ def _readings(value, kind):
 
 
 def _entry(value, kind):
-    source = _fields(value, {'entry_id', 'number', 'row', 'readings', 'plan_pins', *PHOTOS}, 'Inspection entry')
+    source = _fields(value, {'entry_id', 'number', 'row', 'source_estimate_id', 'readings', 'plan_pins', *PHOTOS}, 'Inspection entry')
     identity, number = _entry_number(source, 0, True)
     row = source.get('row')
-    return {'entry_id': identity, 'number': number,
-            'row': _source_row(row, kind) if row is not None else None,
-            'readings': _readings(source.get('readings', []), kind),
-            **{key: _photos(source.get(key, [])) for key in PHOTOS},
-            'plan_pins': normalize_pins(source.get('plan_pins', []))}
+    entry = {'entry_id': identity, 'number': number,
+             'row': _source_row(row, kind) if row is not None else None,
+             'readings': _readings(source.get('readings', []), kind),
+             **{key: _photos(source.get(key, [])) for key in PHOTOS},
+             'plan_pins': normalize_pins(source.get('plan_pins', []))}
+    if 'source_estimate_id' in source:
+        estimate_id = source['source_estimate_id']
+        if row is None or not isinstance(estimate_id, str) or not re.fullmatch(r'estimate-(?:1|[0-9a-f]{32})', estimate_id):
+            raise ValidationError('The selected calculator row must identify a valid source estimate.')
+        entry['source_estimate_id'] = estimate_id
+    return entry
 
 
 def normalize_inspection_register(value, kind, *, validate_photos=True):

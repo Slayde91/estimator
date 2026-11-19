@@ -18,7 +18,7 @@ async function save(){await host.locator('.commercial-editor-actions').getByRole
 function savedOrderStatus() {
  return JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(doc=>doc.kind==='purchase_order')?.status;
 }
-async function reopen(){await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await host.getByRole('button',{name:'PO-01: Signature Supplier',exact:true}).click();await idle();}
+async function reopen(){await host.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await host.getByRole('button',{name:'PO-01: Signature Supplier',exact:true}).click();await idle();}
 (async()=>{
   info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});page=await browser.newPage({viewport:{width:1915,height:1000}});page.setDefaultTimeout(60000);
   page.on('pageerror',error=>errors.push(error.message));page.on('request',request=>{if(request.method()==='POST')writes.push(new URL(request.url()).pathname);});
@@ -81,7 +81,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await expect(signedHistory.locator('li').first()).toBeVisible();
   await require('./purchase_summary_history.cjs').checkHistoryWindow(signedHistory,Math.min(5,await signedHistory.locator('li').count()));
   await signedHistory.locator('summary').click();
-  await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   const rewind=page.getByRole('dialog',{name:'Sign and move',exact:true});
   const orderCard=host.locator('.commercial-card').filter({hasText:'PO-01: Signature Supplier'});
   await orderCard.locator('summary').click();
@@ -111,7 +111,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   saved=await save();assert.deepEqual(saved.fields.signatures||{},{});await reopen();for(const [key,label,date] of signers){await expect(host.getByLabel(label+' name',{exact:true})).toHaveValue('');await expect(host.locator(`[data-order-field="${date}"]`)).toHaveValue('');await expect(host.locator(`[data-signature-field="${key}"] svg[role=img]`)).toHaveCount(0);}
   checks.push('All four PO roles deliberately sign using current Settings name and organization date, preserve vector ink through Save/reopen, cancel changes safely, and Clear persists removal of ink/name/date without writing Settings');
   // Older project data has no delivery_time/rejection_reason and free-text approval.
-  await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();const file=JSON.parse(fs.readFileSync(info.project,'utf8')),legacy=file.commercial_documents.documents.find(item=>item.id===saved.id);legacy.status='Verified';legacy.fields.order.approval='Legacy finance review';legacy.fields.order.delivery_date='2026-12-11';delete legacy.fields.order.delivery_time;delete legacy.fields.order.rejection_reason;fs.writeFileSync(info.project,JSON.stringify(file));
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();const file=JSON.parse(fs.readFileSync(info.project,'utf8')),legacy=file.commercial_documents.documents.find(item=>item.id===saved.id);legacy.status='Verified';legacy.fields.order.approval='Legacy finance review';legacy.fields.order.delivery_date='2026-12-11';delete legacy.fields.order.delivery_time;delete legacy.fields.order.rejection_reason;fs.writeFileSync(info.project,JSON.stringify(file));
   await page.reload();await idle();await openProjectSection(page,'purchase-orders');
   const historicalOrder=host.locator('.commercial-column[data-status=Completed]').getByRole('button',{name:'PO-01: Signature Supplier',exact:true});
   await expect(historicalOrder).toBeVisible();await historicalOrder.click();await idle();
@@ -123,7 +123,7 @@ async function reopen(){await host.getByRole('button',{name:'Back to Purchase Or
   await host.getByRole('button',{name:'Sign Approved by',exact:true}).click();await idle();
   await expect.poll(savedOrderStatus).toBe('Cancelled');
   await expect(host.getByRole('button',{name:'Sign Sent by',exact:true})).toBeHidden();
-  await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-column[data-status="Cancelled"]')).toContainText('PO-01: Signature Supplier');
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-column[data-status="Cancelled"]')).toContainText('PO-01: Signature Supplier');
   checks.push('Historical Verified is displayed as Completed. A rejected review auto-saves to the Cancelled board column and blocks sending.');
   const card=host.locator('.commercial-card').filter({hasText:'PO-01: Signature Supplier'});
   await card.locator('summary').click();const move=card.getByLabel('Move to',{exact:true});

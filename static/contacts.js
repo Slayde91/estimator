@@ -229,7 +229,19 @@
     let contactId = record.contact_id || "", contactName = record.name || "", accountId = record.account_id || "";
     let accountDefaults = {};
     let resources = null, workspaceLeft, workspaceRight, associationPanel, associationLinks, leadHistory, sidebarLinks, refreshLinks;
-    let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, linksReady = kind !== "accounts";
+    let resolveClosed, savedRecord = null, submitting = false, loadingLinks = false, refreshingRecords = false, linksReady = kind !== "accounts";
+    const saveButtons = [], backButtons = [], refreshButtons = [];
+    function syncRecordActions() {
+      const busy = submitting || saving || refreshingRecords;
+      for (const control of saveButtons) control.disabled = busy || loadingLinks || !linksReady;
+      for (const control of [...backButtons, ...refreshButtons]) control.disabled = busy;
+    }
+    function createSaveButton() {
+      const control = ui("button", "button primary", "Save");
+      control.type = "submit";
+      saveButtons.push(control); syncRecordActions();
+      return control;
+    }
     const closed = new Promise(resolve => { resolveClosed = resolve; });
     const heading = el("h2", "", readOnly ? (kind==='accounts' ? record.company : record.name) : (record.id ? "Edit " : "New ") + singular[kind]);
     if (!readOnly) copy(heading, (record.id ? "Edit " : "New ") + singular[kind]);
@@ -426,9 +438,7 @@
     }
     if (!readOnly) window.ClassifireIdentity?.suggestions(form,kind,fields,record,request,()=>contactId);
     const actions = el("div", "actions contacts-dialog-actions");
-    const save = ui("button", "button primary", "Save");
-    save.type = "submit";
-    save.disabled = !linksReady;
+    const save = createSaveButton();
     async function cancelModal() {
       if (submitting || timeline?.pending?.()) return;
       if(timeline?.dirty?.()){
@@ -621,7 +631,7 @@
       async function loadLinks(preserveSelection = false) {
         const ticket = ++linkTicket;
         loadingLinks = true;
-        save.disabled = true;
+        syncRecordActions();
         refresh.disabled = true;
         copy(linkStatus, "Loading linked records…");
         try {
@@ -659,7 +669,7 @@
             {key:focused.dataset.linkKind, id:focused.dataset.linkTarget} : null;
           renderLinked(); renderResults(focusEntry);
           linksReady = true;
-          save.disabled = false;
+          syncRecordActions();
           unavailable.hidden = !catalog.error_count;
           copy(unavailableSummary, "Unavailable project records ({0})", [catalog.error_count || 0]);
           unavailableList.replaceChildren(...(catalog.errors || []).map(item => el("li", "", item.name)));
@@ -674,7 +684,7 @@
           if (ticket === linkTicket) {
             loadingLinks = false;
             refresh.disabled = submitting;
-            save.disabled = submitting || !linksReady;
+            syncRecordActions();
           }
         }
       }
@@ -809,7 +819,7 @@
     }
     form.addEventListener("submit", async event => {
       event.preventDefault();
-      if (readOnly || submitting || saving || loadingLinks || !linksReady || timeline?.pending?.()) return;
+      if (readOnly || submitting || saving || refreshingRecords || loadingLinks || !linksReady || timeline?.pending?.()) return;
       if (resources?.pending?.() || resources?.dirty?.()) {feedback(form,{contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind],true);return;}
       if (timeline?.dirty?.()){feedback(form,'Log or clear the activity first.',true);return;}
       if (newContact) {
@@ -826,7 +836,7 @@
         if (first) {feedback(form,'Complete Name, Phone, Company and Email before creating this Contact.',true);first.focus();return;}
       }
       submitting = saving = true;
-      save.disabled = cancel.disabled = true;
+      syncRecordActions(); cancel.disabled = true;
       form.setAttribute("aria-busy", "true");
       const values = Object.fromEntries(Object.entries(fields).map(([key, input]) => [key, input.value]));
       if (followUps) values.follow_up_actions = followUps.value();
@@ -876,7 +886,7 @@
         submitting = saving = false;
         conversionBusy();
         editable.forEach(input => { input.disabled = false; });
-        save.disabled = cancel.disabled = false;
+        syncRecordActions(); cancel.disabled = false;
         form.removeAttribute("aria-busy");
       }
     });
@@ -897,10 +907,7 @@
       else if (inPane) root().querySelector('[data-directory-record="'+CSS.escape(record.id)+'"]')?.focus();
     }, {once: true});
     if (inPane) {
-      const close = button("←", () => leaveAccount(), "button secondary icon-only contacts-account-close");
       const backLabel={accounts:"Back to Companies",contacts:"Back to Contacts",leads:"Back to Leads"}[kind];
-      close.setAttribute("aria-label",backLabel);close.title=backLabel;
-      window.CeasefireI18n?.attr(close,"aria-label",backLabel);window.CeasefireI18n?.attr(close,"title",backLabel);
       dialog.classList.add("contacts-record-workspace");
       const columns=el("div","contacts-record-layout"),main=el("div","contacts-record-main"),details=el("section","card contacts-record-details");
       workspaceLeft=el("aside","commercial-sidebar contacts-record-left");workspaceRight=el("aside","commercial-sidebar contacts-record-right");
@@ -919,14 +926,12 @@
         }
       }
       if (linkedContact) {workspaceLeft.append(linkedContact);showLinkedContact();}
-      const toolbar=el("div","commercial-editor-actions contacts-record-toolbar");toolbar.append(close);
       sidebarLinks=el("div","contacts-links");
       if (kind === 'leads') workspaceLeft.append(sidebarLinks,leadHistory);
       else workspaceLeft.append(leadHistory,sidebarLinks);
-      if(!readOnly)toolbar.append(save);
-      const refreshRecords = button("Refresh Records", async () => {
-        if (refreshRecords.disabled || submitting || resources?.pending() || timeline?.pending()) return;
-        refreshRecords.disabled = true;
+      async function refreshRecords() {
+        if (refreshingRecords || submitting || saving || resources?.pending() || timeline?.pending()) return;
+        refreshingRecords = true; syncRecordActions();
         try {
           const refreshDirectory = async () => {
             try {
@@ -941,22 +946,32 @@
           await Promise.all([refreshDirectory(), resources?.refresh(), timeline?.refresh?.()]);
         } catch (error) {
           if (isOpen()) feedback(form, error.message, true);
-        } finally {refreshRecords.disabled = false;}
-      });
-      copy(refreshRecords,"Refresh Records");
-      toolbar.append(refreshRecords);
+        } finally {refreshingRecords = false; syncRecordActions();}
+      }
+      function recordActions(position) {
+        const row=el("div","commercial-editor-actions contacts-record-actions contacts-record-actions-"+position+" contacts-record-"+(position === "top" ? "toolbar" : "footer"));
+        const close=button("←",()=>leaveAccount(),"button secondary icon-only contacts-account-close");
+        close.setAttribute("aria-label",backLabel);close.title=backLabel;
+        window.CeasefireI18n?.attr(close,"aria-label",backLabel);window.CeasefireI18n?.attr(close,"title",backLabel);
+        backButtons.push(close);row.append(close);
+        if(!readOnly)row.append(position === "top" ? save : createSaveButton());
+        const refresh=button("Refresh Records",refreshRecords);copy(refresh,"Refresh Records");
+        refreshButtons.push(refresh);row.append(refresh);syncRecordActions();
+        return row;
+      }
+      const toolbar=recordActions("top"),footer=recordActions("bottom");
       const originalChildren=[...form.children];
       for(const child of originalChildren) {
         if (child.matches(".crm-merge-records,.crm-timeline")) workspaceRight.append(child);
         else details.append(child);
       }
-      main.append(toolbar,details);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
+      main.append(toolbar,details,footer);columns.append(workspaceLeft,main,workspaceRight);form.append(columns);
       showAssociation();
       form.addEventListener("input",showAssociation);
       const resourceHost=el("div","contacts-record-resources");
       workspaceRight.prepend(resourceHost);
       for(const groups of details.querySelectorAll(".contacts-links"))arrangeLinkedGroups(groups);
-      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || timeline?.pending?.() || resources?.pending?.(),
+      accountEditor = {element:dialog, kind, close:closeEditor, pending:()=>submitting || refreshingRecords || timeline?.pending?.() || resources?.pending?.(),
         pendingMessage:()=>({contacts:"Finish the current Contact action first.",accounts:"Finish the current Company action first.",leads:"Finish the current Lead action first."}[kind]),
         dirty:()=>Object.keys(fields).some(key=>fields[key].value !== initialValues[key]) || JSON.stringify(followUps?.value())!==initialFollowUps || linksChanged() || timeline?.dirty?.() || resources?.dirty?.(),
         fingerprint:()=>JSON.stringify({id:record.id,version,fields:Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),followUps:followUps?.value(),links:Object.fromEntries(Object.entries(linkSelections).map(([key,selected])=>[key,[...selected].sort()])),activity:timeline?.fingerprint?.(),resources:resources?.fingerprint?.()}),

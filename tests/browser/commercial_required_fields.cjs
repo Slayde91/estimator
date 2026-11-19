@@ -15,7 +15,7 @@ async function model(){const workspace=await page.evaluate(()=>window.CeasefireC
 async function saved(host){const pending=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/save'&&reply.request().method()==='POST');await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();const response=await pending;assert.equal(response.status(),200,await response.text());await idle();return (await model()).documents;}
 async function downloadWork(host) {
   const response = page.waitForResponse(reply => new URL(reply.url()).pathname === '/api/commercial/issue' && reply.request().method() === 'POST');
-  await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF',exact:true}).click();
   const result = await response;
   assert.equal(result.status(),200,await result.text());
   const receipt = await result.json();
@@ -33,7 +33,7 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
  await quote.locator('[data-rate-key="ordinary_time"]').fill('');await rich(quote,'allowances','',true);await rich(quote,'terms','',true);
  let documents=await saved(quote),document=documents.find(row=>row.kind==='quote');assert.equal(document.status,'Draft');assert.equal(document.fields.rate_schedule.rates.ordinary_time,'');for(const key of ['allowances','terms'])assert.equal(document.fields[key].replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim(),'');checks.push('Incomplete Quote Draft including blank rate/Allowances/Terms saves without inventing field values');
  await expect(quote.getByLabel('Status',{exact:true})).toHaveCount(0);
- const card=quote.locator(`[data-document-id="${document.id}"]`), back=quote.getByRole('button',{name:'Back to Quotes',exact:true});
+ const card=quote.locator(`[data-document-id="${document.id}"]`), back=quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true});
  const boardReview=async()=>{await back.click();await card.locator('summary').click();await card.getByLabel('Move to').selectOption('Review');};
  await boardReview();
  for(const label of ['Ordinary time','Allowances','Terms & Conditions'])await expect(quote.locator('.commercial-message')).toContainText(label);
@@ -44,8 +44,8 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
  await saved(quote);await boardReview();await expect(card.locator('..')).toHaveAttribute('data-status','Review');await card.locator('.project-title-button').click();
  await rich(quote,'terms','',true);await blocked(quote,'Save',['Terms & Conditions']);await expect(terms).toBeFocused();await terms.fill('Entered QA terms.');
  documents=await saved(quote);document=documents.find(row=>row.kind==='quote');assert.equal(document.status,'Review');assert.equal(document.fields.rate_schedule.rates.ordinary_time,'0');checks.push('Board rejects an incomplete Review; editor Save and PDF enforce readiness, open missing Terms and accept a zero rate');
- const issue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await quote.getByRole('button',{name:'Download PDF',exact:true}).click();const issuedResponse=await issue;assert.equal(issuedResponse.status(),200,await issuedResponse.text());await idle();document=(await model()).documents.find(row=>row.kind==='quote');assert.ok(document.last_number);
- await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);const link=work.getByLabel('Linked Quote',{exact:true});
+ const issue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF',exact:true}).click();const issuedResponse=await issue;assert.equal(issuedResponse.status(),200,await issuedResponse.text());await idle();document=(await model()).documents.find(row=>row.kind==='quote');assert.ok(document.last_number);
+ await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'work-orders');const work=page.locator('#commercial-work-order-root');await work.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(work.getByLabel('Document title',{exact:true})).toHaveCount(0);const link=work.getByLabel('Linked Quote',{exact:true});
  await link.selectOption('');
  let order=(await saved(work)).find(row=>row.kind==='work_order');
  const number=order.reference;
@@ -89,7 +89,7 @@ async function rich(host,key,text,collapse=false){const details=host.locator(`de
  await page.getByRole('dialog',{name:'Clear section and later sections?',exact:true}).getByRole('button',{name:'Clear section',exact:true}).click();
  await idle();
  await saved(work);await downloadWork(work);
- await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+ await work.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Work Orders',exact:true}).click();
  const column=work.locator('.commercial-column').filter({has:page.getByRole('heading',{name:'Client Approval',exact:true})});
  await column.getByRole('button',{name:new RegExp(number)}).first().click();
  assert.equal((await model()).documents.find(row=>row.id===order.id).status,'Client Approval');

@@ -29,7 +29,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
     const form=page.getByRole('dialog',{name:'New Contact',exact:true});
     await form.getByLabel('Phone',{exact:true}).fill(twinFields.phone);
     await form.getByLabel('Email',{exact:true}).fill(twinFields.email);
-    await form.getByRole('button',{name:'Save',exact:true}).click();
+    await form.getByRole('button',{name:'Save',exact:true}).first().click();
     await expect(form.getByRole('group',{name:'Use an existing Contact'})).toBeVisible();
     assert.deepEqual(await directory(),beforeInline);
     return form;
@@ -43,7 +43,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   assert.notEqual(twins[1].id,twins[0].id);
   checks.push('Duplicate review lets the user reuse the existing ID or explicitly create a separate contact');
   await page.evaluate(account=>{window.contactResult=window.ClassifireContacts.createContact({name:'Inline Contact',account_id:account});},second.id);
-  dialog=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(dialog.getByLabel('Company',{exact:true})).toHaveValue(second.company);await dialog.getByLabel('Phone',{exact:true}).fill('444');await dialog.getByLabel('Email',{exact:true}).fill('inline@example.test');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
+  dialog=page.getByRole('dialog',{name:'New Contact',exact:true});await expect(dialog.getByLabel('Company',{exact:true})).toHaveValue(second.company);await dialog.getByLabel('Phone',{exact:true}).fill('444');await dialog.getByLabel('Email',{exact:true}).fill('inline@example.test');await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog).not.toBeVisible();
   const inline=await page.evaluate(()=>window.contactResult);assert.equal(inline.account_id,second.id);assert.equal(inline.company,second.company);assert.equal(inline.phone,'444');assert.ok((await directory()).contacts.some(row=>row.id===inline.id));
   checks.push('Inline Contact creation returns the canonical record, prefills only an explicit Account, and Cancel writes nothing');
   const beforeCompanyLookup=await directory();
@@ -55,13 +55,13 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await contactCompany.press('ArrowDown');await contactCompany.press('Enter');
   await expect(contactCompany).toHaveValue(first.company);await expect(contactCompany).toHaveAttribute('aria-expanded','false');
   await dialog.getByLabel('Phone',{exact:true}).fill('555');await dialog.getByLabel('Email',{exact:true}).fill('search-linked@example.test');
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog).not.toBeVisible();
   const searchLinked=await page.evaluate(()=>window.contactResult);assert.equal(searchLinked.account_id,first.id);assert.equal((await directory()).accounts.length,beforeCompanyLookup.accounts.length);
   await page.evaluate(()=>{window.contactResult=window.ClassifireContacts.createContact({name:'Manual company contact'});});
   dialog=page.getByRole('dialog',{name:'New Contact',exact:true});await dialog.getByRole('combobox',{name:'Company',exact:true}).fill('Unlisted Manual Company');
   await expect(dialog.getByRole('listbox',{name:'Matching records',exact:true}).getByRole('option')).toHaveCount(0);
   await dialog.getByLabel('Phone',{exact:true}).fill('666');await dialog.getByLabel('Email',{exact:true}).fill('manual-company@example.test');
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog).not.toBeVisible();
   const manualCompany=await page.evaluate(()=>window.contactResult),afterCompanyLookup=await directory();
   assert.equal(manualCompany.company,'Unlisted Manual Company');assert.ok(afterCompanyLookup.accounts.some(account=>account.id===manualCompany.account_id&&account.company===manualCompany.company));
   checks.push('New Contact Company lookup displays only company names, supports keyboard selection into the existing company, and accepts an unmatched manual name');
@@ -77,16 +77,16 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await expect(dialog.getByLabel('Phone',{exact:true})).toHaveValue(original.phone);await expect(dialog.getByLabel('Email',{exact:true})).toHaveValue(original.email);await expect(company).toHaveValue(second.company);
   const canonicalBefore=(await directory()).contacts;
   await dialog.getByLabel('Phone',{exact:true}).fill('Lead phone override');await dialog.getByLabel('Email',{exact:true}).fill('lead@example.test');await dialog.getByLabel('Site address',{exact:true}).fill('Lead Site');assert.deepEqual((await directory()).contacts,canonicalBefore);
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).not.toBeVisible();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog).not.toBeVisible();
   const savedDirectory=await directory(),lead=savedDirectory.leads[0];assert.equal(lead.contact_id,original.id);assert.equal(lead.account_id,second.id);assert.equal(lead.company,second.company);assert.equal(lead.phone,'Lead phone override');assert.deepEqual(savedDirectory.contacts,canonicalBefore);
   const card=host.locator('.project-kanban-card').filter({hasText:original.name}),convert=card.locator('.contacts-lead-convert');await expect(convert).toBeVisible();await expect(convert).toBeEnabled();await page.mouse.move(0,0);
   const style=await convert.evaluate(button=>{const css=getComputedStyle(button),box=button.getBoundingClientRect();return {background:css.backgroundColor,border:css.borderColor,color:css.color,width:box.width,height:box.height,src:button.querySelector('img').getAttribute('src')};});assert.deepEqual(style,{background:'rgb(208, 0, 27)',border:'rgb(255, 255, 255)',color:'rgb(255, 255, 255)',width:48,height:48,src:'/icons/takeoff-transfer.png'});
   checks.push('Lead results show only names; duplicate names retain distinct canonical IDs and accessible positions, with keyboard selection and canonical company defaults unchanged');
   await card.screenshot({path:path.join(output,'lead-convert-card.png')});
   // The same Contact cannot silently acquire a duplicate active Lead.
-  await host.getByRole('button',{name:'New Lead',exact:true}).click();dialog=page.getByRole('dialog',{name:'New Lead',exact:true});await dialog.getByLabel('Company',{exact:true}).fill(second.company);await dialog.getByRole('option',{name:second.company,exact:true}).click();await dialog.getByLabel('Name',{exact:true}).fill('Alex');await dialog.locator(`[role=option][data-record-id="${original.id}"]`).click();await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('already has a lead');assert.deepEqual(await directory(),savedDirectory);await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await host.getByRole('button',{name:'New Lead',exact:true}).click();dialog=page.getByRole('dialog',{name:'New Lead',exact:true});await dialog.getByLabel('Company',{exact:true}).fill(second.company);await dialog.getByRole('option',{name:second.company,exact:true}).click();await dialog.getByLabel('Name',{exact:true}).fill('Alex');await dialog.locator(`[role=option][data-record-id="${original.id}"]`).click();await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('already has a lead');assert.deepEqual(await directory(),savedDirectory);await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   // A stale editor cannot overwrite either the Lead or the canonical Contact.
-  await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('complementary',{name:'Edit Lead',exact:true});await save('contacts',{name:original.name,company:original.company,phone:'Explicit canonical edit',email:original.email,title:original.title},{id:original.id});await dialog.getByLabel('Phone',{exact:true}).fill('Stale lead edit');await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('Contacts have changed');
+  await card.locator('summary').click();await card.getByRole('button',{name:'Edit',exact:true}).click();dialog=page.getByRole('complementary',{name:'Edit Lead',exact:true});await save('contacts',{name:original.name,company:original.company,phone:'Explicit canonical edit',email:original.email,title:original.title},{id:original.id});await dialog.getByLabel('Phone',{exact:true}).fill('Stale lead edit');await dialog.getByRole('button',{name:'Save',exact:true}).first().click();await expect(dialog.locator('[data-contacts-notice]')).toContainText('Contacts have changed');
   // Hold the stale editor's refresh so the saved override and conversion can
   // be checked against the new directory version.
   let directoryStarted;const refreshing=new Promise(resolve=>directoryStarted=resolve),directoryGate=new Promise(resolve=>releaseDirectory=resolve);
@@ -121,7 +121,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   await dialog.getByLabel('Company',{exact:true}).fill(first.company);
   await dialog.getByLabel('Phone',{exact:true}).fill('Lead callback phone');
   await dialog.getByLabel('Email',{exact:true}).fill(original.email);
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();
   const matches=dialog.getByRole('group',{name:'Use an existing Contact'});
   await expect(matches).toBeVisible();
   await matches.getByRole('button',{name:/^Alex Same/}).click();
@@ -135,7 +135,7 @@ const ready=new Promise((resolve,reject)=>{let data='';const timer=setTimeout(()
   dialog=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dialog.getByRole('combobox',{name:'Name',exact:true}).fill(original.name);
   await dialog.locator(`[role=option][data-record-id="${original.id}"]`).click();
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(dialog.locator('[data-contacts-notice]')).toContainText('already has a lead');
   assert.deepEqual(await directory(),reused);
   await dialog.getByRole('button',{name:'Keep as a separate Lead',exact:true}).click();

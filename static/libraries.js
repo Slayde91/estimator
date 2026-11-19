@@ -989,8 +989,7 @@
     const fields = node("dl", "library-record-fields");
     // Omit only supplier selector numbers. Real technical IDs remain visible;
     // all original fields and durable reference targets retain their exact IDs.
-    const sourceFields = data.fields || [];
-    const visibleFields = sourceFields.filter(field => window.LibraryDetailText.visibleField(data, field, pane.kind));
+    const { fields: visibleFields, barrier, size } = window.LibraryDetailText.detailFields(data, pane.kind);
     const tablesByField = new Map(visibleFields.map(field => [field, fieldTables(field).map((table, index, tables) => {
       if (!validFieldTable(table) || !displayedColumns(table).length) return null;
       const target = fieldTable({ ...field, table }, index, tables.length, pane.kind);
@@ -1010,6 +1009,9 @@
     let diagramStatusShown = false;
     for (const field of visibleFields) {
       const pair = node("div", "library-record-field"), value = node("dd");
+      if (field === barrier && ![barrier, size].some(item => tablesByField.get(item).some(Boolean))) {
+        pair.classList.add("library-record-field-pair-start");
+      }
       if (frlLabel(field.label)) value.classList.add("library-frl-value");
       const images = (field.images || []).filter(item => validAssetId(item.id));
       const tables = tablesByField.get(field).filter(Boolean), links = configurationLinks(field, configurationTargets);

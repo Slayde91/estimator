@@ -36,7 +36,7 @@ async function checkIdentity(page,port) {
   await expect(companyPane.getByRole('cell',{name:'Different Business',exact:true})).toBeVisible();
   await expect(companyPane.getByRole('button',{name:'Confirm merge',exact:true})).toBeDisabled();
   const added = await write('accounts',{company:'Freshly Added Fixture'});
-  await companyPane.getByRole('button',{name:'Refresh Records',exact:true}).click();
+  await companyPane.getByRole('button',{name:'Refresh Records',exact:true}).first().click();
   await expect(companyPane.getByRole('button',{name:'Confirm merge',exact:true})).toHaveCount(0);
   await companySearch.fill('freshly');
   await source.selectOption(added.id);
@@ -86,7 +86,7 @@ async function checkIdentity(page,port) {
   await expect(dialog.locator('input[name=email]')).toHaveValue('enquiry@example.test');
   await expect(dialog.locator('input[name=company]')).toHaveValue('Tender client');
   assert.equal((await directory()).leads.find(row=>row.id===enquiry.id).phone,'3334');
-  await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await dialog.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(dialog).toHaveCount(0);
   const lead = (await directory()).leads.find(row=>row.id===enquiry.id);
   assert.equal(lead.contact_id, first.id); assert.equal(lead.name,'Tender contact'); assert.equal(lead.phone,'3334');

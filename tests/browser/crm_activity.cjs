@@ -30,7 +30,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   await host.getByRole('button',{name:'New Lead',exact:true}).click();let dialog=page.getByRole('dialog',{name:'New Lead',exact:true});
   await dialog.getByLabel('Name',{exact:true}).fill('Builder contact');await dialog.getByLabel('Company',{exact:true}).fill('Builder');
   await expect(dialog.getByLabel('Region',{exact:true})).toHaveCount(0);await expect(dialog.getByLabel('Owner',{exact:true})).toHaveValue(staff[0].id);
-  await expect(dialog.getByLabel('Status',{exact:true})).toHaveValue('New');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(dialog.getByLabel('Status',{exact:true})).toHaveValue('New');await dialog.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(host.locator('[data-status="New"] .project-kanban-card')).toContainText('Builder contact');let initial=await api('/api/contacts/directory');const regional=await page.request.post(base+'/api/contacts/leads',{data:{id:initial.leads[0].id,version:initial.version,fields:{name:'Builder contact',company:'Builder'},region:'Northern NSW'},headers:{'X-CRM-Member':staff[0].id}});assert.equal(regional.status(),200,await regional.text());
   await page.reload();await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);await page.locator('#contacts-navigation-toggle').click();
   const card=host.locator('[data-status="New"] .project-kanban-card');await expect(card).toContainText('Northern NSW');await expect(card).toContainText(name);
@@ -55,7 +55,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
   const task=timeline.locator('.crm-event-list li').filter({hasText:'Confirm site access'});
   await expect(task).toContainText('11/02/2027');await task.getByRole('button',{name:'Complete task',exact:true}).click();
   await expect(task.getByRole('button')).toHaveCount(0);
-  await dialog.getByLabel('Status',{exact:true}).selectOption('Disqualified');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+  await dialog.getByLabel('Status',{exact:true}).selectOption('Disqualified');await dialog.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(host.locator('[data-status="Disqualified"] article')).toContainText('Builder contact');
   const dir=await api('/api/contacts/directory'),lead=dir.leads[0];
   assert.equal(lead.owner_id,staff[0].id);assert.ok(lead.last_interaction_at);assert.equal(lead.region,'Northern NSW');

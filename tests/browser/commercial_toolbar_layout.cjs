@@ -13,7 +13,8 @@ let logs='',browser,page;server.stderr.on('data',value=>logs+=value);
 const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(Error(logs||'Fixture startup timeout')),120000);server.once('error',reject);server.once('exit',code=>{clearTimeout(timer);reject(Error('Fixture exited '+code));});server.stdout.on('data',value=>{text+=value;if(text.includes('\n')){clearTimeout(timer);resolve(JSON.parse(text.split('\n')[0]));}});});
 const checks=[],errors=[],geometry=[];
 async function idle(){await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready&&!window.CeasefireProject.hasPendingOperation()&&!document.querySelector('dialog[open],[aria-busy="true"],.commercial-editor-actions button:disabled'));}
-async function save(host){const pending=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/save'&&reply.request().method()==='POST');await host.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();const reply=await pending;assert.equal(reply.status(),200,await reply.text());await idle();return reply.json();}
+const footerAction=(host,name)=>host.locator('.commercial-editor-footer').getByRole('button',{name,exact:true});
+async function save(host){const pending=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/save'&&reply.request().method()==='POST');await footerAction(host,'Save').click();const reply=await pending;assert.equal(reply.status(),200,await reply.text());await idle();return reply.json();}
 async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF',exact:true});await expect(pdf).toHaveCount(1);await expect(pdf).toHaveAttribute('title','Download PDF');await expect(pdf).toHaveClass(/icon-only/);await expect(pdf.locator('.download-format-icon')).toHaveAttribute('aria-hidden','true');await expect(pdf.locator('.download-arrow')).toHaveText('⇩');await expect(pdf.locator('.download-format')).toHaveText('PDF');
  await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);
  await expect(pdf).toBeEnabled();
@@ -26,12 +27,21 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
  const previousName={quote:'Create WO',work_order:'Create PO',purchase_order:'Download PDF'}[kind];
  await expect(previous).toHaveAccessibleName(previousName);
  if(kind==='work_order')await expect(previous).toHaveClass(/primary/);
+ const backName={quote:'Back to Quotes',work_order:'Back to Work Orders',purchase_order:'Back to Purchase Orders'}[kind];
+ const names=[backName,'Save','Download PDF',...(kind==='purchase_order'?[]:[previousName]),'Refresh Records'];
+ const footer=host.locator('.commercial-editor-footer');
+ await expect(footer.locator('button')).toHaveCount(names.length);
+ for(const [index,name] of names.entries())await expect(footer.locator('button').nth(index)).toHaveAccessibleName(name);
+ assert.equal(await footer.evaluate(node=>node===node.parentElement.lastElementChild),true);
+ await expect(footer.locator('[id]')).toHaveCount(0);
  const refresh=host.getByRole('button',{name:'Refresh linked contacts',exact:true});
  if(kind==='purchase_order')await expandPanels(host,'Linked Contacts');
  if(kind==='purchase_order')await expect(refresh).toBeVisible();
  for(const width of [1515,390]){
    await page.setViewportSize({width,height:1000});
    const box=await pdf.boundingBox();assert.equal(box.width,52);assert.equal(box.height,42);
+   const footerBox=await footerAction(host,'Download PDF').boundingBox();
+   assert.deepEqual([footerBox.width,footerBox.height],[box.width,box.height]);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    if(kind==='purchase_order')await expect(refresh).toHaveCSS('height','42px');
    const sizes=await host.locator('input[type=date]:visible,.commercial-add-custom-row:visible').evaluateAll(nodes=>nodes.map(el=>({field:el.getAttribute('aria-label')||el.dataset.orderField||el.dataset.projectDetail||el.className,height:el.getBoundingClientRect().height})));
@@ -46,9 +56,40 @@ async function pdfControl(host,kind){const pdf=host.locator('.commercial-editor-
    }
    await host.locator('.commercial-details').screenshot({path:path.join(output,kind+'-metadata-'+width+'.png')});
    await host.locator('.commercial-editor-actions').screenshot({path:path.join(output,kind+'-toolbar-'+width+'.png')});
+   await footer.screenshot({path:path.join(output,kind+'-footer-'+width+'.png')});
    geometry.push({kind,width,button:box,sizes});
  }
  await page.setViewportSize({width:1515,height:1000});
+}
+
+async function checkPairedRefresh(host) {
+ const matches=url=>url.pathname==='/api/commercial/state'&&url.searchParams.get('compact')==='1';
+ let unlock, entered, continued, started=false, requests=0;
+ const held=new Promise(resolve=>{unlock=resolve;});
+ const requested=new Promise(resolve=>{entered=resolve;});
+ const handled=new Promise(resolve=>{continued=resolve;});
+ const top=host.locator('.commercial-editor-actions').getByRole('button',{name:'Refresh Records',exact:true});
+ const bottom=footerAction(host,'Refresh Records');
+ const count=request=>{if(matches(new URL(request.url())))requests++;};
+ page.on('request',count);
+ const intercept=async route=>{
+   started=true;entered();await held;
+   try{await route.continue();}
+   finally{continued();}
+ };
+ await page.route(matches,intercept,{times:1});
+ try {
+   await bottom.click();await requested;
+   await expect(top).toBeDisabled();await expect(bottom).toBeDisabled();
+   await top.evaluate(button=>button.click());
+   assert.equal(requests,1);
+ }finally{
+   unlock();
+   if(started)await handled;
+   else await page.unroute(matches,intercept);
+   page.off('request',count);
+ }
+ await expect(top).toBeEnabled();await expect(bottom).toBeEnabled();
 }
 
 async function appearance(control){return control.evaluate(element=>({background:getComputedStyle(element).backgroundColor,color:getComputedStyle(element).color}));}
@@ -72,13 +113,14 @@ async function appearance(control){return control.evaluate(element=>({background
  await expect(quoteRoot.getByLabel('Search documents',{exact:true})).toBeVisible();
  const boardHeadings=await page.evaluate(()=>{window.qaQuoteHeadingObserver.disconnect();return window.qaQuoteBoardHeadings;});
  assert.ok(boardHeadings.length>0 && boardHeadings.every(title=>title==='Quotes'),JSON.stringify(boardHeadings));
- let host=quoteRoot;await host.getByRole('button',{name:'New Quote',exact:true}).click();await idle();await pdfControl(host,'quote');await save(host);const quoteIssue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await host.getByRole('button',{name:'Download PDF',exact:true}).click();const issued=await quoteIssue;assert.equal(issued.status(),200,await issued.text());await idle();const issuedModel=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),issuedQuote=issuedModel.documents.find(item=>item.kind==='quote'),quoteId=issuedQuote.id;await host.getByRole('button',{name:'Back to Quotes',exact:true}).click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(issuedQuote.last_number+': Toolbar Company');
+ let host=quoteRoot;await host.getByRole('button',{name:'New Quote',exact:true}).click();await idle();await pdfControl(host,'quote');await checkPairedRefresh(host);await save(host);const quoteIssue=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/commercial/issue'&&reply.request().method()==='POST');await footerAction(host,'Download PDF').click();const issued=await quoteIssue;assert.equal(issued.status(),200,await issued.text());await idle();const issuedModel=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),issuedQuote=issuedModel.documents.find(item=>item.kind==='quote'),quoteId=issuedQuote.id;await footerAction(host,'Back to Quotes').click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(issuedQuote.last_number+': Toolbar Company');
+ checks.push('Commercial footers match the existing toolbar and return using the same Save, PDF, Back, and shared Refresh Records controls');
  await openProjectSection(page,'work-orders');host=page.locator('#commercial-work-order-root');await host.getByRole('button',{name:'New Work Order',exact:true}).click();await idle();await expect(host.getByLabel('Document title',{exact:true})).toHaveCount(0);await pdfControl(host,'work_order');await host.getByLabel('Linked Quote',{exact:true}).selectOption(quoteId);
  await save(host);const model=await(await page.request.get(new URL('/api/commercial/state?workspace='+await page.evaluate(()=>window.CeasefireCertification.sessionId()),page.url()).href)).json(),record=model.documents.find(item=>item.kind==='work_order');assert.ok(record.reference);assert.equal(record.fields.title,'Work Order');const title=record.reference+': '+record.fields.details.client;
- await host.getByRole('button',{name:'Back to Work Orders',exact:true}).click();await expect(host.locator('.commercial-card').getByRole('button',{name:title,exact:true})).toHaveCount(1);await expect(host.locator('.commercial-card summary')).toHaveAttribute('aria-label','Actions for '+title);await host.getByLabel('Search documents',{exact:true}).fill(title);await expect(host.locator('.commercial-card')).toHaveCount(1);await host.getByLabel('Search documents',{exact:true}).fill('');checks.push('Work Order title is its assigned reference and Company; stored title is preserved');
+ await footerAction(host,'Back to Work Orders').click();await expect(host.locator('.commercial-card').getByRole('button',{name:title,exact:true})).toHaveCount(1);await expect(host.locator('.commercial-card summary')).toHaveAttribute('aria-label','Actions for '+title);await host.getByLabel('Search documents',{exact:true}).fill(title);await expect(host.locator('.commercial-card')).toHaveCount(1);await host.getByLabel('Search documents',{exact:true}).fill('');checks.push('Work Order title is its assigned reference and Company; stored title is preserved');
  await openProjectSection(page,'purchase-orders');host=page.locator('#commercial-purchase-order-root');await host.getByRole('button',{name:'New Purchase Order',exact:true}).click();await idle();await pdfControl(host,'purchase_order');const method=host.getByLabel('Delivery or pickup',{exact:true}),group=host.getByRole('group',{name:'Delivery date and time',exact:true}),date=host.getByLabel('Delivery date',{exact:true}),time=host.getByLabel('Delivery time',{exact:true});await expect(method).toHaveValue('');await expect(group).toBeHidden();
  const order=await host.locator('.commercial-purchase-information').evaluate(section=>[...section.children].filter(child=>child.classList.contains('field')).map(child=>child.querySelector('[data-order-field]')?.dataset.orderField));assert.ok(order.indexOf('delivery_method')<order.indexOf('ship_to_address'));assert.ok(order.indexOf('ship_to_address')<order.indexOf('delivery_date'));
- await host.getByLabel('Supplier company',{exact:true}).fill('Toolbar supplier');await method.selectOption('Delivery');await expect(group).toBeVisible();await date.fill('2026-12-12');await time.fill('15:20');await method.selectOption('Pickup');await expect(group).toBeHidden();await expect(host.locator('[data-order-field=delivery_date]')).toHaveValue('2026-12-12');await expect(time).toHaveValue('15:20');await save(host);await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(/^PO-\d+: Toolbar supplier$/);await host.locator('.commercial-card .project-title-button').click();await idle();await expect(method).toHaveValue('Pickup');await expect(group).toBeHidden();await method.selectOption('Delivery');await expect(group).toBeVisible();await expect(host.locator('[data-order-field=delivery_date]')).toHaveValue('2026-12-12');await expect(time).toHaveValue('15:20');await save(host);await host.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();checks.push('Delivery precedes shipping/date controls; its date/time group is conditional while hidden values survive Save and reopen');
+ await host.getByLabel('Supplier company',{exact:true}).fill('Toolbar supplier');await method.selectOption('Delivery');await expect(group).toBeVisible();await date.fill('2026-12-12');await time.fill('15:20');await method.selectOption('Pickup');await expect(group).toBeHidden();await expect(host.locator('[data-order-field=delivery_date]')).toHaveValue('2026-12-12');await expect(time).toHaveValue('15:20');await save(host);await footerAction(host,'Back to Purchase Orders').click();await expect(host.locator('.commercial-card .project-title-button')).toHaveText(/^PO-\d+: Toolbar supplier$/);await host.locator('.commercial-card .project-title-button').click();await idle();await expect(method).toHaveValue('Pickup');await expect(group).toBeHidden();await method.selectOption('Delivery');await expect(group).toBeVisible();await expect(host.locator('[data-order-field=delivery_date]')).toHaveValue('2026-12-12');await expect(time).toHaveValue('15:20');await save(host);await footerAction(host,'Back to Purchase Orders').click();checks.push('Delivery precedes shipping/date controls; its date/time group is conditional while hidden values survive Save and reopen');
  await chooseCalculator(page,'Steel (spray)');await page.locator('#calculator-pages').getByRole('button',{name:'SCHEDULE',exact:true}).click();await idle();const table=page.locator('#calculator-grid .calculator-schedule-table'),notesHead=table.locator('thead [data-schedule-column="virtual:notes"]'),notes=table.locator('tbody [data-schedule-column="virtual:notes"]').first(),report=table.locator('tbody [data-schedule-column="virtual:report"]').first();
  for(const control of [notesHead,notes]){await control.scrollIntoViewIfNeeded();await page.mouse.move(0,0);const before=await appearance(control);await control.hover();assert.deepEqual(await appearance(control),before,'Notes header and body retain their default colour on hover');}
  await report.scrollIntoViewIfNeeded();await page.mouse.move(0,0);const before=await appearance(report);await report.hover();const after=await appearance(report);assert.equal(after.background,'rgb(163, 18, 34)');assert.equal(after.color,'rgb(255, 255, 255)');assert.notEqual(after.background,before.background);checks.push('Actual calculator Notes header/body retain their colours on hover while Report still shows its red/white hover control');

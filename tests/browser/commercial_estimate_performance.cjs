@@ -76,7 +76,7 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   let started=Date.now();
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
-  await expect(quote.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+  await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   timings.initialLargeEstimateMs=Date.now()-started;
   assert.deepEqual(calls, [{selected:['estimate-1'],full:false}]);
   await expect(quote.locator('.commercial-scope tbody tr')).toHaveCount(0);
@@ -84,13 +84,13 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   started=Date.now();
   await quote.getByRole('checkbox',{name:'Additional estimate',exact:true}).check();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(2);
-  await expect(quote.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+  await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   timings.addSmallEstimateMs=Date.now()-started;
   assert.deepEqual(calls, [{selected:['estimate-1'],full:false}, {selected:['estimate-22222222222222222222222222222222'],full:false}]);
   for (const checked of [false, true]) {
     await quote.getByRole('checkbox',{name:'Additional estimate',exact:true}).setChecked(checked);
     await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(checked ? 2 : 1);
-    await expect(quote.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+    await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   }
   assert.equal(calls.length, 2, 'Unchanged deselect/reselect reuses exact captured inputs');
   await quote.locator('.commercial-scope details summary').first().click();
@@ -113,7 +113,7 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   });
   await quote.getByRole('checkbox',{name:'Additional estimate',exact:true}).uncheck();
   await expect(quote.locator('.commercial-lines tbody tr')).toHaveCount(1);
-  await expect(quote.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+  await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true})).toBeEnabled();
   assert.deepEqual(calls.at(-1), {selected:['estimate-1'],full:false}, 'Changed captured inputs recalculate the large estimate');
   assert.equal(calls.length, 4);
   assert.equal(prepareRequests,prepareBeforeLinking,'Commercial linking avoids duplicate prepare validation; derive validates canonically');
@@ -128,20 +128,20 @@ target.write_bytes(export_project(store,{**large,'estimates':[{'id':'estimate-1'
   await quote.getByLabel('Ordinary time',{exact:true}).fill('145.5');
   await expect(quote.getByLabel('Accepted by',{exact:true})).toHaveCount(0);
   started=Date.now();
-  await quote.getByRole('button',{name:'Save',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
   await idle();
   timings.saveLargeQuoteMs=Date.now()-started;
   await quote.getByLabel('Ordinary time',{exact:true}).fill('146.75');
   started=Date.now();
-  await quote.getByRole('button',{name:'Save',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
   await idle();
   timings.resaveLargeQuoteMs=Date.now()-started;
   page.off('request', countRegister);
   assert.equal(saveRegisterRequests, 0, 'Saving an active document must not scan every other project');
   assert.deepEqual(uploadedScheduleCounts, [0, 0], 'Quote saves derive their schedules from the selected estimates');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await quote.locator('.commercial-card-menu summary').click();
   await quote.getByRole('button',{name:'Open',exact:true}).click();
   await expect(quote.getByLabel('Ordinary time',{exact:true})).toHaveValue('146.75');

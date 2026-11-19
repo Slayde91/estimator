@@ -120,6 +120,74 @@ _DRAIN = re.compile(
     r'A square drain protruded through the waterproofing panel and finish flush with the tile\. '
     r'A small insert vitreous tile is then fit into the square drain\.?', re.I)
 
+_WALL_REQUIREMENTS = (
+    (r'\bAFS RediWall RW156C\b', 120,
+     r'Use (?:a )?156\s*mm AFS RediWall RW156C(?: wall)? tested or assessed by an accredited testing laboratory '
+     r'to achieve (?:at least 120 minutes of integrity and insulation under AS 1530\.4:2014, '
+     r'as specified by FAS200363 R2\.4 §\s*4\.4\.8|(?P<frl>-/120/120 or 120/120/120))\.'),
+    (r'\bKingspan K-Roc Firemaster Ultima wall\b', 180,
+     r'Use a 150\s*mm Kingspan K-Roc Firemaster Ultima wall tested or assessed by an accredited testing laboratory '
+     r'to achieve (?P<frl>-/180/180 or 180/180/180)\.'),
+    (r'\b51\s*mm KOROK wall\b', 60,
+     r'Use a 51 mm KOROK wall tested or assessed by an accredited testing laboratory '
+     r'to achieve an FRL of (?P<frl>-/60/60) under AS 1530\.4:2014\.'),
+    (r'\b78\s*mm KOROK wall\b', 120,
+     r'Use a 78 mm KOROK wall tested or assessed by an accredited testing laboratory '
+     r'to achieve an FRL of (?P<frl>-/120/120) under AS 1530\.4:2014\.'),
+    (r'\b78\s*mm Speedpanel wall\b', 120,
+     r'Use a 78 mm Speedpanel wall tested or assessed by an accredited testing laboratory '
+     r'to achieve at least 120 minutes of integrity and insulation under AS 1530\.4:2014\.'),
+    (r'\bCLT wall, minimum 130 mm\b', 60,
+     r'Use a CLT wall at least 130 mm thick, tested or assessed by an accredited testing laboratory '
+     r'to achieve at least 60 minutes of integrity and insulation under AS 1530\.4:2014, '
+     r'as specified by FAS200363 R2\.4 §\s*4\.4\.4\.'),
+)
+_WALL_REPORT_NOTE = re.compile(
+    r'(?<!\w)See FAS200363 R2\.4 (?:Table 1, page (?:3|4|5|6|10)(?:, §\s*11\.3\.1 and Appendix A\.28)?'
+    r'|Table 1, pages 8[–-]9|§\s*(?:4\.4\.5\.1|4\.4\.6))\.[ \t]*')
+_SHS = re.compile(r'\d+SHS\d+(?:\.\d+)?\Z')
+_SHS_REQUIREMENT = re.compile(
+    r'Use an SHS designation within this system[\'’]s listed range that is expressly included in '
+    r'FAS210123 R2\.0 Table 97\.[ \t]*')
+_SHS_REPORT_NOTE = re.compile(
+    r'See FAS210123 R2\.0(?:, pages 60, 62 and Table 97, pages 160[–-]161| Table 97, pages 165[–-]166)\.[ \t]*')
+_SYMMETRICAL_PROTOTYPES = 'Use the symmetrical service protection shown in the tested prototypes.'
+
+
+def _reviewed_steel(value, siblings):
+    """Keep installation steps separate from assessed wall and service conditions."""
+    scope = siblings.get('Assessment Scope', '')
+    reports = re.sub(r'\s+', '', scope)
+    if 'FAS210123R2.0' not in reports or 'FAS200363R2.4' not in reports:
+        return value, scope
+    original = value
+    conditions = []
+    for barrier, minutes, sentence in _WALL_REQUIREMENTS:
+        if not re.search(barrier, siblings.get('Barrier Construction', ''), re.I):
+            continue
+        requirement = re.compile(sentence + r'[ \t]*', re.I)
+        match = requirement.search(value)
+        if match:
+            value = requirement.sub('', value)
+            frl = match.groupdict().get('frl')
+            rating = f'FRL {frl}' if frl else f'at least {minutes} minutes of integrity and insulation'
+            standard = ' under AS 1530.4:2014' if 'AS 1530.4:2014' in match[0] else ''
+            conditions.append(f'An accredited testing laboratory must have verified the base wall for {rating}{standard}.')
+        break
+    value = _WALL_REPORT_NOTE.sub('', value)
+    if _SHS.fullmatch(siblings.get('Service Size / Configuration', '')):
+        value = _SHS_REPORT_NOTE.sub('', _SHS_REQUIREMENT.sub('', value))
+        if _SYMMETRICAL_PROTOTYPES in value:
+            value = value.replace(_SYMMETRICAL_PROTOTYPES, '')
+            conditions.append('Apply the same service protection on each side of the opening.')
+    # The source report and technical assignments stay intact. Only the
+    # public installation and assessment text are separated.
+    if conditions:
+        scope = ' '.join([scope.strip(), *(condition for condition in conditions if condition not in scope)])
+    if value != original:
+        value = re.sub(r'[ \t]+(?=\r?$)', '', value, flags=re.M).strip()
+    return value, scope
+
 
 def _service_configuration(value):
     """Keep quantity lists separate from the source's installation paragraph."""
@@ -188,10 +256,12 @@ def _installation(value, siblings):
 
 def present_installation_fields(fields):
     """Format the already-copied public fields, after source and variant validation."""
-    siblings = {field['label']: field.get('value') for field in fields}
+    siblings = {field['label']: field.get('value', '') for field in fields}
+    updated_scope = siblings.get('Assessment Scope', '')
     for field in fields:
         value = field.get('value')
         if field['label'] == 'Installation Details' and isinstance(value, str):
+            value, updated_scope = _reviewed_steel(value, siblings)
             field['value'] = _installation(value, siblings)
         elif field['label'] == 'Service' and value == 'fibre optic cables':
             field['value'] = 'Fibre Optic Cables'
@@ -199,3 +269,5 @@ def present_installation_fields(fields):
             field['value'] = _service_configuration(value)
         elif field['label'] == _SEAL_LABEL and isinstance(value, str) and value in _SEALS:
             field['value'] = _SEALS[value]
+    if updated_scope != siblings.get('Assessment Scope', ''):
+        next(field for field in fields if field['label'] == 'Assessment Scope')['value'] = updated_scope

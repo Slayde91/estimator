@@ -61,7 +61,7 @@ const ready = new Promise((resolve, reject) => {
   const linkedGroups = dialog.locator('.contacts-links');
   const search = dialog.getByLabel('Find records to link');
   const matching = dialog.locator('.contacts-link-search-results');
-  await expect(dialog.getByRole('button', {name:'Save', exact:true})).toBeEnabled();
+  await expect(dialog.getByRole('button', {name:'Save', exact:true}).first()).toBeEnabled();
   await expect(linkedGroups.locator('input[type=checkbox]')).toHaveCount(0);
   await expect(linkedGroups).toHaveText('No linked records.');
   await expect(matching).toBeHidden();
@@ -116,7 +116,7 @@ const ready = new Promise((resolve, reject) => {
     submitted = route.request().postDataJSON();
     await route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'The directory is temporarily unavailable.'})});
   });
-  await dialog.getByRole('button', {name: 'Save', exact: true}).click();
+  await dialog.getByRole('button', {name: 'Save', exact: true}).first().click();
   await expect(dialog).toContainText('The directory is temporarily unavailable.');
   await expect(dialog.getByLabel('ABN/ACN', {exact: true})).toHaveValue('12 345 678 901');
   await expect(contactLink).toBeChecked();
@@ -126,7 +126,7 @@ const ready = new Promise((resolve, reject) => {
   assert.deepEqual(submitted.links.work_orders, []);
   assert.deepEqual(submitted.links.purchase_orders, []);
   await page.unroute('**/api/contacts/accounts');
-  await dialog.getByRole('button', {name: 'Save', exact: true}).click();
+  await dialog.getByRole('button', {name: 'Save', exact: true}).first().click();
   await expect(dialog).not.toBeVisible();
   const account = await page.evaluate(() => window.accountResult);
   assert.equal(account.company, 'New Company');
@@ -158,13 +158,13 @@ const ready = new Promise((resolve, reject) => {
     await api('/api/projects/details/save',{id:projectFile.id,revision:current.revision,request_id:randomUUID(),
       details:{...current.details,client:target.company,account_id:target.id}});
     const response=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/account-links' && new URL(reply.url()).searchParams.get('id')===sourceAccount.id);
-    await sourceEditor.getByRole('button',{name:'Refresh Records',exact:true}).click();
+    await sourceEditor.getByRole('button',{name:'Refresh Records',exact:true}).first().click();
     assert.equal((await response).status(),200);
-    await expect(sourceEditor.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+    await expect(sourceEditor.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
   }
   await primaryAccount(account);
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] > summary')).toHaveText('Linked Projects (0)');
-  await sourceEditor.getByRole('button',{name:'Save',exact:true}).click();
+  await sourceEditor.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(sourceEditor).toBeHidden();
   assert.equal((await api('/api/contacts/account-links?id='+sourceAccount.id)).linked.projects.length,0);
   // An explicit manual selection survives briefly becoming automatic and back.
@@ -177,7 +177,7 @@ const ready = new Promise((resolve, reject) => {
   await primaryAccount(account);
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeEnabled();
   await expect(sourceEditor.locator('.contacts-links [data-link-group="projects"] input')).toBeChecked();
-  await sourceEditor.getByRole('button',{name:'Save',exact:true}).click();
+  await sourceEditor.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(sourceEditor).toBeHidden();
   assert.equal((await api('/api/contacts/account-links?id='+sourceAccount.id)).linked.projects[0].manual,true);
 
@@ -204,8 +204,8 @@ const ready = new Promise((resolve, reject) => {
   await expect(edit.locator('.contacts-link-search-results')).toContainText('No matching records.');
   await edit.getByLabel('Find records to link').press('Escape');
   assert.equal((await retainedRefresh).status(),200);
-  await expect(edit.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
-  await expect(edit.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+  await expect(edit.getByRole('button',{name:'Refresh Records',exact:true}).first()).toBeEnabled();
+  await expect(edit.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
   await expect(edit.locator('.contacts-links [data-link-group="projects"] input')).toBeChecked();
   let retained;
   await page.route('**/api/contacts/accounts', async route => {
@@ -214,7 +214,7 @@ const ready = new Promise((resolve, reject) => {
   });
   const retainedSave=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/accounts'
     && reply.request().method()==='POST' && reply.request().postDataJSON().id===account.id);
-  await edit.getByRole('button',{name:'Save',exact:true}).click();
+  await edit.getByRole('button',{name:'Save',exact:true}).first().click();
   assert.equal((await retainedSave).status(),503);
   await expect(edit).toContainText('Retry retained links');
   assert.deepEqual(retained.links.projects,[linked.linked.projects[0].id]);
@@ -227,18 +227,18 @@ const ready = new Promise((resolve, reject) => {
   await page.evaluate(() => { window.cancelledAccount = window.ClassifireContacts.createAccount({company: 'Conflict Company'}); });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('ABN/ACN', {exact: true}).fill('Keep this draft');
-  await expect(dialog.getByRole('button', {name: 'Save', exact: true})).toBeEnabled();
+  await expect(dialog.getByRole('button', {name: 'Save', exact: true}).first()).toBeEnabled();
   const conflictLinksLoaded=page.waitForResponse(reply=>new URL(reply.url()).pathname==='/api/contacts/account-links'
     && new URL(reply.url()).searchParams.get('search')==='Link Person');
   await search.fill('Link Person');
   await conflictLinksLoaded;
-  await expect(dialog.getByRole('button', {name: 'Save', exact: true})).toBeEnabled();
+  await expect(dialog.getByRole('button', {name: 'Save', exact: true}).first()).toBeEnabled();
   await foundPerson.click();
   await expect(foundPerson).toBeChecked();
   await foundPerson.press('Escape');
   state = await directory();
   await api('/api/contacts/contacts', {version: state.version, fields: {name: 'Competing contact',company:'Competing Company',phone:'333',email:'competing@example.test'}});
-  await dialog.getByRole('button', {name: 'Save', exact: true}).click();
+  await dialog.getByRole('button', {name: 'Save', exact: true}).first().click();
   await expect(dialog.locator('[data-contacts-notice]')).toContainText(/changed|reload/i);
   await expect(dialog.getByLabel('Company', {exact: true})).toHaveValue('Conflict Company');
   await expect(dialog.getByLabel('ABN/ACN', {exact: true})).toHaveValue('Keep this draft');
@@ -252,7 +252,7 @@ const ready = new Promise((resolve, reject) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.evaluate(() => { window.mobileAccount = window.ClassifireContacts.createAccount({company: 'Mobile Company'}); });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('button', {name: 'Save', exact: true})).toBeEnabled();
+  await expect(dialog.getByRole('button', {name: 'Save', exact: true}).first()).toBeEnabled();
   const bounds = await dialog.boundingBox();
   assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390, JSON.stringify(bounds));
   assert.ok(bounds.height <= 844 * 0.85 + 2, JSON.stringify(bounds));

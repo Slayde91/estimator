@@ -57,7 +57,7 @@ async function idle() {
   await expect(projectRow.getByRole('button', {name:/Load Project 1/})).toBeVisible();
   await projectRow.locator('.project-title-button').click();
   await expect(page.locator('#project-details-load')).toHaveAttribute('data-project-title','Project 1');
-  await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
+  await page.locator('#project-details-actions').getByRole('button',{name:'Back to Projects',exact:true}).click();
   await picker.locator('summary').click(); await picker.getByRole('button',{name:'Kanban',exact:true}).click();
   const first = board.locator('.project-kanban-card').filter({hasText:'Project 1'});
   await expect(first.locator('.project-details-toggle')).toHaveCount(0);
@@ -77,12 +77,12 @@ async function idle() {
   await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#project-details-actions')).toBeVisible();
   assert.equal(fileLoads,0,'Open reads metadata without loading the project file');
-  await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
+  await page.locator('#project-details-actions').getByRole('button',{name:'Back to Projects',exact:true}).click();
   await first.locator('.project-title-button').click();
   await expect(page.locator('#project-details-pane')).toBeVisible();
   await expect(page.locator('#project-list-card')).toBeHidden();
   await expect(page.locator('#project-details-load')).toHaveAttribute('data-project-title','Project 1');
-  await page.getByRole('button',{name:'Back to Projects',exact:true}).click();
+  await page.locator('#project-details-actions').getByRole('button',{name:'Back to Projects',exact:true}).click();
   await expect(page.locator('#project-list-card')).toBeVisible();
   await expect(page.locator('#project-details-pane')).toBeHidden();
   await first.dragTo(columns.filter({has:page.locator('h2').filter({hasText:/^Quote$/})}).locator('.project-column-heading'),{sourcePosition:{x:5,y:5}});

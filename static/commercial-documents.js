@@ -1265,6 +1265,39 @@
     return document.kind === "work_order" && document.version > 0 &&
       !["details_by","details_date"].some(key => Object.hasOwn(document.fields.order,key));
   }
+  async function refreshEditorRecords(editor) {
+    if (editor !== state.editor || state.busy || editor.refreshingRecords) return;
+    const controls = root().querySelectorAll(".commercial-editor-refresh");
+    editor.refreshingRecords = true;
+    for (const control of controls) control.disabled = true;
+    try { await editor.refreshRecords(); }
+    catch (error) { if (editor === state.editor) message(error.message, true); }
+    finally {
+      editor.refreshingRecords = false;
+      if (editor === state.editor && !state.busy) {
+        for (const control of controls) control.disabled = false;
+      }
+    }
+  }
+  function editorActions(editor, className) {
+    const kind = editor.document.kind, actions = node("div", className);
+    const refresh = button("", () => void refreshEditorRecords(editor));
+    refresh.classList.add("icon-only", "commercial-editor-refresh");
+    refresh.append(window.document.querySelector("#reset-pricing .pricing-reset-symbol").cloneNode(true));
+    for (const attribute of ["aria-label", "title"]) {
+      refresh.setAttribute(attribute, "Refresh Records");
+      window.CeasefireI18n?.attr(refresh, attribute, "Refresh Records");
+    }
+    actions.append(
+      backButton("Back to " + names[kind] + "s", () => void leaveEditor()),
+      button("Save", () => void saveEditor(), true),
+      pdfDownloadButton(event => void downloadEditor(event.currentTarget))
+    );
+    if (kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
+    if (kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder(), true));
+    actions.append(refresh);
+    return actions;
+  }
   function openEditor(document, source = null, linkedQuote = null) {
     if (state.dirty) return;
     clearPricingPickers();
@@ -1292,26 +1325,8 @@
       applyProjectDetails(fields, commercialProjectDetails(source));
     }
     if (lockedNumber) fields.details.project_no = lockedNumber;
-    const actions = node("div", "commercial-editor-actions");
     const owner = state.editor;
-    const refresh = button("", async () => {
-      if (owner !== state.editor || state.busy || refresh.disabled) return;
-      refresh.disabled = true;
-      try { await owner.refreshRecords(); }
-      catch (error) { if (owner === state.editor) message(error.message,true); }
-      finally { if (owner === state.editor && !state.busy) refresh.disabled = false; }
-    });
-    refresh.classList.add("icon-only");
-    refresh.append(window.document.querySelector("#reset-pricing .pricing-reset-symbol").cloneNode(true));
-    for (const attribute of ["aria-label", "title"]) {
-      refresh.setAttribute(attribute, "Refresh Records");
-      window.CeasefireI18n?.attr(refresh, attribute, "Refresh Records");
-    }
-    actions.append(backButton("Back to " + names[state.kind] + "s", () => void leaveEditor()), button("Save", () => void saveEditor(), true), pdfDownloadButton(() => void downloadEditor()));
-    if (state.kind === "quote") actions.append(button("Create WO", () => void createWorkOrder(), true));
-    if (state.kind === "work_order") actions.append(button("Create PO", () => void createPurchaseOrder(), true));
-    actions.append(refresh);
-    form.append(actions);
+    form.append(editorActions(owner, "commercial-editor-actions"));
     const details = node("section", "card commercial-details");
     details.append(node("h2", "", "Project details"));
     const detailField = (key, label) => {
@@ -1409,6 +1424,7 @@
     }
     renderLines();
     updateRequiredFields();
+    form.append(editorActions(owner, "commercial-editor-footer"));
     window.CeasefireProject?.refreshPages?.();
     if (state.kind === "quote" && document.version > 0) void refreshScopePreview();
   }
@@ -2939,7 +2955,10 @@
   }
   function setDisabled(disabled) {
     if(disabled)state.editor?.panels?.closeSearches();
-    root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => {if(!control.closest(".commercial-follow-ups"))control.disabled = disabled;});
+    root()?.querySelectorAll(".commercial-work-layout button,.commercial-work-layout input,.commercial-work-layout textarea,.commercial-work-layout select").forEach(control => {
+      if (control.closest(".commercial-follow-ups")) return;
+      control.disabled = disabled || (control.classList.contains("commercial-editor-refresh") && Boolean(state.editor?.refreshingRecords));
+    });
     root()?.querySelectorAll(".commercial-rich-input").forEach(control => control.contentEditable = String(!disabled));
     const followUpHost=root()?.querySelector(".commercial-follow-ups");
     if(followUpHost)followUpHost.inert=disabled;
@@ -3133,7 +3152,7 @@
       setDisabled(false);
     }
   }
-  async function downloadEditor() {
+  async function downloadEditor(button = root()?.querySelector(".commercial-download-pdf")) {
     if (state.busy || !state.editor) return;
     try {validateReadiness('issue');} catch(error) {message(error.message,true);return;}
     const operation=captureDocumentOperation();
@@ -3164,7 +3183,7 @@
       }
       const source = state.editor.source;
       const result = source ? await documentRequest("issue", state.editor.pendingIssue, source) : await window.CeasefireDownloads.save("/api/commercial/issue", state.editor.pendingIssue, {
-        button: root().querySelector(".commercial-download-pdf")
+        button
       });
       if (result?.cancelled) {
         message("Download cancelled.");

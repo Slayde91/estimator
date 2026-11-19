@@ -36,7 +36,7 @@ const checks=[],errors=[];
  for(const [key,label]of Object.entries({quotes:'Linked Quotes',work_orders:'Linked Work Orders',purchase_orders:'Linked Purchase Orders',certifications:'Certification',swms:'SWMS'}))await expect(pane.locator(`[data-link-group="${key}"] > summary`)).toHaveText(label+' (1)');
  await expect(pane.locator('[data-link-group="certifications"] input,[data-link-group="swms"] input')).toHaveCount(0);
  await expect(pane.locator('[data-link-group="quotes"] input')).toBeDisabled();
- const before=refreshes;await pane.getByRole('button',{name:'Refresh Records',exact:true}).click();await expect.poll(()=>refreshes).toBeGreaterThan(before);await expect(pane.getByRole('button',{name:'Save',exact:true})).toBeEnabled();
+ const before=refreshes;await pane.getByRole('button',{name:'Refresh Records',exact:true}).first().click();await expect.poll(()=>refreshes).toBeGreaterThan(before);await expect(pane.getByRole('button',{name:'Save',exact:true}).first()).toBeEnabled();
  for(const width of [1915,1213,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,'company-related-'+width+'.png'),fullPage:true});}
  checks.push('Company panes display Quote/WO/PO, Certification and SWMS associations; supplemental documents remain read-only and survive refresh at desktop/tablet/mobile widths');
  const leadLabel = lead.name + ' · ' + lead.site_address;

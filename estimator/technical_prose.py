@@ -25,6 +25,7 @@ _SNAP_SENTENCES = (
 )
 _SNAP_SENTENCE = re.compile(r'(?:' + '|'.join(map(re.escape, _SNAP_SENTENCES)) + r')[ \t]*')
 _GULLY_INSTRUCTION = 'Use a P-trap, 4-way gully or gully trap on the exposed side'
+_STANDALONE_REPORT_PAGE = {'report page', 'report pages', 'pdf page', 'pdf pages'}
 
 
 def _value(value, snap, reports):
@@ -57,6 +58,9 @@ def public_prose_fields(record):
     reports.extend(record.get('filter_values', {}).get('report', []))
     fields = []
     for field in original:
+        if (field['label'].strip().casefold() in _STANDALONE_REPORT_PAGE
+                and not any(field.get(key) for key in ('table', 'tables', 'table_links', 'images'))):
+            continue
         if field['label'] in {'ID', 'Report Number', 'Diagrams & Figures'}:
             fields.append(field)
             continue

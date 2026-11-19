@@ -30,7 +30,7 @@ const checks=[],errors=[];
  for(const [kind,id,label]of owners){
   let pane=await open(kind,label);const before=await api('/api/contacts/directory');
   await checkRecordTrim(page,pane,kind,output);
-  const rail=pane.locator('.contacts-record-right'), refresh=pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Refresh Records',exact:true});
+  const rail=pane.locator('.contacts-record-right'), refresh=pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Refresh Records',exact:true}).first();
   if(kind==='accounts'){
     await page.evaluate(()=>{
       const original=HTMLMediaElement.prototype.play;
@@ -61,7 +61,9 @@ const checks=[],errors=[];
     await expect.poll(soundCount).toBe(beforeFile+1);
   }
   await expect(rail.locator('details > summary')).toHaveText(kind==='leads' ? ['Notes (0)','Files (0)','Activity history'] :
-    ['Notes (0)','Files (0)','Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
+    ['Notes (0)','Files (0)','Merge records','Activity history']);
+  await expect(pane.locator('.contacts-record-left .contacts-links > details > summary')).toHaveText(
+    ['Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (0)']);
   const titleField=pane.getByLabel(kind==='accounts'?'Billing address':'Title',{exact:true});
   const original=await titleField.inputValue();
   await titleField.fill('Private in-progress edit');
@@ -84,7 +86,7 @@ const checks=[],errors=[];
   const file=pane.locator('.record-resource-panel input[type=file]');await file.setInputFiles({name:kind+' evidence.txt',mimeType:'text/plain',buffer:Buffer.from(kind+' private fixture evidence')});await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
   const resource=await api('/api/record-resources?kind='+kind+'&id='+id);assert.equal(resource.notes.length,1);assert.equal(resource.notes[0].format,'rich');assert.equal(resource.files.length,1);assert.deepEqual(await api('/api/contacts/directory'),before,'Notes/Files keep directory version and values unchanged');
   const downloaded=await page.request.get(base+await pane.locator('.record-resource-file a').getAttribute('href'));assert.equal(downloaded.status(),200);assert.equal((await downloaded.body()).toString(),kind+' private fixture evidence');
-  const back=pane.getByRole('button',{name:'Back to '+{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true});await back.click();await expect(pane).toHaveCount(0);pane=await open(kind,label);await expect(pane.locator('.record-resource-note')).toContainText('Second line <safe plain text>');await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
+  const back=pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Back to '+{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true});await back.click();await expect(pane).toHaveCount(0);pane=await open(kind,label);await expect(pane.locator('.record-resource-note')).toContainText('Second line <safe plain text>');await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
   if(kind==='accounts')await pane.getByLabel('Billing address',{exact:true}).fill('Persisted billing address');
   else if(kind==='contacts')await pane.getByLabel('Title',{exact:true}).fill('Persisted Contact role');
   else {
@@ -97,13 +99,13 @@ const checks=[],errors=[];
    assert.equal(date.y,end.y);assert.equal(date.height,42);
    await due.fill('2027-03-12');
   }
-  await pane.getByRole('button',{name:'Save',exact:true}).click();await expect(pane).toHaveCount(0);pane=await open(kind,label);await expect(pane.locator('.record-resource-note')).toContainText('Saved '+kind+' note');await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
+  await pane.getByRole('button',{name:'Save',exact:true}).first().click();await expect(pane).toHaveCount(0);pane=await open(kind,label);await expect(pane.locator('.record-resource-note')).toContainText('Saved '+kind+' note');await expect(pane.locator('.record-resource-file a')).toHaveText(kind+' evidence.txt');
   if(kind==='leads')assert.equal((await api('/api/contacts/directory')).leads.find(item=>item.id===id).region,'Retained legacy region');
   for(const width of [1915,390]){await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:path.join(output,kind+'-'+width+'.png'),fullPage:true});}await page.setViewportSize({width:1915,height:1000});
-  await pane.getByRole('button',{name:'Back to '+{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true}).click();
+  await pane.locator('.contacts-record-toolbar').getByRole('button',{name:'Back to '+{accounts:'Companies',contacts:'Contacts',leads:'Leads'}[kind],exact:true}).click();
  }
  checks.push('Company, Contact and Lead pages persist separate Notes/Files across Back/reopen and core form save, download exact bytes, preserve directory version, and fit desktop/mobile');
- let pane=await open('leads',lead.name);const next=pane.getByLabel('Next action',{exact:true}),savedNext=await next.inputValue();await next.fill('Unsaved Lead action');await pane.getByRole('button',{name:'Back to Leads',exact:true}).click();await expect(discard).toContainText('Discard changes to this lead?');await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(next).toHaveValue('Unsaved Lead action');await pane.getByRole('button',{name:'Back to Leads',exact:true}).click();await discard.getByRole('button',{name:'Yes',exact:true}).click();pane=await open('leads',lead.name);await expect(pane.getByLabel('Next action',{exact:true})).toHaveValue(savedNext);
+ let pane=await open('leads',lead.name);const next=pane.getByLabel('Next action',{exact:true}),savedNext=await next.inputValue();await next.fill('Unsaved Lead action');await pane.getByRole('button',{name:'Back to Leads',exact:true}).first().click();await expect(discard).toContainText('Discard changes to this lead?');await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(next).toHaveValue('Unsaved Lead action');await pane.getByRole('button',{name:'Back to Leads',exact:true}).first().click();await discard.getByRole('button',{name:'Yes',exact:true}).click();pane=await open('leads',lead.name);await expect(pane.getByLabel('Next action',{exact:true})).toHaveValue(savedNext);
  await pane.getByRole('button',{name:'New note',exact:true}).click();let note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Unsaved note');await page.evaluate(()=>{window.pendingDirectoryLeave=window.ClassifireContacts.leave();});await expect(discard).toContainText('Discard changes to this lead?');await discard.getByRole('button',{name:'Cancel',exact:true}).click();await expect(note).toBeVisible();await expect(note.getByLabel('Note title',{exact:true})).toHaveValue('Unsaved note');await page.evaluate(()=>{window.pendingDirectoryLeave=window.ClassifireContacts.leave();});await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(note).toHaveCount(0);await expect(pane).toHaveCount(0);
  checks.push('Lead Back cancellation retains unsaved form and note values; confirmed discard closes its own note modal without saving');
  pane=await open('leads',lead.name);
@@ -111,7 +113,7 @@ const checks=[],errors=[];
  const rows=pane.locator('.follow-up-action-row'),add=pane.getByRole('button',{name:'Add follow-up',exact:true});
  const first=rows.nth(0),second=rows.nth(1),third=rows.nth(2);
  await first.getByLabel('Next action',{exact:true}).fill('');await first.locator('input[type=date]').fill('');
- await pane.getByRole('button',{name:'Save',exact:true}).click();
+ await pane.getByRole('button',{name:'Save',exact:true}).first().click();
  await expect(first.getByLabel('Next action',{exact:true})).toBeFocused();
  await first.getByLabel('Next action',{exact:true}).fill('Call installer');
  await first.locator('input[type=date]').fill('2027-03-12');
@@ -121,7 +123,7 @@ const checks=[],errors=[];
  await second.getByLabel('Next action',{exact:true}).fill('Confirm plan');await second.getByRole('combobox').selectOption('Canceled');
  await add.click();await third.locator('input[type=date]').fill('2027-03-25');
  await add.click();await expect(rows).toHaveCount(4);
- await pane.getByRole('button',{name:'Save',exact:true}).click();await expect(pane).toHaveCount(0);
+ await pane.getByRole('button',{name:'Save',exact:true}).first().click();await expect(pane).toHaveCount(0);
  const updated=(await api('/api/contacts/directory')).leads.find(item=>item.id===lead.id);
  assert.deepEqual(updated.follow_up_actions.map(row=>[row.next_action,row.status,row.follow_up_date]),[
    ['Call installer','Completed','2027-03-12'],['Confirm plan','Canceled',''],['','','2027-03-25']]);
@@ -146,9 +148,9 @@ const checks=[],errors=[];
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
    await page.screenshot({path:path.join(output,'lead-follow-up-actions-'+width+'.png')});
  }
- await page.setViewportSize({width:1915,height:1000});await pane.getByRole('button',{name:'Back to Leads',exact:true}).click();
+ await page.setViewportSize({width:1915,height:1000});await pane.getByRole('button',{name:'Back to Leads',exact:true}).first().click();
  checks.push('Lead follow-up editor grows, validates cleared saved actions, saves and locks completed and canceled actions, retains partial open actions, ignores unused placeholders, and reopens correctly');
- pane=await open('contacts',contact.name);let entered;const started=new Promise(resolve=>entered=resolve),writeGate=new Promise(resolve=>releaseWrite=resolve);await page.route('**/api/record-resources/notes',async route=>{const response=await route.fetch();entered();await writeGate;await route.fulfill({response});},{times:1});await pane.getByRole('button',{name:'New note',exact:true}).click();note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Pending original owner');await note.getByRole('button',{name:'Done',exact:true}).click();await started;assert.equal(await page.evaluate(()=>window.ClassifireContacts.hasPendingOperation()),true);assert.equal(await page.evaluate(()=>window.ClassifireContacts.leave()),false);await expect(pane).toBeVisible();releaseWrite();await expect(note).toHaveCount(0);await expect(pane.locator('.record-resource-note').filter({hasText:'Pending original owner'})).toBeVisible();await pane.getByRole('button',{name:'Back to Contacts',exact:true}).click();
+ pane=await open('contacts',contact.name);let entered;const started=new Promise(resolve=>entered=resolve),writeGate=new Promise(resolve=>releaseWrite=resolve);await page.route('**/api/record-resources/notes',async route=>{const response=await route.fetch();entered();await writeGate;await route.fulfill({response});},{times:1});await pane.getByRole('button',{name:'New note',exact:true}).click();note=page.getByRole('dialog',{name:'New note',exact:true});await note.getByLabel('Note title',{exact:true}).fill('Pending original owner');await note.getByRole('button',{name:'Done',exact:true}).click();await started;assert.equal(await page.evaluate(()=>window.ClassifireContacts.hasPendingOperation()),true);assert.equal(await page.evaluate(()=>window.ClassifireContacts.leave()),false);await expect(pane).toBeVisible();releaseWrite();await expect(note).toHaveCount(0);await expect(pane.locator('.record-resource-note').filter({hasText:'Pending original owner'})).toBeVisible();await pane.getByRole('button',{name:'Back to Contacts',exact:true}).first().click();
  checks.push('Pending resource save blocks navigation and completes only on its captured Contact');
  // External Project/Quote create and edit APIs retain their compact modal workflow.
  await page.evaluate(id=>{window.quickContact=window.ClassifireContacts.editContact(id);},contact.id);const quick=page.getByRole('dialog',{name:'Edit Contact',exact:true});await expect(quick).toBeVisible();await expect(quick.locator('.contacts-record-layout')).toHaveCount(0);await quick.getByRole('button',{name:'Cancel',exact:true}).click();await expect(quick).toHaveCount(0);

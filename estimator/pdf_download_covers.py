@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import json
 
 from .catalog import ValidationError
+from .documentation_catalog import CALCULATOR_INSPECTIONS
 from .pdf_cover import validate_cover_pdf
 
 KINDS = (
@@ -15,6 +16,7 @@ KINDS = (
     ('firestopping_schedule', 'Firestopping Schedule'),
     ('passive_fire_register', 'Passive Fire Inspections'),
     ('passive_fire_registers', 'Passive Fire Register'),
+    *((key, label) for label, key in CALCULATOR_INSPECTIONS.values()),
     ('steel_vermiculite_schedule', 'Steel Schedule | Spray'),
     ('steel_vermiculite_product_summary', 'Steel spray product summary'),
     ('steel_intumescent_schedule', 'Steel Schedule | Paint'),

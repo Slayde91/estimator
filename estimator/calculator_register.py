@@ -13,6 +13,7 @@ from .calculator_report import (project_calculator_report, _source_text,
 from .pricing_workbook import _serialize_exact
 from .assessment_references import UNAVAILABLE_RESULT, report_reference_text
 from .download_disclosure import calculator_download_data, duct_schedule_outputs
+from .workbook_runtime import DUCT_LOCATION_COLUMN
 
 
 _PALE = 'FFF1CE'
@@ -139,6 +140,11 @@ def _schedule(data, workbook):
             widths.pop(index)
             for values in records:
                 values.pop(index)
+    if identity == 'ductwork':
+        labels.append('Location')
+        widths.append(28)
+        for values, item in zip(records, data['rows']):
+            values.append(item['values'][DUCT_LOCATION_COLUMN])
     labels.append('Report')
     widths.append(32)
     for values, item in zip(records, data['rows']):

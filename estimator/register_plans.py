@@ -36,14 +36,14 @@ def penetration_ids(entry):
     return ' / '.join(entry[side]['id_number'] for side in sides)
 
 
-def append_plan_pages(pdf, entries, sessions, service, *, allow_unused_sessions=False):
+def append_plan_pages(pdf, entries, sessions, service, *, allow_unused_sessions=False, entry_label=penetration_ids):
     # The register stores stable workspace IDs. Temporary session capabilities
     # come from the currently loaded estimate collection, never from saved pins.
     if service is None or not isinstance(sessions, dict) or len(sessions) > 50:
         raise ValidationError('Open the project with its Takeoffs drawings to download the pinned plans.')
     groups = defaultdict(lambda: defaultdict(list))
     for entry in entries:
-        label = penetration_ids(entry)
+        label = entry_label(entry)
         for pin in entry.get('plan_pins', []):
             groups[pin['project_id']][pin['document_id']].append((pin, label))
     # A completed-only register can receive sessions for drawings pinned solely

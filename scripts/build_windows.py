@@ -58,6 +58,7 @@ STATIC_FILES = (
     'scheduler.js', 'scheduler-reports.js', 'scheduler.css', 'commercial-panels.js', 'commercial-documents.js', 'commercial-documents.css', 'commercial-pricing-picker.js', 'commercial-pricing-picker.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'passive-fire-register.js', 'passive-fire-register.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-intumescent.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'work-order-costs.js',
+    'calculator-inspections.js', 'calculator-inspections.css',
     'fonts/Montserrat-Italic-Variable.ttf', 'fonts/Montserrat-Variable.ttf', 'fonts/OFL.txt',
     'fonts/Montserrat-Regular.ttf', 'fonts/Montserrat-Bold.ttf',
     'fonts/Montserrat-Italic.ttf', 'fonts/Montserrat-BoldItalic.ttf',

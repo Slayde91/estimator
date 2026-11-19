@@ -88,7 +88,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                 lambda: access.staff(include_roles=True), store.company_settings, certifications.get_defaults))
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
-    from .documentation_catalog import document_catalog, export_identity, PDF, XLSX
+    from .documentation_catalog import CALCULATOR_INSPECTIONS, CALCULATOR_INSPECTION_ROUTES, document_catalog, export_identity, PDF, XLSX
     from .project_documentation import ProjectDocumentation, DocumentationConflict, DocumentationNotFound
     document_types = document_catalog(edition)
     documentation = ProjectDocumentation(certification_projects, kinds={row['id']:row['label'] for row in document_catalog('full')})
@@ -233,7 +233,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 download_progress.update(token, 100, 'saved')
 
         def capture_download(self, request):
-            if self._documentation_context and urlsplit(self.path).path == '/api/project/passive-fire-registers.pdf':
+            route = urlsplit(self.path).path
+            if self._documentation_context and (route == '/api/project/passive-fire-registers.pdf' or route in CALCULATOR_INSPECTION_ROUTES):
                 workspace, _ = self._documentation_context
                 return projects.capture_download(request, project_id=certification_projects.project_id(workspace))
             return projects.capture_download(request)
@@ -550,6 +551,7 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                 elif route.startswith("/api/quotes/"):
                     self.send_quote(200, store.quote(route.removeprefix("/api/quotes/")))
                 elif route in {'/register-plans.js', '/passive-register-library.js', '/passive-fire-register.js', '/passive-fire-register.css',
+                               '/calculator-inspections.js', '/calculator-inspections.css',
                                '/settings-layout.css', '/contacts.js', '/follow-up-actions.js', '/crm-activity.js', '/contacts.css', '/personal-signature.js', '/personal-details.js', '/document-workflow-board.js', '/swms.js', '/swms.css', '/scheduler.js', '/scheduler-reports.js', '/scheduler.css', '/work-order-costs.js', '/commercial-panels.js', '/commercial-documents.js', '/commercial-documents.css', '/commercial-pricing-picker.js', '/commercial-pricing-picker.css', '/certification.js', '/certification.css', '/cover-sheets.js', '/documentation.js', '/documentation.css', '/notifications.js', '/notifications.css'}:
                     kind = 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8'
                     self.send_payload(200, (ROOT / 'static' / route[1:]).read_bytes(), kind)
@@ -593,6 +595,25 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                                                   plan_append=lambda pdf, rows: append_plan_pages(pdf, rows, body.get('plan_sessions'), takeoffs))
                     self.send_download(payload, PDF, 'CLASSIFIRE-Passive-Fire-Inspections.pdf', destination,
                                        pdf_kind='passive_fire_register')
+                elif route == '/api/project/inspection-calculator-rows' and self.command == 'POST':
+                    from .calculator_inspections import inspection_calculator_rows
+                    if set(body) - {'calculator_id', 'inputs', 'schedule_rows'} or not isinstance(body.get('inputs'), dict):
+                        raise ValidationError('Include the selected calculator and its current schedule inputs.')
+                    self.send_payload(200, inspection_calculator_rows(body.get('calculator_id'), body['inputs'],
+                                                                     body.get('schedule_rows')))
+                elif route in CALCULATOR_INSPECTION_ROUTES and self.command == 'POST':
+                    from .calculator_inspection_report import render_calculator_inspections
+                    from .project_file import project_details
+                    if set(body) - {'register', 'project_details', 'download', 'plan_sessions'}:
+                        raise ValidationError('Include the inspection register and project details only.')
+                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    kind = CALCULATOR_INSPECTION_ROUTES[route]
+                    title, pdf_kind = CALCULATOR_INSPECTIONS[kind]
+                    payload = render_calculator_inspections(body.get('register'), project_details(body.get('project_details')), kind,
+                                                            company=self.pdf_company_details(pdf_kind),
+                                                            plan_sessions=body.get('plan_sessions'), takeoffs=takeoffs)
+                    self.send_download(payload, PDF, 'CLASSIFIRE-' + title.replace(' ', '-') + '.pdf', destination,
+                                       pdf_kind=pdf_kind)
                 elif route in {'/api/project/full-schedule.pdf', '/api/project/full-product-summary.pdf'} and self.command == 'POST':
                     from .project_file import CALCULATOR_IDS, project_details
                     from .project_reports import build_project_report

@@ -634,6 +634,11 @@ class ProjectLibrary:
             if 'passive_fire_register' in snapshot:
                 from .passive_fire_register import preserve_register_numbers
                 preserve_register_numbers(snapshot['passive_fire_register'],request['passive_fire_register'])
+            if 'calculator_inspections' in snapshot:
+                if 'calculator_inspections' not in request:
+                    raise ValidationError('Reload this project before saving so its calculator inspections are retained.')
+                from .calculator_inspections import preserve_inspection_numbers
+                preserve_inspection_numbers(snapshot['calculator_inspections'], request['calculator_inspections'])
             if 'swms' in snapshot and 'swms' not in request:
                 raise ValidationError('Reload this project before saving so its SWMS are retained.')
             if 'commercial_documents' in snapshot and 'commercial_documents' not in request:
@@ -1482,7 +1487,7 @@ class ProjectLibrary:
     def save(self, request):
         require_project_edition(request, self.edition)
         required = {"save_token", "estimate", "calculators"}
-        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register"}:
+        if not isinstance(request, dict) or not required <= set(request) or set(request) - required - {"penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register", "calculator_inspections"}:
             raise ValidationError("Save requires the current project selection and its complete estimate and calculators.")
         if (not isinstance(request["calculators"], dict)
                 or not set(LEGACY_CALCULATOR_IDS) <= set(request["calculators"])
@@ -1499,7 +1504,7 @@ class ProjectLibrary:
             if selection is None:
                 raise ValidationError('This project selection is no longer available. Use Load Project or "Save As".')
             selected_path = _project_save_path(selection)
-        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register") if key in request}, project_path=selected_path)
+        captured = self._capture_takeoffs({key: request[key] for key in ("estimate", "calculators", "penetration", "takeoffs", "takeoffs_session_id", "library_drafts", "certifications", "documentation", "project_status", "project_follow_up", "estimates", "active_estimate_id", "commercial_documents", "swms", "passive_fire_register", "calculator_inspections") if key in request}, project_path=selected_path)
         changed_message = 'The project file changed or was removed outside this window. Reload it or use "Save As".'
         existing = _confirmed_bytes(selected_path, selection, changed_message)
         try:

@@ -3,7 +3,7 @@
   let dispose, remembered = new WeakMap();
   const sources = () => window.CeasefireEstimates.planSources();
   const key = source => source.project_id + '/' + source.document_id;
-  const label = window.ClassifirePassiveRegister.penetrationIds;
+  const passiveLabel = window.ClassifirePassiveRegister.penetrationIds;
   const translate = (source, args = []) => window.CeasefireI18n.translate(source, args);
   const clamp = value => Math.max(0, Math.min(1, value));
   const moves = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
@@ -16,7 +16,7 @@
     return {plan_sessions:sessions};
   }
 
-  function section({entry, entries, changed, el, field}) {
+  function section({entry, entries, changed, el, field, label = passiveLabel}) {
     dispose?.();
     const list = sources(), card = el('section','card register-plan-location');
     const controls = el('div','register-grid register-plan-controls'), documents = el('select'), pages = el('select');

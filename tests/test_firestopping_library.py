@@ -346,7 +346,7 @@ class FirestoppingLibraryTests(unittest.TestCase):
                 self.assertEqual(current['diagram']['mime_type'], 'image/jpeg')
                 self.assertTrue(self.library.diagram_asset('pkb-001')[0].startswith(b'\xff\xd8\xff'))
 
-    def test_explicit_refresh_captures_saved_shared_rates_and_freezes_them(self):
+    def test_shared_items_follow_saved_sell_prices_without_rewriting_the_source(self):
         config = deepcopy(self.data['firestopping']['configuration'])
         worker = next(field for field in definition(config)['row_fields'] if field['column'] == 'W')['options'][0]
         product = next(item for item in config['catalog']['inventory'] if item['sales_description'] == worker)
@@ -355,24 +355,41 @@ class FirestoppingLibraryTests(unittest.TestCase):
         body = self.body(self.library.edit('pkb-001'))
         body['draft']['rows'][0]['inputs'] = {'O': 1, 'W': worker, 'AH': 1}
         original = self.library.action('pkb-001', 'calculate', body)['price']['amount']
-        product['sales_price'] = old_price * 2
+        self.library.action('pkb-001', 'save', body)
+        old_editor = self.body(self.library.edit('pkb-001'))
+        # Enter a supplier cost and a markup through the same configuration
+        # override that the Main Library saves.
+        config['inventory'][product['id']] = {'supplier_price': old_price, 'markup': 1}
         self.store.save_configuration(config)
-        self.assertEqual(self.library.action('pkb-001', 'calculate', body)['price']['amount'], original)
-        refreshed = self.library.action('pkb-001', 'refresh-pricing', body)
+        self.assertEqual(self.library.refresh_main_prices(), {'priced': 2, 'unavailable': []})
+        with self.store.connect() as db:
+            self.assertAlmostEqual(db.execute(
+                'SELECT amount FROM firestopping_live_prices WHERE id=?', ('pkb-001',)).fetchone()[0], original * 2)
+        reopened = FirestoppingLibrary(self.root / 'library', self.store)
+        self.assertAlmostEqual(reopened.detail('penetration', 'pkb-001')['price']['amount'], original * 2)
+        self.assertAlmostEqual(reopened.edit('pkb-001')['price']['amount'], original * 2)
+        refreshed = self.library.action('pkb-001', 'refresh-pricing', old_editor)
         self.assertEqual(refreshed['pricing_basis'], 'shared')
         self.assertAlmostEqual(refreshed['price']['amount'], original * 2)
-        duplicate = self.library.action('pkb-001', 'refresh-pricing', body)
-        self.assertEqual(duplicate['pricing_token'], refreshed['pricing_token'])
-        self.assertEqual(self.library.edits.stamp(), (0, 0))
-        product['sales_price'] = old_price * 3
+        config['inventory'][product['id']]['supplier_price'] = old_price * 1.5
         self.store.save_configuration(config)
-        saved_shared_configuration = self.store.configuration()
-        saved = self.library.action('pkb-001', 'save', self.body(refreshed))
-        self.assertEqual(saved['price'], refreshed['price'])
-        reopened = FirestoppingLibrary(self.root / 'library', self.store).edit('pkb-001')
-        self.assertEqual(reopened['price'], refreshed['price'])
-        self.assertEqual(reopened['source_price']['amount'], 150)
-        self.assertEqual(self.store.configuration(), saved_shared_configuration)
+        with self.assertRaisesRegex(LibraryConflict, 'Main Library prices have changed'):
+            reopened.action('pkb-001', 'save', self.body(refreshed))
+        current = reopened.edit('pkb-001')
+        self.assertAlmostEqual(current['price']['amount'], original * 3)
+        self.assertEqual(current['source_price']['amount'], 150)
+        self.assertEqual(current['revision'], 1)
+        self.assertEqual((self.root / 'library/library.json').read_bytes(), self.source_bytes)
+
+        # A removed option must not produce a lower price by dropping its cost.
+        config['catalog']['inventory'] = [r for r in config['catalog']['inventory'] if r['id'] != product['id']]
+        for rates in config['catalog']['rate_groups'].values():
+            rates[:] = [rate for rate in rates if rate.get('inventory_id') != product['id']]
+        config['inventory'].pop(product['id'])
+        self.store.save_configuration(config)
+        unavailable = reopened.detail('penetration', 'pkb-001')
+        self.assertIsNone(unavailable['price'])
+        self.assertIn('no longer available', unavailable['price_error'])
 
     def test_stale_revision_and_injected_outputs_cannot_overwrite(self):
         other = FirestoppingLibrary(self.root / 'library', self.store)

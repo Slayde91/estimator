@@ -143,7 +143,7 @@ class EffectiveLibraryPolicyTests(unittest.TestCase):
         self.assertEqual(self.library.edits.all(), before)
         self.assertEqual(self.path.read_bytes(), self.before)
 
-    def test_frozen_prices_and_source_cache_invalidation_use_actual_configuration(self):
+    def test_price_cache_tracks_the_source_until_main_pricing_is_saved(self):
         configuration = self.data['firestopping']['configuration']
         option = next(field['options'][0] for field in definition(configuration)['row_fields'] if field['column'] == 'AB')
         product = next(item for item in configuration['catalog']['inventory'] if item['sales_description'] == option)
@@ -152,8 +152,6 @@ class EffectiveLibraryPolicyTests(unittest.TestCase):
         self.path.write_text(json.dumps(self.data), encoding='utf-8')
         frozen = self.library.detail('penetration', 'pkb-001')['price']['amount']
         changed = {'inventory': {product['id']: {'supplier_price': 432.123456789, 'markup': 0}}}
-        self.store.save_configuration(changed)
-        self.assertEqual(self.library.detail('penetration', 'pkb-001')['price']['amount'], frozen)
         updated = validate_configuration(changed)
         updated['catalog'] = configuration_catalog(updated)
         self.data['firestopping']['configuration'] = updated
@@ -161,6 +159,11 @@ class EffectiveLibraryPolicyTests(unittest.TestCase):
         refreshed = self.library.detail('penetration', 'pkb-001')['price']['amount']
         self.assertAlmostEqual(refreshed, 200 + 432.123456789 * .123456789 * 2, places=10)
         self.assertNotEqual(refreshed, frozen)
+        changed['inventory'][product['id']]['markup'] = 0.25
+        self.store.save_configuration(changed)
+        live = self.library.detail('penetration', 'pkb-001')['price']['amount']
+        self.assertAlmostEqual(live, 200 + 432.123456789 * 1.25 * .123456789 * 2, places=10)
+        self.assertNotEqual(live, refreshed)
 
 
 if __name__ == '__main__':

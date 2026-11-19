@@ -2183,6 +2183,7 @@
         window.CeasefirePenetrations?.pricingChanged();
       }
       refreshPricingCatalog(); renderPricing();
+      window.CeasefireLibraries?.invalidate?.();
       const changedElsewhere = JSON.stringify(state.configuration) !== JSON.stringify(configuration);
       message(uiCopy(changedElsewhere ? "Pricing was saved, then changed in another session. The latest saved library is loaded; any further draft edits are still unsaved."
         : state.pricingDirty ? "Pricing saved. Changes made while saving are still unsaved." : "Pricing library saved. The saved products, choices and rates now apply to new estimates."));

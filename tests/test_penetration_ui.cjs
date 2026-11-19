@@ -936,9 +936,12 @@ async function check(name,fn){const h=harness();h.api.applyProject(await h.api.p
     h.audit.setRequest(async(path,payload)=>{calls.push({path,payload:copy(payload)});return{row_references:Object.fromEntries(payload.draft.rows.map(row=>[row.id,{systems:(row.technical_reference_ids??['automatic-system']).map(id=>({id})),missing_ids:[]}]))};});
     const pending=h.api.applyTechnicalReference('chosen-system');await flush();
     const dialog=h.context.document.body.children.at(-1),choices=dialog.children[2],actions=dialog.children[4];
-    assert.equal(dialog.open,true);assert.equal(actions.children[0].disabled,true);assert.equal(choices.children.length,3);
+    const [apply,cancel]=actions.children;
+    assert.equal(dialog.open,true);assert.equal(apply.className,'button primary');assert.equal(cancel.className,'button secondary');
+    assert.equal(apply.disabled,true);assert.equal(choices.children.length,3);
     for(const index of [0,2]){choices.children[index].children[0].checked=true;await choices.children[index].children[0].emit('change');}
-    await actions.children[0].emit('click');const receipt=await pending;
+    assert.equal(apply.disabled,false);
+    await apply.emit('click');const receipt=await pending;
     assert.deepEqual(copy(receipt.row_ids),['row-one','row-three']);assert.equal(receipt.applied,true);
     assert.deepEqual(copy(state.schedule.draft.rows.map(row=>row.inputs)),before.rows.map(row=>row.inputs));assert.deepEqual(copy(state.schedule.draft.globals),before.globals);assert.deepEqual(h.pricing,pricing);
     assert.deepEqual(copy(state.schedule.draft.rows[0].technical_reference_ids),['existing-system','chosen-system']);

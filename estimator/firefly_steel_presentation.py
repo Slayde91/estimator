@@ -9,6 +9,7 @@ from .technical_table_navigation import field_tables
 _SIZE = 'Service Size / Configuration'
 _WRAP = 'Service Wrap'
 _LOCAL = 'Local Protection'
+_INSTALLATION = 'Installation Details'
 _FIRST = 'Service (purlin size)'
 _H45_SOURCE_SHA256 = '31152c311efe2347c74eb846813c40e1a5d97989276df8d679ad502dce355f49'
 _LENGTH = re.compile(r'[0-9]+(?:\.[0-9]+)? mm\Z')
@@ -18,6 +19,32 @@ _PURLIN_SERVICE = re.compile(
 _PURLIN_POSITION = re.compile(
     r'^Note[.:] The purlins can be installed at the body of (?:FIREFLY)?Batt or close to edge of '
     r'(?:the )?(?:FIREFLY)?Batt against a concrete slab or a roof insulation\.$', re.I)
+_PURLIN_SIZE = 'Up to 200 mm x 77 mm x 1.8 BMT steel “C” purlin.'
+_BEAM_SIZE = 'From 150 UB up to 200 UB steel beam.'
+_MEMBER_SIZE = 'From 150 UB up to 200 UB steel beam/column.'
+# These are the report pages that contain the assessed configurations. The
+# generated barrier variants retain them even when their displayed ID differs.
+_MEMBER_WRAP_RECORDS = {
+    ('fas190236', 'V31', 29): (_BEAM_SIZE, 'Steel beam', 'wall'),
+    ('fas190236', 'V33', 31): (_PURLIN_SIZE, 'Purlin', 'wall'),
+    ('fas190236', 'H24', 230): (_BEAM_SIZE, 'Steel beam', 'floor'),
+    ('fas190236', 'H26', 232): (_PURLIN_SIZE, 'Purlin', 'floor'),
+    ('fas190235', 'H43', 89): (_MEMBER_SIZE, 'Steel beam/column', ''),
+}
+_MEMBER_REPORT_PAGE = re.compile(r', (V31|V33|H24|H26|H43), PDF page \d+\Z')
+_EDGE_SUPPORT = {
+    'wall': 'a horizontal or vertical support element (including roof insulation)',
+    'floor': 'a vertical support element',
+}
+_FLOOR_WRAP_STEP = (
+    'Install 1 layer of FIREFLYPenowrap for: • 300 mm, on each side of the floor, '
+    'butting up to the face of the floor, or, • 600 mm, on the topside of the floor, '
+    'butting up to the face of the floor.'
+)
+_WALL_WRAP_STEP = (
+    'Install 1 layer of FIREFLYPenowrap for 300 mm, on each side of the wall, '
+    'butting up to the face of the wall.'
+)
 _PACKING = (
     'Wrap only\n\n'
     '1. Apply one layer of FIREFLY Penowrap on both sides of the FIREFLYBatt seal. '
@@ -74,6 +101,49 @@ def _service(fields, by_label):
     service['value'] = 'Steel C or Z purlin'
 
 
+def _member_wrap(record, by_label):
+    reviewed = set()
+    for source in record.get('sources', []):
+        matched = _MEMBER_REPORT_PAGE.search(source.get('label', ''))
+        if matched:
+            proof = (source.get('document_id'), matched[1], source.get('page'))
+            if proof in _MEMBER_WRAP_RECORDS:
+                reviewed.add(_MEMBER_WRAP_RECORDS[proof])
+    if len(reviewed) != 1:
+        return
+    dimensions, member, barrier = reviewed.pop()
+    size, wrap = by_label.get(_SIZE, {}), by_label.get(_WRAP, {})
+    if _normal(size.get('value', '')) != f'{dimensions} {member} can be installed:':
+        return
+
+    if not barrier:
+        # H43 already gives the assessed lengths and both application methods.
+        # Only its incomplete lead-in needs removal.
+        size['value'] = dimensions
+        return
+
+    placement = f'In the body of the {barrier}, using a 4-sided wrap configuration.'
+    edge = (f'At the edge of the {barrier}, against {_EDGE_SUPPORT[barrier]}, '
+            'requiring the use of a 3-sided wrap configuration.')
+    installation = by_label.get(_INSTALLATION, {})
+    instructions = installation.get('value', '')
+    proof_text = _normal(instructions).replace(f'butting against the {barrier}', f'butting up to the face of the {barrier}')
+    first, heading, second = proof_text.partition(f'• At the edge of the {barrier} (3-sided wrap):')
+    step = _WALL_WRAP_STEP if barrier == 'wall' else _FLOOR_WRAP_STEP
+    if (_normal(wrap.get('value', '')) != f'{placement} {edge}'
+            or not first.startswith(f'• In the body of the {barrier} (4-sided wrap):')
+            or not heading or step not in first or step not in second):
+        return
+
+    length = f'300 mm on each side of the {barrier}'
+    if barrier == 'floor':
+        length += ' or 600 mm on the topside'
+    size['value'] = dimensions
+    wrap['value'] = f'One layer of FIREFLYPenowrap for {length}, butting against the {barrier} face.'
+    # The edge support scope is more specific than the headings of the steps.
+    installation['value'] = f'{edge}\n\n{instructions}'
+
+
 def _remove_repeated_purlin_table(record, fields, by_label):
     size = by_label.get(_SIZE, {})
     tables = field_tables(size)
@@ -125,5 +195,6 @@ def firefly_structural_fields(record, fields):
         return fields
     result = list(by_label.values())
     _service(result, by_label)
+    _member_wrap(record, by_label)
     _remove_repeated_purlin_table(record, result, by_label)
     return result

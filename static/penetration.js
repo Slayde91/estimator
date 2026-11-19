@@ -1172,7 +1172,7 @@
     const inputs = [];
     rows.forEach((row, index) => { const label = node("label"), control = node("input"); control.type = "checkbox"; control.value = row.id; control.dataset.libraryScheduleTarget = row.id;
       label.append(control, node("span", "", `${index + 1}. ${row.inputs.T || row.inputs.K || "Firestopping item"}`)); choices.append(label); inputs.push(control); });
-    const actions = node("div", "actions"), apply = uiNode("button", "button", "Apply to selected rows"), cancel = uiNode("button", "button secondary", "Cancel"); apply.type = cancel.type = "button"; apply.disabled = true; actions.append(apply, cancel);
+    const actions = node("div", "actions"), apply = uiNode("button", "button primary", "Apply to selected rows"), cancel = uiNode("button", "button secondary", "Cancel"); apply.type = cancel.type = "button"; apply.disabled = true; actions.append(apply, cancel);
     dialog.append(title, uiNode("p", "helper", "Choose every schedule item that should retain this report and system. Existing references are retained."), choices, problem, actions); document.body.append(dialog); dialog.showModal();
     return new Promise(resolve => {
       let busy = false, finished = false;

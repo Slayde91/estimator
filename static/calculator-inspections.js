@@ -14,6 +14,7 @@
   let readingDrafts = new WeakMap(), photoPixels = new Map();
   const states = {};
   const clone = value => structuredClone(value);
+  const activeEstimateId = () => window.CeasefireEstimates?.activeId?.() || 'estimate-1';
   const currentEntry = kind => registers[kind].entries[states[kind].current] || states[kind].placeholder;
   const rootFor = kind => document.getElementById(definitions[kind].view + '-root');
   const visible = kind => activeKind === kind && rootFor(kind)?.closest('.view')?.hidden !== true;
@@ -123,8 +124,8 @@
   }
   async function loadRows(kind) {
     const state = states[kind], calculatorId = registers[kind].calculator_id, token = ++state.request;
-    if (!calculatorId) { state.rows = []; state.loading = false; render(kind); return; }
-    const context = epoch;
+    if (!calculatorId) { state.rows = []; state.notes = {}; state.loading = false; render(kind); return; }
+    const context = epoch, estimateId = activeEstimateId();
     state.loading = true; state.message = ''; render(kind);
     try {
       const snapshot = await window.CeasefireCalculators.captureTakeoffTarget(calculatorId);
@@ -134,33 +135,57 @@
       const result = await response.json();
       if (context !== epoch || token !== state.request) return;
       if (!response.ok) throw new Error(result.error || 'The calculator register could not be loaded.');
-      if (window.CeasefireCalculators.projectFingerprint() !== snapshot.fingerprint) throw new Error('The calculator changed. Refresh its register to select the latest rows.');
+      if (estimateId !== activeEstimateId() || window.CeasefireCalculators.projectFingerprint() !== snapshot.fingerprint) throw new Error('The calculator changed. Refresh its register to select the latest rows.');
       if (result.calculator_id !== calculatorId || !Array.isArray(result.rows)) throw new Error('The calculator register response is invalid.');
       state.rows = result.rows;
+      state.notes = result.notes || {};
+      state.estimateId = estimateId;
       if (!state.rows.length) state.message = 'This calculator register has no populated rows.';
-    } catch(error) { if (context === epoch && token === state.request) { state.rows = []; state.message = error.message; } }
+    } catch(error) { if (context === epoch && token === state.request) { state.rows = []; state.notes = {}; state.message = error.message; } }
     finally { if (context === epoch && token === state.request) { state.loading = false; if (visible(kind)) render(kind); } }
+  }
+  function sameSnapshot(kind, saved, row) {
+    return [...definitions[kind].columns,...commonColumns].every(([key]) => saved[key] === row[key]);
+  }
+  function sameSource(kind, entry, row, source) {
+    const saved = entry.row;
+    if (!saved || saved.calculator_id !== row.calculator_id || saved.line !== row.line) return false;
+    const estimateId = entry.source_estimate_id || source.onlyEstimate;
+    // An older entry with several possible source estimates can be matched
+    // only by its recorded values.
+    return estimateId ? estimateId === source.estimateId : sameSnapshot(kind,saved,row);
   }
   function sourceSection(kind, entry) {
     const register = registers[kind], state = states[kind], card = element('section','card calculator-inspection-source');
+    const estimateId = activeEstimateId(), rows = state.estimateId === estimateId ? state.rows : [];
+    const estimates = window.CeasefireEstimates?.list?.();
+    const source = {estimateId, onlyEstimate:estimates?.length === 1 ? estimates[0].id : null};
+    const available = rows.filter(row => sameSource(kind,entry,row,source) ||
+      !register.entries.some(other => other !== entry && sameSource(kind,other,row,source)));
     const controls = element('div','calculator-inspection-source-controls'), select = element('select');
     select.name = 'calculator_register_row';
     select.add(new Option(window.CeasefireI18n.translate('Select'),''));
-    for (const row of state.rows) select.add(new Option([row.line, row.location, row.duct_size || row.section_id, row.product].filter(value => value !== '' && value != null).join(' · '), String(row.line)));
+    for (const row of available) select.add(new Option([row.line, row.location, row.duct_size || row.section_id, row.product].filter(value => value !== '' && value != null).join(' · '), String(row.line)));
     const sameMethod = entry.row?.calculator_id === register.calculator_id;
-    const matching = sameMethod && state.rows.some(row => row.line === entry.row.line);
+    const matchingSource = available.find(row => sameSource(kind,entry,row,source));
+    const matching = matchingSource && sameSnapshot(kind,entry.row,matchingSource);
     if (sameMethod && !matching) select.add(new Option(window.CeasefireI18n.translate('Saved calculator row') + ' · ' + entry.row.line,'saved'));
     select.value = matching ? String(entry.row.line) : sameMethod ? 'saved' : '';
     select.disabled = state.loading || !register.calculator_id;
     select.addEventListener('change',() => {
-      const row = state.rows.find(item => String(item.line) === select.value);
-      if (!row) return;
-      entry.row = clone(row); changed(kind); render(kind);
+      const row = available.find(item => String(item.line) === select.value);
+      if (!row || state.loading || entry !== currentEntry(kind) || estimateId !== activeEstimateId()) return;
+      entry.row = clone(row);
+      entry.source_estimate_id = estimateId;
+      changed(kind); render(kind);
     });
     const refresh = button('Refresh register',() => loadRows(kind));
     refresh.disabled = state.loading || !register.calculator_id;
     controls.append(field('Calculator register row',select),refresh); card.append(controls);
     if (state.loading) card.append(element('p','helper','Loading calculator register…'));
+    if (!state.loading && rows.length && !available.length) {
+      card.append(element('p','helper','All calculator rows are assigned to other inspections.'));
+    }
     if (entry.row) {
       const scroll = element('div','table-scroll'), table = element('table','calculator-inspection-table');
       const caption = element('caption','',entry.row.calculator_id === 'ductwork' ? 'Duct calculator register' : methods[entry.row.calculator_id]);
@@ -176,6 +201,13 @@
         const count = element('td'); count.dataset.inspectionCount = ''; row.append(count);
       }
       head.append(headings); body.append(row); table.append(caption,head,body); scroll.append(table); card.append(scroll);
+      if (!entry.row.required_thickness || entry.row.required_thickness === 'N / A') {
+        const diagnosis = matching && state.notes[entry.row.line];
+        if (diagnosis) card.append(element('p','helper',diagnosis));
+        card.append(element('p','helper error','The selected row has no calculated required thickness. Review the calculator, then refresh the register and select the updated row.'));
+      } else if (matchingSource && !matching) {
+        card.append(element('p','helper','The calculator result has changed. Select the row again to use its latest values.'));
+      }
     }
     return card;
   }
@@ -302,7 +334,7 @@
     registers = {};
     for (const [kind,definition] of Object.entries(definitions)) {
       registers[kind] = clone(snapshot?.[kind] || {calculator_id:definition.calculator,entries:[],next_number:1});
-      states[kind] = {current:0,rows:[],request:0,loading:false,photos:false,exporting:false,message:'',entrySelect:null};
+      states[kind] = {current:0,rows:[],notes:{},estimateId:null,request:0,loading:false,photos:false,exporting:false,message:'',entrySelect:null};
       states[kind].placeholder = newEntry(kind); rootFor(kind)?.replaceChildren();
     }
     hasRegister = Boolean(snapshot); saved = ++revision;

@@ -93,6 +93,8 @@ def steel_calculation_note(calculator_id, engine, row, available):
     reason = detail.split('. ', 1)[0]
     if 'data unavailable' in status or any(term in reason for term in ('not installed','integrity validation','unavailable dataset','source file missing')):
         return 'Install or restore the reviewed assessment data for the selected product.'
+    if board and reason == 'no source table for this temperature / duration':
+        return 'The calculator has no reviewed thickness table for this member type, critical temperature and fire period.'
     if board and any(term in reason for term in ('layer','stock','stack')):
         return 'Check the layer preference and available board thicknesses for this member.'
     if 'input calculation' in status:

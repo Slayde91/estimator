@@ -19,11 +19,34 @@ const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready
 const names={duct:'Duct Inspections',steel:'Structural Steel Inspections'};
 const ids={duct:'duct-inspections',steel:'structural-steel-inspections'};
 const files={duct:'duct_inspections.pdf',steel:'structural_steel_inspections.pdf'};
-async function openInspection(kind){
+const registers={duct:{id:'duct_register',title:'Duct Register'},steel:{id:'structural_steel_register',title:'Structural Steel Register'}};
+const covers={duct:{file:'Duct cover.pdf',text:'DUCT INSPECTION TEST COVER'},steel:{file:'Steel cover.pdf',text:'STEEL INSPECTION TEST COVER'}};
+async function documentRow(id){
   await openProjectSection(page,'documentation');
-  const download=page.locator('button[data-document-kind="'+files[kind]+'"]');await expect(download).toBeAttached();
-  if(!await download.isVisible())await download.locator('xpath=ancestor::tr/preceding-sibling::tr[contains(@class,"documentation-group")][1]//button').click();
-  await download.click();await expect(page.locator('#view-'+ids[kind])).toBeVisible();await idle();
+  const row=page.locator('tr[data-document-kind="'+id+'"]');await expect(row).toBeAttached();
+  if(!await row.isVisible())await row.locator('xpath=preceding-sibling::tr[contains(@class,"documentation-group")][1]//button').click();
+  return row;
+}
+async function installInspectionCovers(){
+  const saved=[];
+  for(const kind of ['duct','steel']){
+    const row=await documentRow(files[kind]);
+    const label='PDF cover sheet for '+names[kind];
+    const input=row.getByLabel(label,{exact:true});
+    await expect(row.getByText('Choose file',{exact:true})).toBeVisible();
+    await expect(input).toBeEnabled();
+    await input.setInputFiles(path.join(output,covers[kind].file));
+    await expect(row.getByText(covers[kind].file,{exact:true})).toBeVisible();
+    saved.push(page.waitForResponse(response=>response.request().method()==='POST' &&
+      new URL(response.url()).pathname==='/api/pdf-covers/'+files[kind].replace('.pdf','')));
+  }
+  await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();
+  for(const response of await Promise.all(saved))assert.equal(response.status(),200,await response.text());
+  await idle();
+}
+async function openInspection(kind){
+  const row=await documentRow(files[kind]);
+  await row.locator('button[data-document-kind]').click();await expect(page.locator('#view-'+ids[kind])).toBeVisible();await idle();
   return page.locator('#'+ids[kind]+'-root');
 }
 async function photos(form,photo){
@@ -47,13 +70,40 @@ async function download(kind,form){
   const response=await pending;assert.equal(response.status(),200,await response.text());
   const receipt=await response.json();assert.ok(receipt.documentation,JSON.stringify(receipt));assert.equal(receipt.documentation.item.kind,files[kind]);
   assert.ok(fs.readFileSync(receipt.path).subarray(0,5).equals(Buffer.from('%PDF-')));
-  const text=await page.evaluate(async url=>{
-    const lib=await import('/vendor/pdfjs/build/pdf.mjs');lib.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/build/pdf.worker.mjs';
-    const loading=lib.getDocument({url});try{const pdf=await loading.promise,parts=[];for(let i=1;i<=pdf.numPages;i++){parts.push((await(await pdf.getPage(i)).getTextContent()).items.map(item=>item.str).join(' '));}return parts.join('\n');}finally{await loading.destroy();}
-  },receipt.documentation.item.url);
+  const pages=await pdfPages(receipt.documentation.item.url);
+  assert.match(pages[0],new RegExp(covers[kind].text));
+  const text=pages.join('\n');
   assert.match(text,new RegExp(names[kind]));assert.match(text,/001/);
   if(kind==='steel'){assert.match(text,/Number of Readings\s+2/i);assert.match(text,/Recorded Thickness \(mm\)\s+30/);}
   else assert.match(text,/2 x 38mm/);
+  await idle();
+  const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
+  return receipt;
+}
+async function pdfPages(url){
+  return page.evaluate(async url=>{
+    const lib=await import('/vendor/pdfjs/build/pdf.mjs');lib.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/build/pdf.worker.mjs';
+    const loading=lib.getDocument({url});try{const pdf=await loading.promise,parts=[];for(let i=1;i<=pdf.numPages;i++){parts.push((await(await pdf.getPage(i)).getTextContent()).items.map(item=>item.str).join(' '));}return parts;}finally{await loading.destroy();}
+  },url);
+}
+async function downloadRegister(kind){
+  const {id,title}=registers[kind],key=id+'.pdf',row=await documentRow(key);
+  await expect(row.locator('td').first()).toHaveText(title);
+  const editions=row.locator('button[data-revisions-kind]');await expect(editions).toHaveText('View Revisions (0)');
+  const pending=page.waitForResponse(response=>response.request().method()==='POST' &&
+    new URL(response.url()).pathname==='/api/project/'+id.replaceAll('_','-')+'.pdf');
+  await row.locator('button[data-document-kind]').click();
+  const response=await pending;assert.equal(response.status(),200,await response.text());
+  const receipt=await response.json();assert.equal(receipt.documentation.item.kind,key);
+  const pages=await pdfPages(receipt.documentation.item.url),summary=pages[0];
+  assert.match(summary,new RegExp(title));
+  assert.match(summary,/\b001\b/);assert.doesNotMatch(summary,/\b002\b/);
+  assert.match(summary,/Before Photos|Before/i);
+  if(kind==='steel'){
+    for(const expected of ['200UC46','PROMATECT-XS','30','Number of Readings'])assert.ok(summary.includes(expected),summary);
+  }else for(const expected of ['250x250','FyreWrap','2 x 38mm','76'])assert.ok(summary.includes(expected),summary);
+  assert.ok(pages.length>1,'The register appends the pinned drawing');
+  await expect(editions).toHaveText('View Revisions (1)');
   await idle();
   const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
   return receipt;
@@ -64,6 +114,7 @@ async function run(){
   page=await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(60000);
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto('http://127.0.0.1:'+info.port);await idle();await createNewProject(page,{client:'Synthetic calculator inspections'});
+  await installInspectionCovers();
   await page.evaluate(async()=>{
     const calculators=await window.CeasefireCalculators.completeProjectSnapshot();
     calculators.ductwork={inputs:{CALCULATOR:{B11:'250x250',C11:'FyreWrap',D11:10,E11:'120/120/120',F11:0,G11:0,H11:'Stair pressurisation',I11:'Both',DA11:'Ground',CM11:1}},schedule_rows:[11]};
@@ -90,6 +141,9 @@ async function run(){
   await page.setViewportSize({width:390,height:884});await page.screenshot({path:path.join(output,'steel-mobile.png')});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
   await page.setViewportSize({width:1440,height:1000});
+  await steel.locator('.register-toolbar').getByRole('button',{name:'Add entry',exact:true}).click();
+  await expect(steel.getByRole('combobox',{name:'Register entry'}).locator('option:checked')).toContainText('002');
+  const ductRegister=await downloadRegister('duct'),steelRegister=await downloadRegister('steel');
   const save=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save');
   await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await save).status(),200);await idle();
   const project=JSON.parse(fs.readFileSync(info.project,'utf8'));
@@ -100,7 +154,7 @@ async function run(){
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   await openInspection('steel');await expect(steel.locator('tbody [data-inspection-average]')).toHaveText('30');await expect(steel.locator('figure img')).toHaveCount(4);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,project:info.project,pdfs:[ductReceipt.path,steelReceipt.path]},null,2));
-  console.log('PASS: normal Documents entry, calculator imports, evidence, Takeoff pins, PDF revisions and project save/reload. '+output);
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,project:info.project,pdfs:[ductReceipt.path,steelReceipt.path,ductRegister.path,steelRegister.path]},null,2));
+  console.log('PASS: inspection covers and evidence, completed registers, Takeoff pins, PDF revisions and project save/reload. '+output);
 }
 run().catch(async error=>{console.error(error,log);await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});

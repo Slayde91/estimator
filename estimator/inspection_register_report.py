@@ -78,16 +78,62 @@ def _register_rows(report, entries, library, widths):
             for index, photos in enumerate(zip_longest(*(record[phase] for phase in PHASES))):
                 row = [report.p(entry['location'], 'cell'), report.p(record['id_number'], 'cell')]
                 row.extend(system if index == 0 else [''] * len(system))
-                for value, width in zip(photos, widths[-4:]):
-                    if value is None:
-                        row.append('')
-                    else:
-                        image = Image(BytesIO(base64.b64decode(value[len(JPEG_PREFIX):])))
-                        image._restrictSize(width - 12, 48)
-                        image.hAlign = 'CENTER'
-                        row.append(image)
+                row.extend(register_photo_cells(photos, widths[-len(PHASES):]))
                 rows.append(row)
     return rows
+
+
+def register_photo_cells(photos, widths):
+    cells = []
+    for value, width in zip(photos, widths):
+        if value is None:
+            cells.append('')
+        else:
+            image = Image(BytesIO(base64.b64decode(value[len(JPEG_PREFIX):])))
+            image._restrictSize(width - 12, 48)
+            image.hAlign = 'CENTER'
+            cells.append(image)
+    return cells
+
+
+def render_register_table(title, details, company, headings, weights, rows):
+    """Match the project header, pagination, and evidence-grid layout for registers."""
+    _register_fonts()
+    output = BytesIO()
+    report = _Report({})
+    width, height = landscape(A4)
+    margin = 24
+    document = SimpleDocTemplate(output, pagesize=(width, height), leftMargin=margin, rightMargin=margin,
+                                 topMargin=90, bottomMargin=36, title=title, author=company.get('name') or 'CLASSIFIRE')
+    content = document.width - 12
+    report.story.append(report.p('Project Details', 'subheading'))
+    project_rows = [[report.p(label, 'head'), report.p(details.get(key) or '—', 'cell')]
+                    for key, label in [('project_no', 'Project No.'), ('client', 'Client'), ('site_address', 'Site Address')]]
+    report.story.append(report.table(None, project_rows, [content * .18, content * .82],
+                                     compact=True, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
+    report.story.append(Spacer(1, 10))
+    widths = [content * weight / sum(weights) for weight in weights]
+    grid = report.table(headings, rows(report, widths), widths,
+                        compact=True, grid_color=_INSPECTION_RED, table_type=_RegisterTable)
+    grid.setStyle([('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3)])
+    report.story.append(grid)
+
+    logo = company_logo(company)
+    def decorate(canvas, doc):
+        canvas.saveState()
+        first_page = doc.page == 1
+        _company_header(canvas, logo, width, height, margin, title.upper() if first_page else '',
+                        company=company, centered_title_color=_INSPECTION_RED if first_page else None)
+        canvas.setStrokeColor(_LINE)
+        canvas.line(margin, 30, width - margin, 30)
+        canvas.setFillColor(_MUTED)
+        canvas.setFont(FONT_REGULAR, 7.5)
+        canvas.drawString(margin, 19, title)
+        canvas.drawRightString(width - margin, 19, f'Page {doc.page}')
+        canvas.restoreState()
+
+    document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)
+    return output.getvalue()
 
 
 def render_inspection_register(register, details, *, library, company, plan_sessions=None, takeoffs=None):
@@ -101,44 +147,10 @@ def render_inspection_register(register, details, *, library, company, plan_sess
         completed.append(entry)
     if not completed:
         raise ValidationError('There are no completed passive fire inspections.')
-
-    _register_fonts()
-    output = BytesIO()
-    report = _Report({})
-    width, height = landscape(A4)
-    margin = 24
-    document = SimpleDocTemplate(output, pagesize=(width, height), leftMargin=margin, rightMargin=margin,
-                                 topMargin=90, bottomMargin=36, title=TITLE, author=company.get('name') or 'CLASSIFIRE')
-    content = document.width - 12
-    report.story.append(report.p('Project Details', 'subheading'))
-    project_rows = [[report.p(label, 'head'), report.p(details.get(key) or '—', 'cell')]
-                    for key, label in [('project_no', 'Project No.'), ('client', 'Client'), ('site_address', 'Site Address')]]
-    report.story.append(report.table(None, project_rows, [content * .18, content * .82],
-                                     compact=True, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
-    report.story.append(Spacer(1, 10))
     weights = (72, 67, 84, 61, 69, 71, 70, 48, 70, 49, 49, 49, 49)
-    widths = [content * weight / sum(weights) for weight in weights]
-    grid = report.table(HEADINGS, _register_rows(report, completed, library, widths), widths,
-                        compact=True, grid_color=_INSPECTION_RED, table_type=_RegisterTable)
-    grid.setStyle([('LEFTPADDING', (0, 0), (-1, -1), 3), ('RIGHTPADDING', (0, 0), (-1, -1), 3)])
-    report.story.append(grid)
-
-    logo = company_logo(company)
-    def decorate(canvas, doc):
-        canvas.saveState()
-        first_page = doc.page == 1
-        _company_header(canvas, logo, width, height, margin, 'PASSIVE FIRE REGISTER' if first_page else '',
-                        company=company, centered_title_color=_INSPECTION_RED if first_page else None)
-        canvas.setStrokeColor(_LINE)
-        canvas.line(margin, 30, width - margin, 30)
-        canvas.setFillColor(_MUTED)
-        canvas.setFont(FONT_REGULAR, 7.5)
-        canvas.drawString(margin, 19, TITLE)
-        canvas.drawRightString(width - margin, 19, f'Page {doc.page}')
-        canvas.restoreState()
-
-    document.build(report.story, onFirstPage=decorate, onLaterPages=decorate)
+    payload = render_register_table(TITLE, details, company, HEADINGS, weights,
+                                    lambda report, widths: _register_rows(report, completed, library, widths))
     if any(entry.get('plan_pins') for entry in completed):
         # The client captures sessions before the server checks which inspections are complete.
-        return append_plan_pages(output.getvalue(), completed, plan_sessions, takeoffs, allow_unused_sessions=True)
-    return output.getvalue()
+        return append_plan_pages(payload, completed, plan_sessions, takeoffs, allow_unused_sessions=True)
+    return payload

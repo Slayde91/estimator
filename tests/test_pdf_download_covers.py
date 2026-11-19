@@ -83,8 +83,10 @@ class PdfDownloadCoverTests(unittest.TestCase):
 
     def test_catalog_is_finite_ordered_persistent_and_defaults_empty(self):
         items=self.covers.list()['items']
-        self.assertEqual(len(items),20)
-        self.assertTrue({'passive_fire_register', 'passive_fire_registers'} <= {row['kind'] for row in items})
+        self.assertEqual(len(items),24)
+        self.assertTrue({'passive_fire_register', 'passive_fire_registers',
+                         'duct_inspections', 'structural_steel_inspections',
+                         'duct_register', 'structural_steel_register'} <= {row['kind'] for row in items})
         self.assertEqual([(row['kind'],row['label']) for row in items],list(SETTINGS_KINDS))
         self.assertNotIn('pdf_tools', {row['kind'] for row in items})
         self.assertIsNone(self.covers.get('pdf_tools')['cover_pdf'])
@@ -116,6 +118,33 @@ class PdfDownloadCoverTests(unittest.TestCase):
         for kind in document_kinds:
             self.assertFalse(public[kind]['has_cover']);self.assertEqual(public[kind]['version'],1)
         self.assertEqual(PdfDownloadCovers(self.store).list(),upgraded.list())
+
+    def test_calculator_register_upgrade_preserves_independent_inspection_covers(self):
+        inspection_kinds = ('duct_inspections', 'structural_steel_inspections')
+        register_kinds = ('duct_register', 'structural_steel_register')
+        for kind in inspection_kinds:
+            self.covers.save(kind, cover('EXISTING ' + kind), kind + '.pdf', 1)
+        with self.store.connect() as db:
+            db.executemany('DELETE FROM pdf_download_covers WHERE kind=?', [(kind,) for kind in register_kinds])
+            previous = {row[0]: tuple(row) for row in db.execute('SELECT * FROM pdf_download_covers')}
+        upgraded = PdfDownloadCovers(self.store)
+        with self.store.connect() as db:
+            after = {row[0]: tuple(row) for row in db.execute('SELECT * FROM pdf_download_covers')}
+        self.assertEqual({kind: after[kind] for kind in previous}, previous)
+        self.assertEqual(set(after) - set(previous), set(register_kinds))
+        for kind in register_kinds:
+            self.assertIsNone(upgraded.get(kind)['cover_pdf'])
+            self.assertEqual(upgraded.get(kind)['version'], 1)
+            upgraded.save(kind, cover('REGISTER ' + kind), kind + '.pdf', 1)
+        reopened = PdfDownloadCovers(Store(self.store.path))
+        for kind in inspection_kinds + register_kinds:
+            prefix = 'EXISTING ' if kind in inspection_kinds else 'REGISTER '
+            self.assertEqual(text_pages(prepend_cover_pdf(pdf('BODY'), {}, reopened.get(kind))),
+                             [prefix + kind, 'BODY'])
+        retained = {kind: reopened.get(kind) for kind in inspection_kinds + register_kinds if kind != 'duct_inspections'}
+        reopened.save('duct_inspections', None, '', reopened.get('duct_inspections')['version'])
+        self.assertIsNone(PdfDownloadCovers(self.store).get('duct_inspections')['cover_pdf'])
+        self.assertEqual({kind: reopened.get(kind) for kind in retained}, retained)
 
     def test_main_then_specific_then_content_with_identical_covers_kept_twice(self):
         main={'cover_pdf':cover('MAIN')};specific={'cover_pdf':cover('SPECIFIC')};body=pdf('BODY')

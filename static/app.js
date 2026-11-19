@@ -3602,6 +3602,14 @@
     if (adapter === "passive_fire_register") { window.ClassifirePassiveRegister.setOptions(spec.options); await requestViewNavigation("passive-fire-register"); return {selectionRequired:true}; }
     if (adapter === "calculator_inspections") {
       if (!["duct", "steel"].includes(spec.kind)) throw new Error("Choose an inspection register.");
+      if (spec.action === "register") {
+        const register = window.ClassifireCalculatorInspections.capture().value?.[spec.kind];
+        if (!register?.entries.length) throw new Error(spec.kind === "duct" ? "There are no completed duct inspections." : "There are no completed structural steel inspections.");
+        const path = spec.kind === "duct" ? '/api/project/duct-register.pdf' : '/api/project/structural-steel-register.pdf';
+        return window.CeasefireDownloads.save(path,
+          {register, project_details:window.CeasefireProject.details(),
+            ...window.ClassifireRegisterPlans?.exportContext(register)}, {button});
+      }
       await requestViewNavigation(spec.kind === "duct" ? "duct-inspections" : "structural-steel-inspections");
       return {selectionRequired:true};
     }

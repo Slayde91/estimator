@@ -284,6 +284,7 @@
   function supported(path) {
     return path === '/api/swms/issue' || path === '/api/commercial/issue' || path === '/api/project/passive-fire-register.pdf' || path === '/api/project/passive-fire-registers.pdf'
       || path === '/api/project/duct-inspections.pdf' || path === '/api/project/structural-steel-inspections.pdf'
+      || path === '/api/project/duct-register.pdf' || path === '/api/project/structural-steel-register.pdf'
       || /^\/api\/(?:quote-report|quotes\/[^/]+\/report\.pdf|pricing\/export|project\/(?:full-schedule|full-product-summary)\.pdf)$/.test(path)
       ||/^\/api\/calculators\/(?:steel_vermiculite|steel_intumescent|steel_board|ductwork)\/(?:report\.pdf|summary\.pdf|register\.xlsx|template)$/.test(path)
       ||/^\/api\/(?:technical\/item\.(?:pdf|xlsx)|penetration\/(?:item\.(?:pdf|xlsx)|report\.pdf|register\.xlsx))$/.test(path)

@@ -9,6 +9,36 @@
     "Mga talaan",
     "Các bảng kê"
   ],
+  "Inspections": [
+    "점검",
+    "Mga inspeksyon",
+    "Kiểm tra"
+  ],
+  "Registers": [
+    "대장",
+    "Mga rehistro",
+    "Sổ đăng ký"
+  ],
+  "Duct Inspections": [
+    "덕트 점검",
+    "Mga inspeksyon ng duct",
+    "Kiểm tra ống gió"
+  ],
+  "Duct Register": [
+    "덕트 대장",
+    "Rehistro ng duct",
+    "Sổ theo dõi ống gió"
+  ],
+  "Structural Steel Inspections": [
+    "구조용 강재 점검",
+    "Mga inspeksyon ng estruktural na bakal",
+    "Kiểm tra thép kết cấu"
+  ],
+  "Structural Steel Register": [
+    "구조용 강재 대장",
+    "Rehistro ng estruktural na bakal",
+    "Sổ theo dõi thép kết cấu"
+  ],
   "Product summaries": [
     "제품 요약",
     "Mga buod ng produkto",

@@ -203,6 +203,72 @@ class CalculatorInspectionLayoutTests(unittest.TestCase):
         photo_page, _, photo_y = self.assert_once(coords, 'Inspection 001 - During Photos')
         self.assertGreater((photo_page, -photo_y), (readings_page, -readings_y))
 
+    def test_passive_fire_photos_follow_each_inspection_table_height(self):
+        photo_sizes = {'during': (240, 150), 'after': (120, 180), 'label': (180, 180)}
+        photos = {}
+        for phase, size in photo_sizes.items():
+            stream = BytesIO()
+            Image.new('RGB', size, '#a44d47').save(stream, 'JPEG')
+            photos[phase] = ['data:image/jpeg;base64,' + b64encode(stream.getvalue()).decode('ascii')]
+
+        entries = [completed_entry(), completed_entry()]
+        for number, item in enumerate(entries, 1):
+            item.update(access='NA', comments='')
+            item['side1'].update(photos, id_number=f'{number:03d}')
+        entries[1]['comments'] = 'Inspection notes confirm the condition recorded on site. ' * 4
+        pdf = PdfReader(BytesIO(render_register_pdf(
+            {'entries': entries}, {'project_no': 'QA-LAYOUT'}, company=DEFAULTS)))
+        self.assertEqual(len(pdf.pages), 2)
+
+        previous = None
+        for index, page in enumerate(pdf.pages):
+            with self.subTest(page=index + 1):
+                tables, images = table_and_image_bounds(page)
+                detail, photo_column, gallery = tables[-3:]
+                detail_x, detail_y, detail_width, detail_height = detail
+                photo_x, photo_y, photo_width, photo_height = photo_column
+                gallery_x, gallery_y, gallery_width, gallery_height = gallery
+                self.assertGreater(photo_x, detail_x + detail_width)
+                self.assertAlmostEqual(photo_y + photo_height, detail_y + detail_height, delta=.1)
+                self.assertAlmostEqual(photo_y, detail_y, delta=.1)
+                self.assertAlmostEqual(gallery_x, detail_x, delta=.1)
+                self.assertAlmostEqual(gallery_x + gallery_width, photo_x + photo_width, delta=.1)
+                self.assertAlmostEqual(detail_y - (gallery_y + gallery_height), 6, delta=.1)
+
+                beside = [(width, height) for x, y, width, height in images
+                          if photo_x < x and x + width < photo_x + photo_width
+                          and photo_y < y and y + height < photo_y + photo_height]
+                self.assertEqual(len(beside), len(photo_sizes))
+                for (width, height), (source_width, source_height) in zip(beside, photo_sizes.values()):
+                    self.assertAlmostEqual(width / height, source_width / source_height, delta=.001)
+                self.assertEqual(sum(gallery_y < y < gallery_y + gallery_height for _, y, _, _ in images), 1)
+                portrait_height = beside[1][1]
+                if previous is not None:
+                    self.assertGreater(detail_height, previous[0])
+                    self.assertGreater(portrait_height, previous[1])
+                previous = (detail_height, portrait_height)
+
+    def test_passive_fire_photos_fit_the_first_fragment_when_details_wrap(self):
+        item = completed_entry()
+        item['access'] = 'NA'
+        notes = [f'Site note line {number:03d}' for number in range(1, 61)]
+        item['comments'] = '\n'.join(notes)
+        pdf = PdfReader(BytesIO(render_register_pdf(
+            {'entries': [item]}, {'project_no': 'QA-LAYOUT'}, company=DEFAULTS)))
+        project, detail, photo_column = table_and_image_bounds(pdf.pages[0])[0]
+        self.assertGreater(project[1], detail[1] + detail[3])
+        self.assertAlmostEqual(photo_column[1], detail[1], delta=.1)
+        self.assertAlmostEqual(photo_column[3], detail[3], delta=.1)
+
+        coords = positions(pdf)
+        for phase in ('During', 'After', 'Label'):
+            page, _, _ = self.assert_once(coords, f'Side 1 - 001 - {phase}')
+            self.assertEqual(page, 0)
+        final_note_page, _, _ = self.assert_once(coords, notes[-1])
+        gallery_page, _, _ = self.assert_once(coords, 'Side 1 - 001 - Before')
+        self.assertGreater(final_note_page, 0)
+        self.assertGreaterEqual(gallery_page, final_note_page)
+
     def test_all_portrait_inspection_headings_appear_centered_in_red_on_first_page_only(self):
         reports = {
             'Duct Inspections': render_calculator_inspections(

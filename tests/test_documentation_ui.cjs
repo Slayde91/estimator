@@ -79,22 +79,37 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       assert.deepEqual(icon.children.map(child=>[child.className,child.textContent]),[['download-arrow','⇩'],['download-format',format.toUpperCase()]]);
     }
   });
-  await check('PDF schedules and product summaries are grouped without changing export identities or frozen history',async h=>{
+  await check('PDF schedules, inspections, registers and product summaries are grouped without changing export identities or frozen history',async h=>{
     const rows=[catalog[0],
       {id:'calculator.ductwork.product_summary.pdf',label:'Ductwork product summary',format:'pdf',adapter:'calculator',spec:{calculatorId:'ductwork',action:'product_summary'}},
       {id:'project.full_schedule.pdf',label:'Full Schedule',format:'pdf',adapter:'estimate',spec:{action:'full_schedule'}},
       {id:'certification',label:'Installation Certificate',format:'pdf',adapter:'certification',spec:{}},
       {id:'project.full_product_summary.pdf',label:'Full Product Summary',format:'pdf',adapter:'estimate',spec:{action:'full_product_summary'}},
+      {id:'passive_fire_register.pdf',label:'Passive Fire Inspections',format:'pdf',adapter:'passive_fire_register',spec:{}},
+      {id:'passive_fire_registers.pdf',label:'Passive Fire Register',format:'pdf',adapter:'passive_fire_register',spec:{action:'register'}},
+      {id:'duct_inspections.pdf',label:'Duct Inspections',format:'pdf',adapter:'calculator_inspections',spec:{kind:'duct'}},
+      {id:'duct_register.pdf',label:'Duct Register',format:'pdf',adapter:'calculator_inspections',spec:{kind:'duct',action:'register'}},
       {id:'firestopping.schedule.pdf',label:'Firestopping Schedule',format:'pdf',adapter:'firestopping',spec:{scope:'schedule',format:'pdf'}}];
     h.override(path=>path==='/api/documentation/catalog'?h.response({documents:rows}):undefined);
     const legacy=item(1,1,{kind:'calculator.legacy.schedule.pdf',label:'Legacy schedule'});h.models.set(token(1),model(1,[legacy]));
     await h.api.open();
     const rendered=h.byId('documentation-pdf-rows').children;
-    assert.deepEqual(rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].children[0].textContent),['Schedules','Product summaries','Other documents']);
-    assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','estimate.summary.pdf','certification']);
-    const toggle=rendered[0].children[0].children[0].children[0];
+    const headings=rendered.filter(row=>row.children[0].tagName==='TH').map(row=>row.children[0].children[0].children[0]);
+    assert.deepEqual(headings.map(heading=>heading.textContent),['Schedules','Inspections','Registers','Product summaries','Other documents']);
+    assert.deepEqual(rendered.filter(row=>row.dataset.documentKind).map(row=>row.dataset.documentKind),['project.full_schedule.pdf','firestopping.schedule.pdf','calculator.legacy.schedule.pdf','passive_fire_register.pdf','duct_inspections.pdf','passive_fire_registers.pdf','duct_register.pdf','calculator.ductwork.product_summary.pdf','project.full_product_summary.pdf','estimate.summary.pdf','certification']);
+    const [toggle,inspections,registers]=headings;
+    const isHidden=kind=>rendered.find(row=>row.dataset.documentKind===kind).hidden;
     assert.equal(toggle.attributes['aria-expanded'],'false');assert.equal(rendered[1].hidden,true);
     await toggle.emit('click');assert.equal(toggle.attributes['aria-expanded'],'true');assert.equal(rendered[1].hidden,false);
+    await inspections.emit('click');
+    assert.equal(isHidden('passive_fire_register.pdf'),false);
+    assert.equal(isHidden('duct_inspections.pdf'),false);
+    assert.equal(isHidden('passive_fire_registers.pdf'),true);
+    assert.equal(isHidden('duct_register.pdf'),true);
+    await registers.emit('click');await inspections.emit('click');
+    assert.equal(isHidden('passive_fire_registers.pdf'),false);
+    assert.equal(isHidden('duct_register.pdf'),false);
+    assert.equal(isHidden('duct_inspections.pdf'),true);
     assert.deepEqual(h.links(),[]);assert.deepEqual(h.tableLinks(),[]);
     await h.revisions(legacy.kind).emit('click');assert.deepEqual(h.links().map(link=>link.href),[legacy.url]);
     const first=rendered.find(row=>row.dataset.documentKind==='estimate.summary.pdf');assert.equal(first.children.length,3);assert.equal(first.children[0].textContent,'Breakdown');assert.equal(first.hidden,true);

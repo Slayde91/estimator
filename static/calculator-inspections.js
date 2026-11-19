@@ -126,7 +126,15 @@
       });
     };
     renderInputs(); card.append(list);
-    const add = button('Add reading',() => { if (drafts.length < 200) { drafts.push(''); renderInputs(); list.lastElementChild.querySelector('input').focus(); } });
+    const addReading = () => {
+      if (drafts.length >= 200) return;
+      drafts.push('');
+      renderInputs();
+      list.lastElementChild.querySelector('input').focus();
+    };
+    const add = kind === 'duct'
+      ? window.ClassifireFormControls.iconButton('Add reading','add',addReading)
+      : button('Add reading',addReading);
     const summary = element('div','calculator-inspection-reading-summary');
     for (const [text,key] of [['Average thickness (mm)','average'],['Number of readings','count']]) {
       const output = element('output'); output.dataset['inspection' + key[0].toUpperCase() + key.slice(1)] = '';

@@ -13,6 +13,48 @@
     "الجداول",
     "ตารางรายการ"
   ],
+  "Inspections": [
+    "检查记录",
+    "निरीक्षण",
+    "Inspecciones",
+    "عمليات التفتيش",
+    "การตรวจสอบ"
+  ],
+  "Registers": [
+    "登记册",
+    "रजिस्टर",
+    "Registros",
+    "السجلات",
+    "ทะเบียน"
+  ],
+  "Duct Inspections": [
+    "风管检查",
+    "डक्ट निरीक्षण",
+    "Inspecciones de conductos",
+    "فحوصات مجاري الهواء",
+    "การตรวจสอบท่อลม"
+  ],
+  "Duct Register": [
+    "风管登记册",
+    "डक्ट रजिस्टर",
+    "Registro de conductos",
+    "سجل مجاري الهواء",
+    "ทะเบียนท่อลม"
+  ],
+  "Structural Steel Inspections": [
+    "结构钢检查",
+    "संरचनात्मक इस्पात निरीक्षण",
+    "Inspecciones de acero estructural",
+    "فحوصات الفولاذ الإنشائي",
+    "การตรวจสอบเหล็กโครงสร้าง"
+  ],
+  "Structural Steel Register": [
+    "结构钢登记册",
+    "संरचनात्मक इस्पात रजिस्टर",
+    "Registro de acero estructural",
+    "سجل الفولاذ الإنشائي",
+    "ทะเบียนเหล็กโครงสร้าง"
+  ],
   "Product summaries": [
     "产品汇总",
     "उत्पाद सारांश",

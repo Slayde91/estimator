@@ -27,10 +27,10 @@ async function register() {
   await openProjectSection(page,'documentation');
   const button = page.locator('button[data-document-kind="passive_fire_register.pdf"]');
   await button.waitFor({state:'attached'});
-  if (!await button.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
+  if (!await button.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Inspections',exact:true}).click();
   await expect(button).toHaveAccessibleName('Download Passive Fire Inspections');
   await expect(page.locator('tr[data-document-kind="passive_fire_register.pdf"] #cover-sheet-passive_fire_register')).toHaveCount(1);
-  assert.equal(await button.locator('xpath=ancestor::tr/preceding-sibling::tr[1]').getAttribute('data-document-kind'),'firestopping.schedule.pdf');
+  await expect(button.locator('xpath=ancestor::tr/preceding-sibling::tr[1]//h3')).toHaveText('Inspections');
   await button.click();
   await expect(page.locator('#view-passive-fire-register')).toBeVisible();
   await idle();
@@ -39,8 +39,8 @@ async function downloadRegister(expectFile) {
   await openProjectSection(page,'documentation');
   const row = page.locator('tr[data-document-kind="passive_fire_registers.pdf"]');
   await row.waitFor({state:'attached'});
-  if (!await row.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Schedules',exact:true}).click();
-  assert.equal(await row.locator('xpath=preceding-sibling::tr[1]').getAttribute('data-document-kind'),'passive_fire_register.pdf');
+  if (!await row.isVisible()) await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Registers',exact:true}).click();
+  await expect(row.locator('xpath=preceding-sibling::tr[1]//h3')).toHaveText('Registers');
   const response = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-registers.pdf');
   await row.getByRole('button',{name:'Download Passive Fire Register'}).click();
   const result = await response;

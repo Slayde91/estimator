@@ -92,15 +92,20 @@
     return model;
   }
   function groupedRows(format,rows) {
-    const schedules=[],summaries=[],other=[];
+    const schedules=[],inspections=[],registers=[],summaries=[],other=[];
     for(const row of rows) {
-      if(row.id==='project.full_schedule.pdf'||['passive_fire_register','calculator_inspections'].includes(row.adapter)||/^firestopping\.schedule\.(pdf|xlsx)$/.test(row.id)||/^calculator\.[^.]+\.(schedule\.pdf|register\.xlsx)$/.test(row.id))schedules.push(row);
+      if(format==='pdf'&&['passive_fire_register','calculator_inspections'].includes(row.adapter)) {
+        const group=row.spec.action==='register'?registers:inspections;
+        group.push(row);
+      }
+      else if(row.id==='project.full_schedule.pdf'||/^firestopping\.schedule\.(pdf|xlsx)$/.test(row.id)||/^calculator\.[^.]+\.(schedule\.pdf|register\.xlsx)$/.test(row.id))schedules.push(row);
       else if(row.id==='project.full_product_summary.pdf'||/^calculator\.[^.]+\.product_summary\.pdf$/.test(row.id))summaries.push(row);
       else other.push(row);
     }
     const section=(label,items)=>items.length?[{groupHeading:label},...items]:[];
     if(format==='xlsx')return [...other,...section('Schedules',schedules)];
-    return [...section('Schedules',schedules),...section('Product summaries',summaries),...section('Other documents',other)];
+    return [...section('Schedules',schedules),...section('Inspections',inspections),...section('Registers',registers),
+      ...section('Product summaries',summaries),...section('Other documents',other)];
   }
   function closeRevisions(restoreFocus=false) {
     const kind=state.revisions?.id;state.revisions=null;render();

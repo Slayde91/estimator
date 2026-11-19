@@ -181,8 +181,7 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
                           ('Signature', Signature(signature, 144, 36))))
         table = field_table(facts, [facts_width * .42, facts_width * .58], entry['row']['calculator_id'])
         promoted, remaining = _inspection_photos(entry)
-        report.story.extend(inspection_photo_layout(report, table, promoted, remaining, content, _INSPECTION_RED,
-                                                    page_height=document.height - 12))
+        report.story.extend(inspection_photo_layout(report, table, promoted, remaining, content, _INSPECTION_RED))
 
     def decorate(canvas, doc):
         canvas.saveState()

@@ -190,7 +190,11 @@ async function run(){
   await expect(duct.getByLabel('Inspection date',{exact:true})).toHaveValue(todayInSydney());
   for(const value of ['Ground','250x250','FyreWrap','2 x 38mm','FC17299-01-1'])await expect(duct.locator('tbody')).toContainText(value);
   await duct.getByLabel('Reading 1 (mm)',{exact:true}).fill('61.91');
-  await duct.getByRole('button',{name:'Add reading',exact:true}).click();
+  const addReading=duct.getByRole('button',{name:'Add reading',exact:true});
+  await expect(addReading).toHaveText('+');
+  await expect(addReading).toHaveClass(/\badd-icon-action\b/);
+  await addReading.press('Enter');
+  await expect(duct.getByLabel('Reading 2 (mm)',{exact:true})).toBeFocused();
   await duct.getByLabel('Reading 2 (mm)',{exact:true}).fill('64.02');
   await expect(duct.locator('tbody [data-inspection-average]')).toHaveText('62.97');
   await expect(duct.locator('tbody [data-inspection-count]')).toHaveText('2');

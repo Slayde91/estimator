@@ -9,9 +9,10 @@
       columns:[['location','Location'],['section_id','Section ID'],['critical_temp','Critical Temp (°C)']]}
   };
   const commonColumns = [['product','Product'],['frl','FRL'],['quantity','Qty'],['length','Length (m)'],['report','Report'],['required_thickness','Required Thickness (mm)']];
+  const customNumericFields = new Set(['quantity','length','critical_temp']);
   const label = entry => String(entry.number).padStart(3,'0');
   let registers, revision = 0, saved = 0, epoch = 0, activeKind, fieldIndex = 0, hasRegister = false;
-  let readingDrafts = new WeakMap(), photoPixels = new Map();
+  let readingDrafts = new WeakMap(), customDrafts = new WeakMap(), photoPixels = new Map();
   const states = {};
   const clone = value => structuredClone(value);
   const readingInputFormat = new Intl.NumberFormat('en',{useGrouping:false,maximumSignificantDigits:21});
@@ -31,7 +32,11 @@
     const wrapper = element('label','field'), caption = element('span','',text,args);
     caption.id = 'calculator-inspection-label-' + (++fieldIndex);
     control.setAttribute('aria-labelledby',caption.id);
-    wrapper.append(caption,control);
+    if (control.required) {
+      const heading = element('span'), required = element('span','calculator-inspection-required');
+      required.textContent = ' *'; required.setAttribute('aria-hidden','true');
+      heading.append(caption,required); wrapper.append(heading,control);
+    } else wrapper.append(caption,control);
     return wrapper;
   }
   function button(text, fn) {
@@ -64,8 +69,9 @@
     if (!select) return;
     const register = registers[kind], rows = register.entries.length ? register.entries : [states[kind].placeholder];
     select.replaceChildren(...rows.map((entry,index) => {
-      const row = entry.row;
-      return new Option(label(entry) + ': ' + (row ? [row.location, row.duct_size || row.section_id, row.product].filter(Boolean).join(' · ') : 'New inspection'), String(index));
+      const row = entry.custom_item || entry.row;
+      const description = row ? [row.location, row.duct_size || row.section_id, row.product].filter(Boolean).join(' · ') : '';
+      return new Option(label(entry) + ': ' + (description || window.CeasefireI18n.translate(entry.custom_item ? 'Custom entry' : 'New inspection')), String(index));
     }));
     select.value = String(states[kind].current);
   }
@@ -145,6 +151,7 @@
     return card;
   }
   async function loadRows(kind) {
+    if (currentEntry(kind).custom_item) return;
     const state = states[kind], calculatorId = registers[kind].calculator_id, token = ++state.request;
     if (!calculatorId) { state.rows = []; state.notes = {}; state.loading = false; render(kind); return; }
     const context = epoch, estimateId = activeEstimateId();
@@ -177,6 +184,48 @@
     // only by its recorded values.
     return estimateId ? estimateId === source.estimateId : sameSnapshot(kind,saved,row);
   }
+  function showEntry(kind) {
+    const state = states[kind], custom = Boolean(currentEntry(kind).custom_item);
+    if (custom && state.loading) {
+      state.request++; state.loading = false; state.estimateId = null;
+    }
+    render(kind);
+    if (!custom && !state.loading && registers[kind].calculator_id && state.estimateId !== activeEstimateId()) {
+      void loadRows(kind);
+    }
+  }
+  function customToggle(kind, entry) {
+    const wrapper = element('label','calculator-inspection-custom-toggle'), input = element('input');
+    input.type = 'checkbox'; input.name = 'inspection_custom_item'; input.checked = Boolean(entry.custom_item);
+    input.addEventListener('change',() => {
+      if (input.checked) {
+        entry.custom_item = customDrafts.get(entry) || {};
+      } else {
+        customDrafts.set(entry,entry.custom_item);
+        delete entry.custom_item;
+      }
+      changed(kind); states[kind].message = ''; showEntry(kind);
+    });
+    wrapper.append(input,element('span','','Custom entry'));
+    return wrapper;
+  }
+  function customFields(kind, entry) {
+    const grid = element('div','register-grid calculator-inspection-custom-fields');
+    for (const [key,text] of [...definitions[kind].columns,...commonColumns]) {
+      const input = element('input'), numeric = customNumericFields.has(key);
+      input.name = key; input.type = numeric ? 'number' : 'text'; input.required = true;
+      if (numeric) {
+        input.inputMode = 'decimal'; input.step = 'any'; input.min = '0'; input.max = '1e100';
+      } else input.maxLength = 2000;
+      input.value = entry.custom_item[key] ?? '';
+      input.addEventListener('input',() => {
+        entry.custom_item[key] = numeric ? (input.value === '' ? null : input.valueAsNumber) : input.value;
+        changed(kind);
+      });
+      grid.append(field(text,input));
+    }
+    return grid;
+  }
   function sourceSection(kind, entry) {
     const register = registers[kind], state = states[kind], card = element('section','card calculator-inspection-source');
     const estimateId = activeEstimateId(), rows = state.estimateId === estimateId ? state.rows : [];
@@ -204,17 +253,21 @@
     const matching = matchingSource && sameSnapshot(kind,entry.row,matchingSource);
     if (sameMethod && !matching) select.add(new Option(window.CeasefireI18n.translate('Saved calculator row') + ' · ' + entry.row.line,'saved'));
     select.value = matching ? String(entry.row.line) : sameMethod ? 'saved' : '';
-    select.disabled = state.loading || !register.calculator_id;
+    const custom = Boolean(entry.custom_item);
+    select.disabled = custom || state.loading || !register.calculator_id;
     select.addEventListener('change',() => {
       const row = available.find(item => String(item.line) === select.value);
-      if (!row || state.loading || entry !== currentEntry(kind) || estimateId !== activeEstimateId()) return;
+      if (!row || entry.custom_item || state.loading || entry !== currentEntry(kind) || estimateId !== activeEstimateId()) return;
       entry.row = clone(row);
       entry.source_estimate_id = estimateId;
       changed(kind); render(kind);
     });
     const refresh = button('Refresh register',() => loadRows(kind));
-    refresh.disabled = state.loading || !register.calculator_id;
-    controls.append(dateField,field('Calculator register row',select),refresh); card.append(controls);
+    refresh.disabled = custom || state.loading || !register.calculator_id;
+    controls.append(dateField,field('Calculator register row',select),refresh);
+    if (kind === 'duct') controls.append(customToggle(kind,entry));
+    card.append(controls);
+    if (custom) { card.append(customFields(kind,entry)); return card; }
     if (state.loading) card.append(element('p','helper','Loading calculator register…'));
     if (!state.loading && rows.length && !available.length) {
       card.append(element('p','helper','All calculator rows are assigned to other inspections.'));
@@ -301,7 +354,7 @@
     const state = states[kind]; if (busy()) return;
     try {
       const snapshot = capture().value?.[kind];
-      if (!snapshot?.entries.length || snapshot.entries.some(entry => !entry.row)) throw new Error('Select a calculator register row for each inspection before downloading.');
+      if (!snapshot?.entries.length || snapshot.entries.some(entry => !entry.row && !entry.custom_item)) throw new Error('Select a calculator register row for each inspection before downloading.');
       state.exporting = true;
       for (const node of rootFor(kind).querySelectorAll('[data-inspection-action="pdf"]')) node.disabled = true;
       const result = await window.CeasefireDownloads.save('/api/project/' + definitions[kind].endpoint,
@@ -316,41 +369,44 @@
     const add = icon('Add entry','add',() => {
       register.entries.push({...newEntry(kind),inspection_date:todayInSydney()});
       register.next_number++; state.current = register.entries.length-1;
-      changed(kind); state.message = ''; render(kind);
+      changed(kind); state.message = ''; showEntry(kind);
     }); add.disabled = register.entries.length >= 200;
     const remove = icon('Remove entry','remove',async () => {
       const context = epoch;
       if (!register.entries.length || !await window.CeasefireDialogs.confirm('Remove this register entry?','Remove entry and its photos?','Remove entry')) return;
       if (context !== epoch || currentEntry(kind) !== entry) return;
       register.entries.splice(state.current,1); state.current = Math.max(0,state.current-1); state.placeholder = newEntry(kind);
-      hasRegister = true; revision++; window.CeasefireProject.changed(); state.message = ''; render(kind);
+      hasRegister = true; revision++; window.CeasefireProject.changed(); state.message = ''; showEntry(kind);
     }); remove.disabled = !register.entries.length; remove.dataset.inspectionAction = 'remove';
     const pdf = icon('Download PDF','pdf',event => download(kind,event.currentTarget)); pdf.dataset.inspectionAction = 'pdf'; pdf.disabled = state.exporting;
     return [back,add,remove,pdf];
   }
-  function methodSection() {
+  function methodSection(entry) {
     const group = element('fieldset','register-choices calculator-inspection-methods'); group.append(element('legend','','Steel calculator'));
     for (const [id,text] of Object.entries(methods)) {
       const wrapper = element('label'), input = element('input'); input.type = 'checkbox'; input.name = 'inspection_steel_method'; input.value = id;
       input.checked = registers.steel.calculator_id === id;
+      input.disabled = Boolean(entry.custom_item);
       input.addEventListener('change',() => {
         if (!input.checked) { input.checked = true; return; }
         registers.steel.calculator_id = id; hasRegister = true; revision++; window.CeasefireProject.changed();
         states.steel.rows = []; void loadRows('steel');
       }); wrapper.append(input,element('span','',text)); group.append(wrapper);
     }
+    group.append(customToggle('steel',entry));
     return group;
   }
   function render(kind) {
     const root = rootFor(kind); if (!root) return false;
     const state = states[kind], entry = currentEntry(kind), form = element('fieldset','register-form calculator-inspection-form');
+    const restoreToggleFocus = root.contains(document.activeElement) && document.activeElement.name === 'inspection_custom_item';
     const defaultedDate = !Object.hasOwn(entry,'inspection_date');
     if (defaultedDate) entry.inspection_date = todayInSydney();
     form.disabled = state.photos;
-    if (kind === 'steel') form.append(methodSection());
+    if (kind === 'steel') form.append(methodSection(entry));
     const toolbar = element('div','register-toolbar register-actions card'), select = element('select');
     select.name = 'inspection_entry'; state.entrySelect = select; refreshEntryList(kind);
-    select.addEventListener('change',() => { state.current = Number(select.value); state.message = ''; render(kind); });
+    select.addEventListener('change',() => { state.current = Number(select.value); state.message = ''; showEntry(kind); });
     toolbar.append(field('Register entry',select),...actions(kind,entry));
     const notice = element('p','helper',state.message); notice.setAttribute('role','status');
     form.append(toolbar,notice,sourceSection(kind,entry));
@@ -365,6 +421,7 @@
       onError:error => status(kind,error)}));
     const footer = element('div','register-footer-actions register-actions'); footer.append(...actions(kind,entry));
     form.append(element('p','helper','Save the project to keep this register.'),footer); root.replaceChildren(form); updateReadings(kind,entry);
+    if (restoreToggleFocus) root.querySelector('[name=inspection_custom_item]')?.focus();
     if (defaultedDate && registers[kind].entries.length) changed(kind);
     return true;
   }
@@ -376,7 +433,7 @@
     return {revision,value:hasRegister ? clone(registers) : null};
   }
   function applyProject(snapshot) {
-    epoch++; window.ClassifireRegisterPlans?.close(); photoPixels.clear(); readingDrafts = new WeakMap();
+    epoch++; window.ClassifireRegisterPlans?.close(); photoPixels.clear(); readingDrafts = new WeakMap(); customDrafts = new WeakMap();
     registers = {};
     for (const [kind,definition] of Object.entries(definitions)) {
       registers[kind] = clone(snapshot?.[kind] || {calculator_id:definition.calculator,entries:[],next_number:1});

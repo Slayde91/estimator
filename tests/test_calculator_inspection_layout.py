@@ -60,6 +60,21 @@ class CalculatorInspectionLayoutTests(unittest.TestCase):
         self.assertEqual(len(coordinates.get(label, [])), 1, label)
         return coordinates[label][0]
 
+    def test_project_and_inspection_label_columns_align(self):
+        for kind in ('duct', 'steel'):
+            with self.subTest(kind=kind):
+                page = self.render(kind, entry(kind, 1), {'project_no': 'QA-Layout', 'client': 'Sample client',
+                                                          'site_address': 'Sample inspection site'}).pages[0]
+                dividers = []
+                operations = page.get_contents().operations
+                for index, (_args, operator) in enumerate(operations[2:], 2):
+                    if operator == b'S':
+                        (start, move), (end, line) = operations[index - 2:index]
+                        if move == b'm' and line == b'l' and start[0] == end[0]:
+                            dividers.append(float(start[0]))
+                self.assertEqual(len(dividers), 2)
+                self.assertAlmostEqual(*dividers, delta=.01)
+
     def test_three_gauge_photos_are_beside_details_and_extras_are_below(self):
         item = entry('steel', 1)
         item['gauge'] *= 4

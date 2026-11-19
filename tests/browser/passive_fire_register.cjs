@@ -300,8 +300,28 @@ async function run() {
   await expect(savedFile).toHaveAttribute('target', '_blank');
   assert.deepEqual(await (await page.request.get(new URL(receipt.download_url, page.url()).href)).body(), fs.readFileSync(receipt.path));
   await downloadRegister(true);
+  const sheetRow=page.locator('tr[data-document-kind="passive_fire_registers.xlsx"]');
+  await expect(sheetRow).toBeAttached();
+  if (!await sheetRow.isVisible()) {
+    await page.locator('#documentation-xlsx-rows').getByRole('button',{name:'Registers',exact:true}).click();
+  }
+  const sheetResponse=page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/passive-fire-registers.xlsx');
+  await sheetRow.getByRole('button',{name:'Download Passive Fire Register'}).click();
+  const sheetResult=await sheetResponse;
+  assert.equal(sheetResult.status(),200,await sheetResult.text());
+  const sheetReceipt=await sheetResult.json(),sheetItem=sheetReceipt.documentation.item;
+  assert.equal(sheetItem.kind,'passive_fire_registers.xlsx');
+  assert.equal(sheetItem.filename,'PASSIVE_FIRE_REGISTER-1.xlsx');
+  assert.equal(path.basename(sheetReceipt.path),sheetItem.filename);
+  const savedSheet=fs.readFileSync(sheetReceipt.path);
+  assert.equal(savedSheet.subarray(0,2).toString(),'PK');
+  assert.deepEqual(await (await page.request.get(new URL(sheetItem.url,page.url()).href)).body(),savedSheet);
+  await idle();
+  const sheetMessage=page.locator('#message-dialog');
+  if (await sheetMessage.isVisible()) await sheetMessage.getByRole('button',{name:'OK',exact:true}).click();
   for (const [kind,filename] of [['passive_fire_register.pdf','PASSIVE_FIRE_INSPECTIONS-1.pdf'],
-                                ['passive_fire_registers.pdf','PASSIVE_FIRE_REGISTER-1.pdf']]) {
+                                ['passive_fire_registers.pdf','PASSIVE_FIRE_REGISTER-1.pdf'],
+                                ['passive_fire_registers.xlsx','PASSIVE_FIRE_REGISTER-1.xlsx']]) {
     const row = page.locator(`tr[data-document-kind="${kind}"]`);
     await row.locator('button[data-revisions-kind]').click();
     const pane = page.locator('#documentation-revisions-pane');
@@ -312,7 +332,7 @@ async function run() {
   const savedFinal = page.waitForResponse(r => new URL(r.url()).pathname === '/api/project/save');
   await page.locator('#save-current-project').click();
   assert.equal((await savedFinal).status(),200);
-  assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,2);
+  assert.equal(JSON.parse(fs.readFileSync(info.project)).documentation.revision_count,3);
   assert.deepEqual(JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].signature_details,
     {member_id:await page.evaluate(() => window.ClassifireAccess.user.id),name:'Inspection signer',date:'2026-01-02'});
   const pins = JSON.parse(fs.readFileSync(info.project)).passive_fire_register.entries[0].plan_pins;

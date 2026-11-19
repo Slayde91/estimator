@@ -1,4 +1,4 @@
-"""Calculator-backed inspection drafts and their portable evidence."""
+"""Calculator-backed and custom inspection drafts and their portable evidence."""
 from decimal import Decimal
 from fractions import Fraction
 import re
@@ -20,6 +20,16 @@ PHOTOS = {'before': 'Before Photos', 'during': 'During Photos', 'after': 'After 
 ROW_FIELDS = ('location', 'duct_size', 'section_id', 'critical_temp', 'product', 'frl',
               'quantity', 'length', 'report', 'required_thickness')
 NUMERIC_FIELDS = frozenset(('critical_temp', 'quantity', 'length'))
+INSPECTION_SOURCE_FIELDS = {
+    'duct': (('location', 'Location'), ('duct_size', 'Duct Size (mm)')),
+    'steel': (('location', 'Location'), ('section_id', 'Section ID'), ('critical_temp', 'Critical Temp (°C)')),
+}
+INSPECTION_COMMON_FIELDS = (
+    ('product', 'Product'), ('frl', 'FRL'), ('quantity', 'Qty'), ('length', 'Length (m)'),
+    ('report', 'Report'), ('required_thickness', 'Required Thickness (mm)'),
+)
+_CUSTOM_THICKNESS = re.compile(
+    r'(?:([1-9][0-9]*)\s*[x×]\s*)?([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:\s*mm)?', re.I)
 MAX_READINGS = 200
 _CELL_COLUMNS = {
     'ductwork': (DUCT_LOCATION_COLUMN, 'B', None, None, 'C', 'E', 'CM', 'D'),
@@ -119,6 +129,41 @@ def _source_row(row, kind):
     return result
 
 
+def _custom_item(value, kind):
+    columns = INSPECTION_SOURCE_FIELDS[kind] + INSPECTION_COMMON_FIELDS
+    source = _fields(value, {name for name, _ in columns}, 'Custom inspection item')
+    item = {}
+    for name, label in columns:
+        if name in NUMERIC_FIELDS:
+            number = source.get(name)
+            if number is not None and (not _numeric(number) or number <= 0):
+                raise ValidationError(f'Enter a positive finite value for {label}.')
+            item[name] = number
+        else:
+            item[name] = _text(source.get(name, ''), label, 2000).strip()
+    thickness = item['required_thickness']
+    if thickness:
+        match = _CUSTOM_THICKNESS.fullmatch(thickness)
+        if (not match or not 0 < Decimal(match[2]) <= Decimal('1e100')
+                or (match[1] is not None and Decimal(match[1]) > Decimal('1e100'))):
+            raise ValidationError('Enter a positive required thickness in millimetres, such as 35 or 2 x 38 mm.')
+    return item
+
+
+def inspection_row(entry):
+    """Return the active facts, retaining any inactive linked row for later use."""
+    return entry['custom_item'] if 'custom_item' in entry else entry['row']
+
+
+def missing_custom_fields(entry, kind):
+    """List any incomplete required fields on a normalized custom item."""
+    item = entry.get('custom_item')
+    if item is None:
+        return []
+    return [label for name, label in INSPECTION_SOURCE_FIELDS[kind] + INSPECTION_COMMON_FIELDS
+            if item[name] in ('', None)]
+
+
 def _readings(value):
     if (not isinstance(value, list) or len(value) > MAX_READINGS
             or any(not _numeric(reading) or not 0 <= reading <= 100_000 for reading in value)):
@@ -128,7 +173,8 @@ def _readings(value):
 
 def _entry(value, kind):
     source = _fields(value, {'entry_id', 'number', 'row', 'source_estimate_id', 'readings', 'plan_pins',
-                             'inspection_date', 'signature', 'signature_details', *PHOTOS}, 'Inspection entry')
+                             'inspection_date', 'signature', 'signature_details', 'custom_item', *PHOTOS},
+                     'Inspection entry')
     identity, number = _entry_number(source, 0, True)
     row = source.get('row')
     entry = {'entry_id': identity, 'number': number,
@@ -136,6 +182,8 @@ def _entry(value, kind):
              'readings': _readings(source.get('readings', [])),
              **{key: _photos(source.get(key, [])) for key in PHOTOS},
              'plan_pins': normalize_pins(source.get('plan_pins', []))}
+    if 'custom_item' in source:
+        entry['custom_item'] = _custom_item(source['custom_item'], kind)
     if 'inspection_date' in source:
         entry['inspection_date'] = _date(source['inspection_date'], 'Inspection date')
     signature = validate_signature(source.get('signature'))

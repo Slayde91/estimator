@@ -15,7 +15,7 @@ from .pdf_fonts import FONT_REGULAR
 from .reference_library import ReferenceNotFound
 from .register_plans import append_plan_pages, penetration_ids
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
-from .technical_item_exports import prepare_technical_item, technical_pdf_rows
+from .technical_item_exports import prepare_technical_item, technical_export_rows, technical_pdf_cell
 
 
 TITLE = 'Passive Fire Register'
@@ -34,15 +34,15 @@ class _RegisterTable(LongTable):
         return parts
 
 
-def _system_cells(report, entry, library):
+def _system_fields(entry, library):
     key = entry.get('technical_item_id')
     if entry.get('custom_entry'):
         values = [entry['technical_filters'][facet] for facet in FACETS]
-        return [report.p(value or '—', 'cell') for value in [*values, entry['report']]]
+        return [(value, None) for value in values], [(entry['report'], None)]
     if not key:
         legacy = [entry['substrate'], entry['orientation'], '', ', '.join(entry['service_types']),
                   entry['manufacturer'], entry['frl'], entry['report']]
-        return [report.p(value or '—', 'cell') for value in legacy]
+        return [(value, None) for value in legacy[:-1]], [(legacy[-1], None)]
     selected = entry.get('technical_filters', {})
     try:
         item = prepare_technical_item({'id': key}, library=library, include_diagrams=False, inspection_filters=selected)
@@ -52,35 +52,42 @@ def _system_cells(report, entry, library):
     # The inspection exporter resolves ambiguous historical facets explicitly and
     # preserves links on individual report numbers. Use those same source values.
     fields = {}
-    for name, cell in technical_pdf_rows(report, item):
+    for name, value, url in technical_export_rows(item):
         label = name.casefold()
         if label == 'service':
             label = 'services'
         if label in FACETS or label == 'report number':
-            fields.setdefault(label, []).append(cell)
-    cells = []
-    for facet in FACETS:
-        values = fields.get(facet, [])
-        if selected.get(facet):
-            cells.append(report.p(selected[facet], 'cell'))
-        else:
-            cells.append(values[0] if values else report.p('—', 'cell'))
-    return cells + [fields.get('report number') or report.p('—', 'cell')]
+            fields.setdefault(label, []).append((value, url))
+    values = [(selected[facet], None) if selected.get(facet) else fields.get(facet, [('', None)])[0]
+              for facet in FACETS]
+    return values, fields.get('report number', [])
 
 
-def _register_rows(report, entries, library, widths):
-    rows = []
+def passive_register_rows(entries, library):
+    """Yield the two sides and additional photo rows used by each export."""
     for entry in entries:
-        system = _system_cells(report, entry, library)
+        system, report_numbers = _system_fields(entry, library)
         for side in ('side1', 'side2') if entry['access'] == 'Yes' else ('side1',):
             record = entry[side]
             # Keep photos from the two sides independently identifiable and allow
             # additional photos in any phase to flow across page boundaries.
             for index, photos in enumerate(zip_longest(*(record[phase] for phase in PHASES))):
-                row = [report.p(entry['location'], 'cell'), report.p(record['id_number'], 'cell')]
-                row.extend(system if index == 0 else [''] * len(system))
-                row.extend(register_photo_cells(photos, widths[-len(PHASES):]))
-                rows.append(row)
+                identity = (entry['location'], record['id_number'])
+                yield identity, system if index == 0 else None, report_numbers if index == 0 else [], photos
+
+
+def _register_rows(report, entries, library, widths):
+    rows = []
+    for identity, system, report_numbers, photos in passive_register_rows(entries, library):
+        row = [report.p(value, 'cell') for value in identity]
+        if system is None:
+            row.extend([''] * (len(FACETS) + 1))
+        else:
+            row.extend(technical_pdf_cell(report, value or '—', url) for value, url in system)
+            row.append([technical_pdf_cell(report, value, url) for value, url in report_numbers if value]
+                       or report.p('—', 'cell'))
+        row.extend(register_photo_cells(photos, widths[-len(PHASES):]))
+        rows.append(row)
     return rows
 
 
@@ -138,7 +145,7 @@ def render_register_table(title, details, company, headings, weights, rows):
     return output.getvalue()
 
 
-def render_inspection_register(register, details, *, library, company, plan_sessions=None, takeoffs=None):
+def completed_passive_inspections(register):
     options = register_options()
     completed = []
     for entry in normalize_register(register)['entries']:
@@ -149,6 +156,11 @@ def render_inspection_register(register, details, *, library, company, plan_sess
         completed.append(entry)
     if not completed:
         raise ValidationError('There are no completed passive fire inspections.')
+    return completed
+
+
+def render_inspection_register(register, details, *, library, company, plan_sessions=None, takeoffs=None):
+    completed = completed_passive_inspections(register)
     weights = (72, 67, 84, 61, 69, 71, 70, 48, 70, 49, 49, 49, 49)
     payload = render_register_table(TITLE, details, company, HEADINGS, weights,
                                     lambda report, widths: _register_rows(report, completed, library, widths))

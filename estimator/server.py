@@ -90,7 +90,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     certification_projects = CertificationProjects(certifications)
     projects.certifications = certification_projects
     from .documentation_catalog import (CALCULATOR_INSPECTIONS, CALCULATOR_INSPECTION_ROUTES,
-                                        CALCULATOR_REGISTERS, CALCULATOR_REGISTER_ROUTES, document_catalog,
+                                        CALCULATOR_REGISTERS, CALCULATOR_REGISTER_ROUTES,
+                                        INSPECTION_REGISTER_XLSX_ROUTES, document_catalog,
                                         export_identity, PDF, XLSX)
     from .project_documentation import ProjectDocumentation, DocumentationConflict, DocumentationNotFound
     document_types = document_catalog(edition)
@@ -243,7 +244,8 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
             route = urlsplit(self.path).path
             if self._documentation_context and (route == '/api/project/passive-fire-registers.pdf'
                                                 or route in CALCULATOR_INSPECTION_ROUTES
-                                                or route in CALCULATOR_REGISTER_ROUTES):
+                                                or route in CALCULATOR_REGISTER_ROUTES
+                                                or route in INSPECTION_REGISTER_XLSX_ROUTES):
                 workspace, _ = self._documentation_context
                 return projects.capture_download(request, project_id=certification_projects.project_id(workspace))
             return projects.capture_download(request)
@@ -581,6 +583,18 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     if body:
                         raise ValidationError('Document progress does not accept extra options.')
                     self.send_payload(200, download_progress.begin())
+                elif route in INSPECTION_REGISTER_XLSX_ROUTES and self.command == 'POST':
+                    from .inspection_register_xlsx import render_calculator_register_xlsx, render_passive_register_xlsx
+                    from .project_file import project_details
+                    if set(body) - {'register', 'project_details', 'download'}:
+                        raise ValidationError('Include the register and project details only.')
+                    destination = self.capture_download(body['download']) if 'download' in body else None
+                    kind, title, _ = INSPECTION_REGISTER_XLSX_ROUTES[route]
+                    register = body.get('register')
+                    details = project_details(body.get('project_details'))
+                    payload = (render_passive_register_xlsx(register, details, library=libraries) if kind == 'passive'
+                               else render_calculator_register_xlsx(register, details, kind))
+                    self.send_download(payload, XLSX, title.replace(' ', '-') + '.xlsx', destination)
                 elif route == '/api/project/passive-fire-registers.pdf' and self.command == 'POST':
                     from .inspection_register_report import render_inspection_register
                     from .project_file import project_details

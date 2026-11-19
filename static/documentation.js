@@ -94,7 +94,7 @@
   function groupedRows(format,rows) {
     const schedules=[],inspections=[],registers=[],summaries=[],other=[];
     for(const row of rows) {
-      if(format==='pdf'&&['passive_fire_register','calculator_inspections'].includes(row.adapter)) {
+      if(['passive_fire_register','calculator_inspections'].includes(row.adapter)) {
         const group=row.spec.action==='register'?registers:inspections;
         group.push(row);
       }
@@ -103,7 +103,7 @@
       else other.push(row);
     }
     const section=(label,items)=>items.length?[{groupHeading:label},...items]:[];
-    if(format==='xlsx')return [...other,...section('Schedules',schedules)];
+    if(format==='xlsx')return [...other,...section('Schedules',schedules),...section('Registers',registers)];
     return [...section('Schedules',schedules),...section('Inspections',inspections),...section('Registers',registers),
       ...section('Product summaries',summaries),...section('Other documents',other)];
   }
@@ -287,9 +287,9 @@
   }
   function hasPendingOperation() {return !!state.action||!!state.opening||state.pending.size>0;}
   function supported(path) {
-    return path === '/api/swms/issue' || path === '/api/commercial/issue' || path === '/api/project/passive-fire-register.pdf' || path === '/api/project/passive-fire-registers.pdf'
+    return path === '/api/swms/issue' || path === '/api/commercial/issue' || path === '/api/project/passive-fire-register.pdf'
       || path === '/api/project/duct-inspections.pdf' || path === '/api/project/structural-steel-inspections.pdf'
-      || path === '/api/project/duct-register.pdf' || path === '/api/project/structural-steel-register.pdf'
+      || /^\/api\/project\/(?:passive-fire-registers|duct-register|structural-steel-register)\.(?:pdf|xlsx)$/.test(path)
       || /^\/api\/(?:quote-report|quotes\/[^/]+\/report\.pdf|pricing\/export|project\/(?:full-schedule|full-product-summary)\.pdf)$/.test(path)
       ||/^\/api\/calculators\/(?:steel_vermiculite|steel_intumescent|steel_board|ductwork)\/(?:report\.pdf|summary\.pdf|register\.xlsx|template)$/.test(path)
       ||/^\/api\/(?:technical\/item\.(?:pdf|xlsx)|penetration\/(?:item\.(?:pdf|xlsx)|report\.pdf|register\.xlsx))$/.test(path)

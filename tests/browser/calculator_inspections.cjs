@@ -24,6 +24,8 @@ const exportNames={
   'structural_steel_inspections.pdf':'STEEL_INSPECTIONS-1.pdf',
   'duct_register.pdf':'DUCT_REGISTER-1.pdf',
   'structural_steel_register.pdf':'STEEL_REGISTER-1.pdf',
+  'duct_register.xlsx':'DUCT_REGISTER-1.xlsx',
+  'structural_steel_register.xlsx':'STEEL_REGISTER-1.xlsx',
 };
 const reportUrls={
   duct:'https://tfire.com.au/documents/FyreWrap-external-fire-test-report',
@@ -170,6 +172,25 @@ async function downloadRegister(kind){
   const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
   return receipt;
 }
+async function downloadRegisterWorkbook(kind){
+  const {id,title}=registers[kind],key=id+'.xlsx',row=await documentRow(key);
+  await expect(row.locator('td').first()).toHaveText(title);
+  const editions=row.locator('button[data-revisions-kind]');
+  await expect(editions).toHaveText('View Revisions (0)');
+  const pending=page.waitForResponse(response=>response.request().method()==='POST' &&
+    new URL(response.url()).pathname==='/api/project/'+id.replaceAll('_','-')+'.xlsx');
+  await row.locator('button[data-document-kind]').click();
+  const response=await pending;assert.equal(response.status(),200,await response.text());
+  const receipt=await response.json();assert.equal(receipt.documentation.item.kind,key);
+  const saved=fs.readFileSync(receipt.path);
+  assert.equal(saved.subarray(0,2).toString(),'PK');
+  assert.deepEqual(await (await page.request.get(new URL(receipt.documentation.item.url,page.url()).href)).body(),saved);
+  await expect(editions).toHaveText('View Revisions (1)');
+  await idle();
+  const message=page.locator('#message-dialog');
+  if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
+  return receipt;
+}
 async function run(){
   const info=await ready;assert.notEqual(info.port,8765);browser=await chromium.launch({headless:true});
   await require('./calculator_inspections_state.cjs').checkInspectionState(browser);
@@ -218,7 +239,8 @@ async function run(){
   await steel.locator('.register-toolbar').getByRole('button',{name:'Add entry',exact:true}).click();
   await expect(steel.getByRole('combobox',{name:'Register entry'}).locator('option:checked')).toContainText('002');
   const ductRegister=await downloadRegister('duct'),steelRegister=await downloadRegister('steel');
-  for (const receipt of [ductReceipt,steelReceipt,ductRegister,steelRegister]) {
+  const ductWorkbook=await downloadRegisterWorkbook('duct'),steelWorkbook=await downloadRegisterWorkbook('steel');
+  for (const receipt of [ductReceipt,steelReceipt,ductRegister,steelRegister,ductWorkbook,steelWorkbook]) {
     const item=receipt.documentation.item, filename=exportNames[item.kind];
     assert.equal(item.filename,filename);
     assert.equal(path.basename(receipt.path),filename);
@@ -233,6 +255,7 @@ async function run(){
   const save=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save');
   await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await save).status(),200);await idle();
   const project=JSON.parse(fs.readFileSync(info.project,'utf8'));
+  assert.equal(project.documentation.revision_count,6);
   assert.deepEqual(project.calculator_inspections.steel.entries[0].readings,[25,35]);
   assert.deepEqual(project.calculator_inspections.duct.entries[0].readings,[61.91,64.02]);
   assert.equal(project.calculator_inspections.duct.entries[0].before.length,1);

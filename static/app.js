@@ -3595,9 +3595,10 @@
     if (adapter === "passive_fire_register" && spec.action === "register") {
       const register = window.ClassifirePassiveRegister.capture().value;
       if (!register?.entries.length) throw new Error("There are no completed passive fire inspections.");
-      return window.CeasefireDownloads.save('/api/project/passive-fire-registers.pdf',
+      const format = spec.format === 'xlsx' ? 'xlsx' : 'pdf';
+      return window.CeasefireDownloads.save('/api/project/passive-fire-registers.' + format,
         {register, project_details:window.CeasefireProject.details(),
-          ...window.ClassifireRegisterPlans?.exportContext(register)}, {button});
+          ...(format === 'pdf' ? window.ClassifireRegisterPlans?.exportContext(register) : {})}, {button});
     }
     if (adapter === "passive_fire_register") { window.ClassifirePassiveRegister.setOptions(spec.options); await requestViewNavigation("passive-fire-register"); return {selectionRequired:true}; }
     if (adapter === "calculator_inspections") {
@@ -3605,10 +3606,11 @@
       if (spec.action === "register") {
         const register = window.ClassifireCalculatorInspections.capture().value?.[spec.kind];
         if (!register?.entries.length) throw new Error(spec.kind === "duct" ? "There are no completed duct inspections." : "There are no completed structural steel inspections.");
-        const path = spec.kind === "duct" ? '/api/project/duct-register.pdf' : '/api/project/structural-steel-register.pdf';
-        return window.CeasefireDownloads.save(path,
+        const format = spec.format === 'xlsx' ? 'xlsx' : 'pdf';
+        const path = spec.kind === "duct" ? '/api/project/duct-register.' : '/api/project/structural-steel-register.';
+        return window.CeasefireDownloads.save(path + format,
           {register, project_details:window.CeasefireProject.details(),
-            ...window.ClassifireRegisterPlans?.exportContext(register)}, {button});
+            ...(format === 'pdf' ? window.ClassifireRegisterPlans?.exportContext(register) : {})}, {button});
       }
       await requestViewNavigation(spec.kind === "duct" ? "duct-inspections" : "structural-steel-inspections");
       return {selectionRequired:true};

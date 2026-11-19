@@ -339,6 +339,7 @@ class SwmsTests(unittest.TestCase):
         request = str(uuid.uuid4())
         issued = self.service.issue(self.workspace, saved['id'], 1, request)
         repeated = self.service.issue(self.workspace, saved['id'], 1, request)
+        self.assertEqual(repeated['filename'], f"{saved['reference']}-1.pdf")
         self.assertEqual(issued['pdf'], repeated['pdf'])
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.service.read_pdf(self.workspace, issued['id'])[1], issued['pdf'])
@@ -346,6 +347,19 @@ class SwmsTests(unittest.TestCase):
             self.service.issue(self.workspace, saved['id'], 1, request, {**DEFAULTS, 'name': 'Changed company'})
         with self.assertRaises(ValidationError):
             self.service.read_pdf(self.projects.add(), issued['id'])
+
+    def test_issue_filename_counts_legacy_exports_and_skips_draft_edits(self):
+        saved = self.service.save(self.workspace, self.ready_payload())
+        old = self.service.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
+        legacy_name = f"SAFE-WORK-METHOD-STATEMENT-{saved['reference']}-R6.pdf"
+        with self.service._connect() as db:
+            db.execute('UPDATE swms_issued SET filename=? WHERE id=?', (legacy_name, old['id']))
+        other = self.service.save(self.workspace, self.ready_payload())
+        self.service.issue(self.workspace, other['id'], other['version'], str(uuid.uuid4()))
+        saved = self.service.save(self.workspace, {'id': saved['id'], 'version': 2, 'fields': saved['fields']})
+        result = self.service.issue(self.workspace, saved['id'], saved['version'], str(uuid.uuid4()))
+        self.assertEqual(result['filename'], f"{saved['reference']}-2.pdf")
+        self.assertEqual(self.service.read_pdf(self.workspace, old['id']), (legacy_name, old['pdf']))
 
     def test_bounded_schema_rejects_executable_or_malformed_data(self):
         for mutate in [lambda f: f.update(script='<script>'),

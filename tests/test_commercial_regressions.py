@@ -152,6 +152,23 @@ class CommercialRegressionTests(unittest.TestCase):
         self.assertEqual(altered.result[0], 409)
         self.assertEqual(len(calls), 1)
 
+    def test_pdf_issue_filenames_use_issued_revision_for_each_document_kind(self):
+        for kind in ('quote', 'work_order', 'purchase_order'):
+            with self.subTest(kind=kind):
+                saved = self.create(kind)
+                saved = self.service.save(self.workspace, {
+                    **{key: saved[key] for key in ('id', 'kind', 'version', 'status')},
+                    'fields': {**saved['fields'], 'title': 'Edited draft'},
+                })
+                request = str(uuid.uuid4())
+                first = self.service.issue(self.workspace, saved['id'], saved['version'], request)
+                second = self.service.issue(self.workspace, saved['id'], first['document']['version'], str(uuid.uuid4()))
+                self.assertEqual(first['filename'], f"{first['number']}-1.pdf")
+                self.assertEqual(second['filename'], f"{second['number']}-2.pdf")
+                self.assertEqual(self.service.read_pdf(self.workspace, second['id']), (second['filename'], second['pdf']))
+                retried = self.service.issue(self.workspace, saved['id'], saved['version'], request)
+                self.assertEqual((retried['filename'], retried['pdf']), (first['filename'], first['pdf']))
+
     def test_http_rejects_valid_download_token_from_another_project(self):
         store = Store(self.root/'projects.sqlite3')
         store.set_project_folder(self.root)
@@ -193,7 +210,7 @@ class CommercialRegressionTests(unittest.TestCase):
         accepted = Handler(body, capture)
         adapter.dispatch(accepted, accepted.path)
         self.assertEqual(accepted.result[0], 200)
-        self.assertEqual(accepted.result[1]['filename'], 'Work-Order-WO-01-R2.pdf')
+        self.assertEqual(accepted.result[1]['filename'], 'WO-01-1.pdf')
 
 
 if __name__ == '__main__':

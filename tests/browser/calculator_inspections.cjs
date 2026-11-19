@@ -19,6 +19,12 @@ const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready
 const names={duct:'Duct Inspections',steel:'Structural Steel Inspections'};
 const ids={duct:'duct-inspections',steel:'structural-steel-inspections'};
 const files={duct:'duct_inspections.pdf',steel:'structural_steel_inspections.pdf'};
+const exportNames={
+  'duct_inspections.pdf':'DUCT_INSPECTIONS-1.pdf',
+  'structural_steel_inspections.pdf':'STEEL_INSPECTIONS-1.pdf',
+  'duct_register.pdf':'DUCT_REGISTER-1.pdf',
+  'structural_steel_register.pdf':'STEEL_REGISTER-1.pdf',
+};
 const reportUrls={
   duct:'https://tfire.com.au/documents/FyreWrap-external-fire-test-report',
   steel:'https://media.promat.com/cert_371267_au/original/2143168301/promatect-xs--as4100-2020--as1530.4-2014-fas230021-rir1.4.pdf?brand=promatconstruction&market=au',
@@ -208,6 +214,18 @@ async function run(){
   await steel.locator('.register-toolbar').getByRole('button',{name:'Add entry',exact:true}).click();
   await expect(steel.getByRole('combobox',{name:'Register entry'}).locator('option:checked')).toContainText('002');
   const ductRegister=await downloadRegister('duct'),steelRegister=await downloadRegister('steel');
+  for (const receipt of [ductReceipt,steelReceipt,ductRegister,steelRegister]) {
+    const item=receipt.documentation.item, filename=exportNames[item.kind];
+    assert.equal(item.filename,filename);
+    assert.equal(path.basename(receipt.path),filename);
+    const archive=await page.request.get(new URL(item.url,page.url()).href);
+    assert.ok(archive.headers()['content-disposition'].includes('filename="'+filename+'"'));
+    const row=await documentRow(item.kind);
+    await row.locator('button[data-revisions-kind]').click();
+    const pane=page.locator('#documentation-revisions-pane');
+    await expect(pane.getByText(filename,{exact:true})).toBeVisible();
+    await pane.getByRole('button',{name:'Close revision history'}).click();
+  }
   const save=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/project/save');
   await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await save).status(),200);await idle();
   const project=JSON.parse(fs.readFileSync(info.project,'utf8'));

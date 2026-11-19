@@ -646,10 +646,13 @@ class SavedQuoteTests(unittest.TestCase):
         result = self.perform('issue', **args)
         self.assertEqual(result['result']['document']['last_number'], 'Q-01')
         self.assertEqual(result['result']['document']['version'], 2)
+        self.assertEqual(result['result']['filename'], 'Q-01-1.pdf')
         self.assertTrue(Path(result['result']['path']).read_bytes().startswith(b'%PDF-'))
         self.assertEqual(json.loads(self.path.read_bytes()), committed)
         opened = self.library.load(self.source['file_id'])
         restored = self.library.commercial.view(opened['certification_workspace_id'])
         self.assertEqual(restored['documents'], committed['commercial_documents']['documents'])
+        archived, = self.library.documentation.view(opened['certification_workspace_id'])['items']
+        self.assertEqual(archived['filename'], result['result']['filename'])
         with self.assertRaises(ValidationError):
             self.perform('issue', **{**args, 'version': 2})

@@ -19,6 +19,10 @@ const idle=()=>page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready
 const names={duct:'Duct Inspections',steel:'Structural Steel Inspections'};
 const ids={duct:'duct-inspections',steel:'structural-steel-inspections'};
 const files={duct:'duct_inspections.pdf',steel:'structural_steel_inspections.pdf'};
+const reportUrls={
+  duct:'https://tfire.com.au/documents/FyreWrap-external-fire-test-report',
+  steel:'https://media.promat.com/cert_371267_au/original/2143168301/promatect-xs--as4100-2020--as1530.4-2014-fas230021-rir1.4.pdf?brand=promatconstruction&market=au',
+};
 const registers={duct:{id:'duct_register',title:'Duct Register'},steel:{id:'structural_steel_register',title:'Structural Steel Register'}};
 const covers={duct:{file:'Duct cover.pdf',text:'DUCT INSPECTION TEST COVER'},steel:{file:'Steel cover.pdf',text:'STEEL INSPECTION TEST COVER'}};
 async function documentRow(id){
@@ -71,11 +75,16 @@ async function download(kind,form){
   const receipt=await response.json();assert.ok(receipt.documentation,JSON.stringify(receipt));assert.equal(receipt.documentation.item.kind,files[kind]);
   assert.ok(fs.readFileSync(receipt.path).subarray(0,5).equals(Buffer.from('%PDF-')));
   const pages=await pdfPages(receipt.documentation.item.url);
-  assert.match(pages[0],new RegExp(covers[kind].text));
-  const text=pages.join('\n');
+  assert.match(pages[0].text,new RegExp(covers[kind].text));
+  assert.ok(pages[1].links.includes(reportUrls[kind]),'Inspection report links survive PDF covers and plan assembly');
+  const text=pages.map(page=>page.text).join('\n');
   assert.match(text,new RegExp(names[kind]));assert.match(text,/001/);
   if(kind==='steel'){assert.match(text,/Number of Readings\s+2/i);assert.match(text,/Recorded Thickness \(mm\)\s+30/);}
-  else assert.match(text,/2 x 38mm/);
+  else {
+    assert.match(text,/2 x 38mm/);
+    assert.match(text,/Recorded Thickness \(mm\)\s+62\.97/);
+    assert.match(text,/Number of Readings\s+2/i);
+  }
   await idle();
   const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
   return receipt;
@@ -83,7 +92,16 @@ async function download(kind,form){
 async function pdfPages(url){
   return page.evaluate(async url=>{
     const lib=await import('/vendor/pdfjs/build/pdf.mjs');lib.GlobalWorkerOptions.workerSrc='/vendor/pdfjs/build/pdf.worker.mjs';
-    const loading=lib.getDocument({url});try{const pdf=await loading.promise,parts=[];for(let i=1;i<=pdf.numPages;i++){parts.push((await(await pdf.getPage(i)).getTextContent()).items.map(item=>item.str).join(' '));}return parts;}finally{await loading.destroy();}
+    const loading=lib.getDocument({url});
+    try {
+      const pdf=await loading.promise,parts=[];
+      for(let i=1;i<=pdf.numPages;i++) {
+        const page=await pdf.getPage(i);
+        const [content,annotations]=await Promise.all([page.getTextContent(),page.getAnnotations({intent:'display'})]);
+        parts.push({text:content.items.map(item=>item.str).join(' '),links:annotations.filter(item=>item.subtype==='Link').map(item=>item.url)});
+      }
+      return parts;
+    } finally {await loading.destroy();}
   },url);
 }
 async function downloadRegister(kind){
@@ -95,13 +113,17 @@ async function downloadRegister(kind){
   await row.locator('button[data-document-kind]').click();
   const response=await pending;assert.equal(response.status(),200,await response.text());
   const receipt=await response.json();assert.equal(receipt.documentation.item.kind,key);
-  const pages=await pdfPages(receipt.documentation.item.url),summary=pages[0];
+  const pages=await pdfPages(receipt.documentation.item.url),summary=pages[0].text;
+  assert.ok(pages[0].links.includes(reportUrls[kind]),'Register contains the manufacturer report link');
   assert.match(summary,new RegExp(title));
   assert.match(summary,/\b001\b/);assert.doesNotMatch(summary,/\b002\b/);
   assert.match(summary,/Before Photos|Before/i);
   if(kind==='steel'){
     for(const expected of ['200UC46','PROMATECT-XS','30','Number of Readings'])assert.ok(summary.includes(expected),summary);
-  }else for(const expected of ['250x250','FyreWrap','2 x 38mm','76'])assert.ok(summary.includes(expected),summary);
+  }else {
+    for(const expected of ['250x250','FyreWrap','2 x 38mm','Number of Readings'])assert.ok(summary.includes(expected),summary);
+    assert.match(summary,/62\.97\s+2\b/);
+  }
   assert.ok(pages.length>1,'The register appends the pinned drawing');
   await expect(editions).toHaveText('View Revisions (1)');
   await idle();
@@ -125,7 +147,12 @@ async function run(){
   const photo={name:'inspection.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')};
   let duct=await openInspection('duct');await duct.getByLabel('Calculator register row').selectOption('1');
   for(const value of ['Ground','250x250','FyreWrap','2 x 38mm','FC17299-01-1'])await expect(duct.locator('tbody')).toContainText(value);
-  await duct.getByLabel('Recorded Thickness (mm)',{exact:true}).fill('76');await photos(duct,photo);
+  await duct.getByLabel('Reading 1 (mm)',{exact:true}).fill('61.91');
+  await duct.getByRole('button',{name:'Add reading',exact:true}).click();
+  await duct.getByLabel('Reading 2 (mm)',{exact:true}).fill('64.02');
+  await expect(duct.locator('tbody [data-inspection-average]')).toHaveText('62.97');
+  await expect(duct.locator('tbody [data-inspection-count]')).toHaveText('2');
+  await photos(duct,photo);
   await chooseTakeoff(page,'Defect Reports');await page.locator('#takeoff-upload').setInputFiles(path.join(output,'Register plans.pdf'));
   await expect(page.locator('.takeoff-document')).toHaveCount(1);await idle();
   duct=await openInspection('duct');await pin(duct,1);const ductReceipt=await download('duct',duct);
@@ -148,10 +175,13 @@ async function run(){
   await page.locator('#header-project-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await save).status(),200);await idle();
   const project=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.deepEqual(project.calculator_inspections.steel.entries[0].readings,[25,35]);
+  assert.deepEqual(project.calculator_inspections.duct.entries[0].readings,[61.91,64.02]);
   assert.equal(project.calculator_inspections.duct.entries[0].before.length,1);
   assert.equal(project.calculator_inspections.steel.entries[0].plan_pins.length,1);
   await openProjectSection(page,'quotes');await page.locator('#load-project').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
+  duct=await openInspection('duct');await expect(duct.getByLabel('Reading 2 (mm)',{exact:true})).toHaveValue('64.02');
+  await expect(duct.locator('tbody [data-inspection-average]')).toHaveText('62.97');
   await openInspection('steel');await expect(steel.locator('tbody [data-inspection-average]')).toHaveText('30');await expect(steel.locator('figure img')).toHaveCount(4);
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,project:info.project,pdfs:[ductReceipt.path,steelReceipt.path,ductRegister.path,steelRegister.path]},null,2));

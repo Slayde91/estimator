@@ -14,6 +14,8 @@
   let readingDrafts = new WeakMap(), photoPixels = new Map();
   const states = {};
   const clone = value => structuredClone(value);
+  const readingInputFormat = new Intl.NumberFormat('en',{useGrouping:false,maximumSignificantDigits:21});
+  const readingText = value => value === 0 ? '0' : readingInputFormat.format(value);
   const activeEstimateId = () => window.CeasefireEstimates?.activeId?.() || 'estimate-1';
   const currentEntry = kind => registers[kind].entries[states[kind].current] || states[kind].placeholder;
   const rootFor = kind => document.getElementById(definitions[kind].view + '-root');
@@ -64,15 +66,28 @@
     select.value = String(states[kind].current);
   }
   function readingValues(entry) {
-    const drafts = readingDrafts.get(entry) || entry.readings.map(String);
+    const drafts = readingDrafts.get(entry) || entry.readings.map(readingText);
     const values = [];
-    for (const text of drafts) {
-      if (!text.trim()) continue;
-      if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text.trim()) || !Number.isFinite(Number(text)) || Number(text) > 100000)
+    for (const draft of drafts) {
+      const text = draft.trim(), value = Number(text);
+      if (!text) continue;
+      if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(text) || !Number.isFinite(value) || value > 100000)
         return {error:'Enter a thickness from 0 to 100000 mm for each reading.'};
-      values.push(Number(text));
+      values.push(value);
     }
-    return {values, average:values.length ? values.reduce((sum,value) => sum + value,0) / values.length : null};
+    return {values, average:roundedReadingAverage(values)};
+  }
+  function roundedReadingAverage(values) {
+    if (!values.length) return null;
+    // Match PDF rounding by summing the saved decimal values in integer units.
+    const readings = values.map(value => {
+      const [whole,fraction = ''] = readingText(value).split('.');
+      return {units:BigInt(whole + fraction),places:fraction.length};
+    });
+    const places = Math.max(2,...readings.map(reading => reading.places));
+    const total = readings.reduce((sum,reading) => sum + reading.units * 10n ** BigInt(places - reading.places),0n);
+    const divisor = BigInt(readings.length) * 10n ** BigInt(places - 2);
+    return Number((total + divisor / 2n) / divisor) / 100;
   }
   function formatReading(value) {
     return value == null ? '—' : new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(value);
@@ -90,7 +105,7 @@
     card.append(element('h2','','Recorded Thickness (mm)'));
     const list = element('div','calculator-inspection-reading-list');
     let drafts = readingDrafts.get(entry);
-    if (!drafts) { drafts = entry.readings.length ? entry.readings.map(String) : ['']; readingDrafts.set(entry,drafts); }
+    if (!drafts) { drafts = entry.readings.length ? entry.readings.map(readingText) : ['']; readingDrafts.set(entry,drafts); }
     const renderInputs = () => {
       list.replaceChildren();
       drafts.forEach((value,index) => {
@@ -98,27 +113,22 @@
         input.type = 'text'; input.inputMode = 'decimal'; input.maxLength = 24; input.value = value;
         input.name = 'recorded_thickness_' + index;
         input.addEventListener('input', () => { drafts[index] = input.value; updateReadings(kind,entry); changed(kind); });
-        row.append(field(kind === 'steel' ? 'Reading {0} (mm)' : 'Recorded Thickness (mm)',input,[index+1]));
-        if (kind === 'steel') {
-          row.append(window.ClassifireFormControls.iconButton('Remove reading','remove',() => {
-            drafts.splice(index,1); if (!drafts.length) drafts.push('');
-            updateReadings(kind,entry); changed(kind); renderInputs();
-          }));
-        }
+        row.append(field('Reading {0} (mm)',input,[index+1]));
+        row.append(window.ClassifireFormControls.iconButton('Remove reading','remove',() => {
+          drafts.splice(index,1); if (!drafts.length) drafts.push('');
+          updateReadings(kind,entry); changed(kind); renderInputs();
+        }));
         list.append(row);
       });
     };
     renderInputs(); card.append(list);
-    if (kind === 'steel') {
-      const add = button('Add reading',() => { if (drafts.length < 200) { drafts.push(''); renderInputs(); list.lastElementChild.querySelector('input').focus(); } });
-      card.append(add);
-      const summary = element('div','calculator-inspection-reading-summary');
-      for (const [text,key] of [['Average thickness (mm)','average'],['Number of readings','count']]) {
-        const output = element('output'); output.dataset['inspection' + key[0].toUpperCase() + key.slice(1)] = '';
-        summary.append(field(text,output));
-      }
-      card.append(summary);
+    const add = button('Add reading',() => { if (drafts.length < 200) { drafts.push(''); renderInputs(); list.lastElementChild.querySelector('input').focus(); } });
+    const summary = element('div','calculator-inspection-reading-summary');
+    for (const [text,key] of [['Average thickness (mm)','average'],['Number of readings','count']]) {
+      const output = element('output'); output.dataset['inspection' + key[0].toUpperCase() + key.slice(1)] = '';
+      summary.append(field(text,output));
     }
+    card.append(add,summary);
     const error = element('p','helper error'); error.dataset.inspectionReadingError = ''; error.setAttribute('aria-live','polite'); card.append(error);
     return card;
   }
@@ -196,10 +206,8 @@
       }
       const th = element('th','','Recorded Thickness (mm)'); th.scope = 'col'; headings.append(th);
       const average = element('td'); average.dataset.inspectionAverage = ''; row.append(average);
-      if (kind === 'steel') {
-        const countHeading = element('th','','Number of readings'); countHeading.scope = 'col'; headings.append(countHeading);
-        const count = element('td'); count.dataset.inspectionCount = ''; row.append(count);
-      }
+      const countHeading = element('th','','Number of readings'); countHeading.scope = 'col'; headings.append(countHeading);
+      const count = element('td'); count.dataset.inspectionCount = ''; row.append(count);
       head.append(headings); body.append(row); table.append(caption,head,body); scroll.append(table); card.append(scroll);
       if (!entry.row.required_thickness || entry.row.required_thickness === 'N / A') {
         const diagnosis = matching && state.notes[entry.row.line];

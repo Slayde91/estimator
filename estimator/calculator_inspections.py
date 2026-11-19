@@ -1,5 +1,6 @@
 """Calculator-backed inspection drafts and their portable evidence."""
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
+from fractions import Fraction
 import re
 
 from .assessment_references import UNAVAILABLE_RESULT, report_reference_text
@@ -18,7 +19,7 @@ PHOTOS = {'before': 'Before Photos', 'during': 'During Photos', 'after': 'After 
 ROW_FIELDS = ('location', 'duct_size', 'section_id', 'critical_temp', 'product', 'frl',
               'quantity', 'length', 'report', 'required_thickness')
 NUMERIC_FIELDS = frozenset(('critical_temp', 'quantity', 'length'))
-MAX_READINGS = {'duct': 1, 'steel': 200}
+MAX_READINGS = 200
 _CELL_COLUMNS = {
     'ductwork': (DUCT_LOCATION_COLUMN, 'B', None, None, 'C', 'E', 'CM', 'D'),
     'steel_board': ('B', None, 'D', 'AO', 'C', 'H', 'CJ', 'F'),
@@ -117,11 +118,10 @@ def _source_row(row, kind):
     return result
 
 
-def _readings(value, kind):
-    maximum = MAX_READINGS[kind]
-    if (not isinstance(value, list) or len(value) > maximum
+def _readings(value):
+    if (not isinstance(value, list) or len(value) > MAX_READINGS
             or any(not _numeric(reading) or not 0 <= reading <= 100_000 for reading in value)):
-        raise ValidationError(f'Enter up to {maximum} valid non-negative thickness readings in millimetres.')
+        raise ValidationError(f'Enter up to {MAX_READINGS} valid non-negative thickness readings in millimetres.')
     return list(value)
 
 
@@ -131,7 +131,7 @@ def _entry(value, kind):
     row = source.get('row')
     entry = {'entry_id': identity, 'number': number,
              'row': _source_row(row, kind) if row is not None else None,
-             'readings': _readings(source.get('readings', []), kind),
+             'readings': _readings(source.get('readings', [])),
              **{key: _photos(source.get(key, [])) for key in PHOTOS},
              'plan_pins': normalize_pins(source.get('plan_pins', []))}
     if 'source_estimate_id' in source:
@@ -195,6 +195,7 @@ def inspection_number(entry):
 
 
 def recorded_thickness(readings):
-    total = sum(Decimal(str(value)) for value in readings)
-    average = (total / len(readings)).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-    return format(average, 'f').rstrip('0').rstrip('.')
+    total = sum(Fraction(str(value)) for value in readings)
+    average = total / len(readings)
+    hundredths = (average * 100 + Fraction(1, 2)) // 1
+    return format(Decimal(hundredths).scaleb(-2), 'f').rstrip('0').rstrip('.')

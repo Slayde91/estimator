@@ -8,8 +8,8 @@ from uuid import uuid4
 from PIL import Image
 from pypdf import PdfReader
 
-from estimator.assessment_references import UNAVAILABLE_RESULT
-from estimator.calculator_inspection_report import render_calculator_register
+from estimator.assessment_references import UNAVAILABLE_RESULT, _links
+from estimator.calculator_inspection_report import render_calculator_inspections, render_calculator_register
 from estimator.calculator_inspections import PHOTOS
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
@@ -49,7 +49,33 @@ def words(page):
     return ' '.join(page.extract_text().split())
 
 
+def report_urls(pages):
+    return {str(action['/URI']) for page in pages for reference in page.get('/Annots', [])
+            if (annotation := reference.get_object()).get('/Subtype') == '/Link'
+            and (action := annotation.get('/A', {})).get('/S') == '/URI'}
+
+
 class CalculatorRegisterReportTests(unittest.TestCase):
+    def test_saved_report_captions_link_only_to_exact_calculator_authorities(self):
+        steel = entry('steel', 1)
+        steel['row'].update(calculator_id='steel_vermiculite', product='CAFCO 300', report='FC13107-01-05')
+        duct = entry('duct', 1)
+        duct['row']['report'] = ('FC17299-01-1 | FCO3226 Rev F | FC15909-01-2 | FC13107-01-05 | '
+                                 '<link href="https://example.org/private">Unverified</link>')
+        cases = [('steel', steel, {'FC13107-01-05'}), ('duct', duct, {'FC17299-01-1', 'FCO3226 Rev F'})]
+        for renderer in (render_calculator_inspections, render_calculator_register):
+            for kind, item, labels in cases:
+                with self.subTest(render=renderer.__name__, kind=kind):
+                    snapshot = register(kind, [item])
+                    snapshot['calculator_id'] = item['row']['calculator_id']
+                    pdf = PdfReader(BytesIO(renderer(snapshot, {}, kind, company=DEFAULTS)))
+                    self.assertEqual(report_urls(pdf.pages), {_links()[label] for label in labels})
+                    if kind == 'steel':
+                        self.assertIn('FC13107-01-05', words(pdf.pages[0]))
+                    if kind == 'duct' and renderer is render_calculator_inspections:
+                        self.assertIn('FC15909-01-2', words(pdf.pages[0]))
+                        self.assertIn('>Unverified</link>', words(pdf.pages[0]))
+
     def test_landscape_register_repeats_columns_and_uses_all_evidence(self):
         entries = [entry('steel', index) for index in range(1, 18)]
         entries[0]['gauge'] *= 2
@@ -133,6 +159,7 @@ class CalculatorRegisterHTTPTests(unittest.TestCase):
                 self.assertIn(title, words(pages[1]))
                 self.assertIn('REGISTER-QA', words(pages[1]))
                 self.assertIn('120 min' if kind == 'steel' else '120/120/120', words(pages[1]))
+                self.assertEqual(report_urls(pages), {_links()[complete['row']['report']]})
                 self.assertIn('Calculator plan page 2', words(pages[-1]))
                 self.assertIn('001', words(pages[-1]))
                 self.assertFalse(any('Inspection location 2' in words(page) for page in pages))

@@ -1,6 +1,7 @@
 """Separate composer persistence and source-based whole-schedule presentation."""
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from io import BytesIO
 import json
 from pathlib import Path
@@ -11,6 +12,7 @@ from unittest.mock import patch
 from openpyxl import load_workbook
 from PIL import Image as PILImage
 from pypdf import PdfReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from estimator.catalog import ValidationError
 from estimator.excel_engine import FormulaError, column_number
@@ -20,6 +22,7 @@ from estimator.penetration_calculator import (
     normalize_composer, normalize_draft, source_model,
 )
 from estimator.penetration_report import build_penetration_register, render_penetration_pdf
+from estimator.pdf_fonts import FONT_BOLD
 from estimator.reference_library import ReferenceLibrary, ReferenceNotFound
 from estimator.project_file import export_project, load_project_bytes
 from estimator.storage import Store
@@ -84,6 +87,40 @@ class PenetrationScheduleTests(unittest.TestCase):
         self.assertIn('Schedule', text)
         self.assertNotIn('Line 1', text)
         self.assertNotIn('Pair Coil Bundle', text)
+
+    def test_download_date_and_red_centered_schedule_title_are_on_the_first_page(self):
+        source = self.mixed_schedule()
+        source['rows'] = [{**source['rows'][0], 'id': f'line-{number}'} for number in range(40)]
+        result = calculate(source)
+        instant = datetime(2026, 1, 1, 15, 20, tzinfo=timezone.utc)
+        with patch('estimator.date_display.datetime') as clock:
+            clock.now.side_effect = instant.astimezone
+            payload = render_penetration_pdf(result, result['definition'], {'site_address': '10 Test Street'})
+        pdf = PdfReader(BytesIO(payload))
+        title = 'FIRESTOPPING SCHEDULE'
+        first = pdf.pages[0]
+        self.assertGreater(len(pdf.pages), 1)
+        positions, colors = [], []
+        fill = None
+
+        def track_fill(operator, operands, current_matrix, text_matrix):
+            nonlocal fill
+            if operator == b'rg':
+                fill = tuple(round(float(value) * 255) for value in operands)
+
+        def track_title(text, current_matrix, text_matrix, font, size):
+            if text.strip() == title:
+                positions.append(tuple(text_matrix[4:6]))
+                colors.append(fill)
+
+        first_text = first.extract_text(visitor_operand_before=track_fill, visitor_text=track_title)
+        self.assertIn('Site Address 10 Test Street Date 02/01/2026', ' '.join(first_text.split()))
+        self.assertEqual(len(positions), 1)
+        self.assertEqual(colors, [(189, 0, 24)])
+        x, y = positions[0]
+        self.assertAlmostEqual(x + stringWidth(title, FONT_BOLD, 16) / 2, float(first.mediabox.width) / 2, places=2)
+        self.assertAlmostEqual(y, float(first.mediabox.height) - 43, places=2)
+        self.assertTrue(all(title not in page.extract_text() for page in pdf.pages[1:]))
 
     def test_pdf_and_excel_schedules_include_entered_dimensions_frl_orientation_without_prices(self):
         source = self.mixed_schedule()

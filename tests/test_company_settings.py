@@ -5,13 +5,19 @@ from io import BytesIO
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from PIL import Image
 from pypdf import PdfReader
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS, company_logo, validate_company_settings
+from estimator.document_theme import CLASSIFIRE_RED
+from estimator.pdf_fonts import FONT_BOLD
 from estimator.storage import Store
 from estimator.report import _company_header, _register_fonts
 from estimator.penetration_calculator import definition, normalize_draft, WASTE_SETTINGS
@@ -19,6 +25,19 @@ from estimator.penetration_entry import validate_item_for_add
 
 
 class CompanySettingsTests(unittest.TestCase):
+    def test_centered_portrait_heading_reserves_room_for_a_wide_custom_logo(self):
+        _register_fonts()
+        canvas = Mock(spec=Canvas)
+        logo = ImageReader(Image.new('RGB', (1200, 100), '#cc7833'))
+        title, margin = 'STRUCTURAL STEEL INSPECTIONS', 36
+        width, height = A4
+        _company_header(canvas, logo, width, height, margin, title, centered_title_color=CLASSIFIRE_RED)
+
+        logo_right = margin + canvas.drawImage.call_args.kwargs['width']
+        title_left = (width - stringWidth(title, FONT_BOLD, 16)) / 2
+        self.assertLessEqual(logo_right, title_left - 9.9)
+        canvas.drawCentredString.assert_called_once_with(width / 2, height - 43, title)
+
     def test_every_authored_report_uses_the_company_header_and_ceasefire_rule(self):
         from estimator.calculator_report import build_calculator_report, build_calculator_summary_report
         from estimator.report import render_quote_pdf

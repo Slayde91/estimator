@@ -3,7 +3,7 @@ const { cycleTheme } = require('./theme_navigation.cjs');
 const { chromium, expect } = require('@playwright/test');
 const { chooseCalculator } = require('./calculator_actions.cjs');
 const { clickProjectControl,prepareProjectForSave} = require('./project_actions.cjs');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '../..'), output = path.join(root, '.runtime/browser-qa', `document-menus-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
@@ -104,6 +104,21 @@ async function responseTo(action, suffix) {
       assert.equal(file.saved, true); assert.equal(file.destination, 'project');
       const relative = path.relative(output, file.path); assert.ok(relative && !relative.startsWith('..') && !path.isAbsolute(relative), 'Generated file stays within the disposable fixture');
       assert.equal(fs.readFileSync(file.path).subarray(0, magic.length).toString(), magic);
+      if (suffix === 'report.pdf') {
+        const heading = id === 'ductwork' ? 'DUCT SCHEDULE' : 'STEEL SCHEDULE';
+        const check = spawnSync(process.env.CEASEFIRE_PYTHON || 'python', ['-c', String.raw`
+import re
+import sys
+from pypdf import PdfReader
+
+pages = PdfReader(sys.argv[1]).pages
+first = ' '.join(pages[0].extract_text().split())
+assert first.count(sys.argv[2]) == 1, first
+assert re.search(r'Site Address.*? Date \d{2}/\d{2}/\d{4}', first), first
+assert all(sys.argv[2] not in page.extract_text() for page in pages[1:])
+`, file.path, heading], {cwd:root, windowsHide:true, encoding:'utf8'});
+        assert.equal(check.status, 0, check.stderr);
+      }
       await expect(menu).toBeHidden(); await idle(); downloads.push({ action: suffix, file: path.basename(file.path) });
       if (actionId === 'calculator-template') {
         await toggle.click();

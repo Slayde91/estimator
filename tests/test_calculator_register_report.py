@@ -111,7 +111,7 @@ class CalculatorRegisterReportTests(unittest.TestCase):
     def test_register_shows_sydney_download_date_and_accepts_optional_evidence(self):
         instant = datetime(2026, 11, 19, 13, 1, tzinfo=timezone.utc)
         for kind in ('duct', 'steel'):
-            with self.subTest(kind=kind), patch('estimator.inspection_register_report.datetime') as clock:
+            with self.subTest(kind=kind), patch('estimator.date_display.datetime') as clock:
                 clock.now.side_effect = instant.astimezone
                 complete = entry(kind, 1)
                 complete['gauge'] = []

@@ -360,6 +360,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
     options = register_options()
     for entry in entries:
         _ready(entry, options)
+    title = 'Passive Fire Inspections'
     _register_fonts()
     report = _Report({})
     report.styles['photo_caption'] = report.styles['subheading'].clone(
@@ -371,10 +372,9 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
     content = width - 2 * margin - 12
     details_width = inspection_detail_width(content)
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
-                                 topMargin=90, bottomMargin=43, title='Passive Fire Inspections',
+                                 topMargin=90, bottomMargin=43, title=title,
                                  author=company.get('name') or 'CLASSIFIRE')
 
-    report.story.append(report.p('Passive Fire Inspections', 'title'))
     project_rows = [[report.p(label, 'head'), report.p(details[key], 'cell')]
                     for key, label in [('project_no', 'Project number'), ('client', 'Client'), ('site_address', 'Site address')]
                     if details.get(key)]
@@ -418,12 +418,14 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, 'Passive Fire Inspections', company=company)
+        first_page = doc.page == 1
+        _company_header(canvas, logo, width, height, margin, title.upper() if first_page else '',
+                        company=company, centered_title_color=_INSPECTION_RED if first_page else None)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFillColor(_MUTED)
         canvas.setFont(FONT_REGULAR, 7.5)
-        canvas.drawString(margin, 20, 'Passive Fire Inspections')
+        canvas.drawString(margin, 20, title)
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

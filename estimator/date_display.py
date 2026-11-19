@@ -1,6 +1,7 @@
 """Human-readable calendar dates for reports. Project data retains its native representation."""
-from datetime import date
+from datetime import date, datetime
 import re
+from zoneinfo import ZoneInfo
 
 _MONTHS = ('January','February','March','April','May','June','July','August','September','October','November','December')
 _SOURCE_DATE = re.compile(r'\b(\d{1,2}) ('+'|'.join(_MONTHS)+r') (\d{4})\b')
@@ -16,6 +17,11 @@ def display_date(value):
         except ValueError:
             pass
     return value
+
+
+def pdf_download_date():
+    """Print the Sydney calendar date when a new PDF is rendered."""
+    return display_date(datetime.now(ZoneInfo('Australia/Sydney')).date())
 
 
 def display_source_dates(caption):

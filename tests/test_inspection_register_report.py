@@ -110,7 +110,7 @@ class InspectionRegisterHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('POST', route, missing, headers)[0], 400)
         self.assertEqual(self.json('GET', '/api/documentation?workspace=' + workspace)['items'], [])
         instant = datetime(2026, 11, 19, 13, 1, tzinfo=timezone.utc)
-        with patch('estimator.inspection_register_report.datetime') as clock:
+        with patch('estimator.date_display.datetime') as clock:
             clock.now.side_effect = instant.astimezone
             status, _, payload = self.request('POST', route, request, headers)
         self.assertEqual(status, 200, payload[:200])
@@ -124,7 +124,7 @@ class InspectionRegisterHTTPTests(unittest.TestCase):
         self.assertEqual([text.strip().splitlines() for text in texts[-2:]],
                          [['Floor plan page 2', '001 / 001-2', '003'], ['Floor plan page 3', '001 / 001-2']])
         self.assertTrue(all(page.mediabox == pages[1].mediabox for page in pages[-2:]))
-        with patch('estimator.inspection_register_report.datetime') as clock:
+        with patch('estimator.date_display.datetime') as clock:
             clock.now.side_effect = (instant + timedelta(days=1)).astimezone
             self.assertEqual(self.request('POST', route, request, headers)[2], payload)
         item, = self.json('GET', '/api/documentation?workspace=' + workspace)['items']

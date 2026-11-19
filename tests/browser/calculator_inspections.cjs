@@ -53,11 +53,37 @@ async function openInspection(kind){
   await row.locator('button[data-document-kind]').click();await expect(page.locator('#view-'+ids[kind])).toBeVisible();await idle();
   return page.locator('#'+ids[kind]+'-root');
 }
-async function photos(form,photo){
-  for(const label of ['Before Photos','During Photos','After Photos','Photo of Gauge']){
+async function photos(form,photo,gaugeCount=0){
+  for(const label of ['Before Photos','During Photos','After Photos']){
     await form.getByLabel(label,{exact:true}).setInputFiles(photo);await idle();
   }
-  await expect(form.locator('figure img')).toHaveCount(4);
+  if(gaugeCount){
+    const gauge=Array.from({length:gaugeCount},(_,index)=>({...photo,name:`gauge-${index+1}.png`}));
+    await form.getByLabel('Photo of Gauge',{exact:true}).setInputFiles(gauge);await idle();
+  }
+  await expect(form.locator('figure img')).toHaveCount(3+gaugeCount);
+}
+async function setupSigner(){
+  const url=new URL('/api/certifications/defaults',page.url()).href;
+  const settings=await (await page.request.get(url)).json();
+  const response=await page.request.post(url,{data:{fields:{...settings.fields,name:'Inspection signer'},expected_version:settings.version}});
+  assert.ok(response.ok(),await response.text());
+  await page.route('**/api/forms/signer',async route=>{
+    const response=await route.fetch(),profile=await response.json();
+    await route.fulfill({response,json:{...profile,at:'2026-01-01T15:10:00Z'}});
+  });
+}
+async function signInspection(form,inspectionDate){
+  await form.getByLabel('Inspection date',{exact:true}).fill(inspectionDate);
+  await form.getByRole('button',{name:'Insert signature',exact:true}).click();
+  const pad=page.getByLabel('Signature drawing pad');await expect(pad).toBeVisible();
+  const box=await pad.boundingBox();
+  await page.mouse.move(box.x+10,box.y+30);
+  await page.mouse.down();await page.mouse.move(box.x+70,box.y+45,{steps:6});await page.mouse.up();
+  await page.getByRole('dialog').getByRole('button',{name:'Insert signature',exact:true}).click();
+  await expect(form.getByRole('img',{name:'Signature',exact:true})).toBeVisible();
+  await expect(form.getByRole('textbox',{name:'Name',exact:true})).toHaveValue('Inspection signer');
+  await expect(form.getByRole('textbox',{name:'Date',exact:true})).toHaveValue('02/01/2026');
 }
 async function pin(form,pageNumber){
   const plan=form.locator('.register-plan-location');
@@ -79,11 +105,15 @@ async function download(kind,form){
   assert.ok(pages[1].links.includes(reportUrls[kind]),'Inspection report links survive PDF covers and plan assembly');
   const text=pages.map(page=>page.text).join('\n');
   assert.match(text,new RegExp(names[kind]));assert.match(text,/001/);
+  assert.match(text,kind==='steel' ? /Inspection ID\s+001\s+Date\s+30\/12\/2025/ : /Inspection ID\s+001\s+Date\s+31\/12\/2025/);
+  assert.match(text,/Name\s+Inspection signer\s+Date signed\s+02\/01\/2026/);
   if(kind==='steel'){assert.match(text,/Number of Readings\s+2/i);assert.match(text,/Recorded Thickness \(mm\)\s+30/);}
   else {
     assert.match(text,/2 x 38mm/);
     assert.match(text,/Recorded Thickness \(mm\)\s+62\.97/);
     assert.match(text,/Number of Readings\s+2/i);
+    assert.match(text,/Site address\s+1 Synthetic Project Street\s+Date\s+\d{2}\/\d{2}\/\d{4}/i);
+    assert.doesNotMatch(text,/Photo of Gauge/);
   }
   await idle();
   const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
@@ -116,6 +146,8 @@ async function downloadRegister(kind){
   const pages=await pdfPages(receipt.documentation.item.url),summary=pages[0].text;
   assert.ok(pages[0].links.includes(reportUrls[kind]),'Register contains the manufacturer report link');
   assert.match(summary,new RegExp(title));
+  assert.doesNotMatch(summary,/Calculator Register/i);
+  assert.match(summary,/Site Address\s+1 Synthetic Project Street\s+Date\s+\d{2}\/\d{2}\/\d{4}/i);
   assert.match(summary,/\b001\b/);assert.doesNotMatch(summary,/\b002\b/);
   assert.match(summary,/Before Photos|Before/i);
   if(kind==='steel'){
@@ -124,7 +156,8 @@ async function downloadRegister(kind){
     for(const expected of ['250x250','FyreWrap','2 x 38mm','Number of Readings'])assert.ok(summary.includes(expected),summary);
     assert.match(summary,/62\.97\s+2\b/);
   }
-  assert.ok(pages.length>1,'The register appends the pinned drawing');
+  if(kind==='steel')assert.ok(pages.length>1,'The register appends the pinned drawing');
+  else assert.equal(pages.length,1,'The duct register exports without a plan pin');
   await expect(editions).toHaveText('View Revisions (1)');
   await idle();
   const message=page.locator('#message-dialog');if(await message.isVisible())await message.getByRole('button',{name:'OK',exact:true}).click();
@@ -137,6 +170,7 @@ async function run(){
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto('http://127.0.0.1:'+info.port);await idle();await createNewProject(page,{client:'Synthetic calculator inspections'});
   await installInspectionCovers();
+  await setupSigner();
   await page.evaluate(async()=>{
     const calculators=await window.CeasefireCalculators.completeProjectSnapshot();
     calculators.ductwork={inputs:{CALCULATOR:{B11:'250x250',C11:'FyreWrap',D11:10,E11:'120/120/120',F11:0,G11:0,H11:'Stair pressurisation',I11:'Both',DA11:'Ground',CM11:1}},schedule_rows:[11]};
@@ -155,7 +189,7 @@ async function run(){
   await photos(duct,photo);
   await chooseTakeoff(page,'Defect Reports');await page.locator('#takeoff-upload').setInputFiles(path.join(output,'Register plans.pdf'));
   await expect(page.locator('.takeoff-document')).toHaveCount(1);await idle();
-  duct=await openInspection('duct');await pin(duct,1);const ductReceipt=await download('duct',duct);
+  duct=await openInspection('duct');await signInspection(duct,'2025-12-31');const ductReceipt=await download('duct',duct);
   await page.screenshot({path:path.join(output,'duct-desktop.png')});
   const steel=await openInspection('steel');await steel.getByRole('checkbox',{name:'Steel (board)',exact:true}).check();await idle();
   await steel.getByLabel('Calculator register row').selectOption('1');
@@ -163,7 +197,7 @@ async function run(){
   await steel.getByLabel('Reading 1 (mm)',{exact:true}).fill('25');await steel.getByRole('button',{name:'Add reading',exact:true}).click();
   await steel.getByLabel('Reading 2 (mm)',{exact:true}).fill('35');
   await expect(steel.locator('tbody [data-inspection-average]')).toHaveText('30');await expect(steel.locator('tbody [data-inspection-count]')).toHaveText('2');
-  await photos(steel,photo);await pin(steel,2);const steelReceipt=await download('steel',steel);
+  await photos(steel,photo,4);await pin(steel,2);await signInspection(steel,'2025-12-30');const steelReceipt=await download('steel',steel);
   await page.screenshot({path:path.join(output,'steel-desktop.png')});
   await page.setViewportSize({width:390,height:884});await page.screenshot({path:path.join(output,'steel-mobile.png')});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);
@@ -177,12 +211,23 @@ async function run(){
   assert.deepEqual(project.calculator_inspections.steel.entries[0].readings,[25,35]);
   assert.deepEqual(project.calculator_inspections.duct.entries[0].readings,[61.91,64.02]);
   assert.equal(project.calculator_inspections.duct.entries[0].before.length,1);
+  assert.deepEqual(project.calculator_inspections.duct.entries[0].gauge,[]);
+  assert.deepEqual(project.calculator_inspections.duct.entries[0].plan_pins,[]);
   assert.equal(project.calculator_inspections.steel.entries[0].plan_pins.length,1);
+  const signer=await page.evaluate(()=>window.ClassifireAccess.user.id);
+  for(const [kind,date] of Object.entries({duct:'2025-12-31',steel:'2025-12-30'})){
+    const entry=project.calculator_inspections[kind].entries[0];
+    assert.equal(entry.inspection_date,date);
+    assert.deepEqual(entry.signature_details,{member_id:signer,name:'Inspection signer',date:'2026-01-02'});
+    assert.ok(entry.signature.strokes.length);
+  }
   await openProjectSection(page,'quotes');await page.locator('#load-project').click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Load Project',exact:true}).click();await idle();
   duct=await openInspection('duct');await expect(duct.getByLabel('Reading 2 (mm)',{exact:true})).toHaveValue('64.02');
   await expect(duct.locator('tbody [data-inspection-average]')).toHaveText('62.97');
-  await openInspection('steel');await expect(steel.locator('tbody [data-inspection-average]')).toHaveText('30');await expect(steel.locator('figure img')).toHaveCount(4);
+  await expect(duct.getByLabel('Inspection date',{exact:true})).toHaveValue('2025-12-31');
+  await openInspection('steel');await expect(steel.locator('tbody [data-inspection-average]')).toHaveText('30');await expect(steel.locator('figure img')).toHaveCount(7);
+  await expect(steel.getByRole('textbox',{name:'Name',exact:true})).toHaveValue('Inspection signer');
   assert.deepEqual(errors,[]);
   fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,project:info.project,pdfs:[ductReceipt.path,steelReceipt.path,ductRegister.path,steelRegister.path]},null,2));
   console.log('PASS: inspection covers and evidence, completed registers, Takeoff pins, PDF revisions and project save/reload. '+output);

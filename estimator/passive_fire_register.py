@@ -7,16 +7,17 @@ from PIL import Image as PillowImage, UnidentifiedImageError
 from reportlab.lib.colors import HexColor
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import Image, PageBreak, SimpleDocTemplate, Spacer, Table
+from reportlab.platypus import PageBreak, SimpleDocTemplate, Spacer
 
 from .catalog import ValidationError
 from .company_settings import company_logo
 from .date_display import display_date
 from .documentation_catalog import register_options
 from .document_theme import THEMES
+from .inspection_photo_layout import inspection_detail_width, inspection_photo_grid, inspection_photo_layout
 from .library_filter_groups import display_category
 from .pdf_fonts import FONT_REGULAR
-from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED, table_outline
+from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
 from .reference_library import INSPECTION_FILTERS, ReferenceNotFound, identifier
 from .technical_item_exports import (append_technical_heading, append_technical_tables,
                                      prepare_technical_item, technical_pdf_rows)
@@ -58,6 +59,15 @@ def _photos(value):
     if not isinstance(value, list) or len(value) > 20:
         raise ValidationError('Each register photo field accepts up to 20 photos.')
     return list(value)
+
+
+def normalize_signature_details(value, signature):
+    details = _fields(value, {'member_id', 'name', 'date'}, 'Signature details')
+    name = _text(details.get('name'), 'Signer name', 8000).strip()
+    day = _date(details.get('date'), 'Signing date')
+    if not signature or not _uuid(details.get('member_id')) or not name or not day:
+        raise ValidationError('Signature details require a signature, staff member, name and signing date.')
+    return {'member_id': details['member_id'], 'name': name, 'date': day}
 
 
 def _entry(raw, position, numbered):
@@ -105,12 +115,7 @@ def _entry(raw, position, numbered):
         selected = entry.get('technical_filters', {})
         entry['technical_filters'] = {facet: selected.get(facet, '') for facet in INSPECTION_FILTERS}
     if 'signature_details' in raw:
-        details = _fields(raw['signature_details'], {'member_id', 'name', 'date'}, 'Signature details')
-        name = _text(details.get('name'), 'Signer name', 8000).strip()
-        day = _date(details.get('date'), 'Signing date')
-        if not entry['signature'] or not _uuid(details.get('member_id')) or not name or not day:
-            raise ValidationError('Signature details require a signature, staff member, name and signing date.')
-        entry['signature_details'] = {'member_id': details['member_id'], 'name': name, 'date': day}
+        entry['signature_details'] = normalize_signature_details(raw['signature_details'], entry['signature'])
     if 'plan_pins' in raw:
         from .register_plans import normalize_pins
         entry['plan_pins'] = normalize_pins(raw['plan_pins'])
@@ -279,27 +284,23 @@ def _ready(entry, options):
         raise ValidationError(f'Penetration ID {ids}: complete ' + ', '.join(required) + '.')
 
 
-def _append_evidence(report, title, groups, width):
-    # Keep each caption with its own image. Later rows can flow to a fresh
-    # page and still identify the side and stage of every photo.
-    cells = []
-    for label, photos in groups:
-        for index, photo in enumerate(photos, 1):
-            image = Image(BytesIO(base64.b64decode(photo[len(JPEG_PREFIX):])))
-            image._restrictSize(width / 2 - 12, 124)
-            caption = f'{title} - {label}'
-            if len(photos) > 1:
-                caption += f' ({index}/{len(photos)})'
-            cells.append([report.p(caption, 'photo_caption'), image])
-    if cells:
-        rows = [cells[index:index + 2] for index in range(0, len(cells), 2)]
-        styles = [('VALIGN', (0, 0), (-1, -1), 'TOP'), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                  ('INNERGRID', (0, 0), (-1, -1), .35, _INSPECTION_RED)]
-        if len(rows[-1]) == 1:
-            rows[-1].append('')
-            styles.append(('SPAN', (0, -1), (1, -1)))
-        report.story.append(Table(rows, colWidths=[width / 2] * 2,
-                                  style=styles, renderCB=table_outline(_INSPECTION_RED)))
+def _captioned_photos(title, label, photos):
+    count = len(photos)
+    return [(f'{title} - {label}' + (f' ({index}/{count})' if count > 1 else ''), photo)
+            for index, photo in enumerate(photos, 1)]
+
+
+def _side_photos(values, side):
+    beside, below = [], []
+    title = f'Side {side[-1]} - {values["id_number"]}'
+    for phase, label in PHASES.items():
+        photos = _captioned_photos(title, label, values[phase])
+        if side == 'side1' and phase in ('during', 'after', 'label') and photos:
+            beside.append(photos[0])
+            below.extend(photos[1:])
+        else:
+            below.extend(photos)
+    return beside, below
 
 
 _INSPECTION_ORDER = ('Location', 'Substrate', 'Type', 'Orientation', 'Manufacturer',
@@ -361,12 +362,14 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
         _ready(entry, options)
     _register_fonts()
     report = _Report({})
-    report.styles['photo_caption'] = report.styles['subheading'].clone('InspectionPhotoCaption', alignment=TA_CENTER)
+    report.styles['photo_caption'] = report.styles['subheading'].clone(
+        'InspectionPhotoCaption', alignment=TA_CENTER, fontSize=9, leading=11, spaceBefore=0, spaceAfter=4)
     logo = company_logo(company)
     output = BytesIO()
     margin = 36
     width, height = A4
     content = width - 2 * margin - 12
+    details_width = inspection_detail_width(content)
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
                                  topMargin=90, bottomMargin=43, title='Passive Fire Inspections',
                                  author=company.get('name') or 'CLASSIFIRE')
@@ -392,9 +395,11 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             except ReferenceNotFound as err:
                 raise ValidationError(f'Penetration ID {penetration_ids(entry)}: the Technical Library item is unavailable. Select a replacement before downloading.') from err
             append_technical_heading(report, item)
-        report.story.append(report.table(None, _inspection_fields(report, entry, item),
-                                         [content * .3, content * .7], compact=True,
-                                         row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
+        table = report.table(None, _inspection_fields(report, entry, item),
+                             [details_width * .39, details_width * .61], compact=True,
+                             row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
+        beside, first_side_below = _side_photos(entry['side1'], 'side1')
+        report.story.extend(inspection_photo_layout(report, [table], beside, [], content, _INSPECTION_RED))
         if item:
             append_technical_tables(report, (table for table in item['tables']
                                              if table['label'].casefold() not in _INSTRUCTION_FIELDS),
@@ -404,10 +409,12 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
             report.story.append(Spacer(1, 6))
             if values.get('previous_id'):
                 report.story.append(report.p(f'Side {side[-1]} previous ID: {values["previous_id"]}', 'small'))
-            _append_evidence(report, f'Side {side[-1]} - {values["id_number"]}',
-                             ((label, values[key]) for key, label in PHASES.items()), content)
+            below = first_side_below if side == 'side1' else _side_photos(values, side)[1]
+            if below:
+                report.story.append(inspection_photo_grid(report, below, content, _INSPECTION_RED))
         if entry['access'] == 'No':
-            _append_evidence(report, 'Additional photos', [('Access', entry['photos'])], content)
+            photos = _captioned_photos('Additional photos', 'Access', entry['photos'])
+            report.story.extend((Spacer(1, 6), inspection_photo_grid(report, photos, content, _INSPECTION_RED)))
 
     def decorate(canvas, doc):
         canvas.saveState()

@@ -1,8 +1,10 @@
 """Calculator register PDFs use completed inspections and independent revision histories."""
 import base64
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from PIL import Image
@@ -94,7 +96,8 @@ class CalculatorRegisterReportTests(unittest.TestCase):
             self.assertEqual(text.count('STRUCTURAL STEEL REGISTER'), int(page_index == 0))
         text = ' '.join(words(page) for page in pdf.pages)
         self.assertIn('QA-Register', text)
-        self.assertIn('Steel (board) | line 10', text)
+        self.assertNotIn('Calculator Register', text)
+        self.assertNotIn('Steel (board) | line 10', text)
         self.assertIn('200UC46', text)
         self.assertIn('FAS230021 RIR1.4', text)
         self.assertIn('31.08', text)
@@ -104,6 +107,21 @@ class CalculatorRegisterReportTests(unittest.TestCase):
         draws = [operation for page in pdf.pages for operation in page.get_contents().operations
                  if operation[1] == b'Do']
         self.assertEqual(len(draws), 16 * len(PHOTOS) + 1 + len(pdf.pages))
+
+    def test_register_shows_sydney_download_date_and_accepts_optional_evidence(self):
+        instant = datetime(2026, 11, 19, 13, 1, tzinfo=timezone.utc)
+        for kind in ('duct', 'steel'):
+            with self.subTest(kind=kind), patch('estimator.inspection_register_report.datetime') as clock:
+                clock.now.side_effect = instant.astimezone
+                complete = entry(kind, 1)
+                complete['gauge'] = []
+                payload = render_calculator_register(register(kind, [complete]), {'site_address': 'Test Road'},
+                                                     kind, company=DEFAULTS)
+                page, = PdfReader(BytesIO(payload)).pages
+                summary = words(page)
+                self.assertIn('Site Address Test Road Date 20/11/2026', summary)
+                self.assertIn('Inspection location 1', summary)
+                self.assertNotIn('Calculator Register', summary)
 
     def test_measured_thickness_does_not_make_an_unavailable_calculation_complete(self):
         incomplete = entry('duct', 1)
@@ -144,7 +162,7 @@ class CalculatorRegisterHTTPTests(unittest.TestCase):
                            'expected_version': 1})
                 complete, draft = entry(kind, 1), entry(kind, 2)
                 complete['plan_pins'] = [pin]
-                draft['gauge'] = []
+                draft['after'] = []
                 draft_project = str(uuid4())
                 draft['plan_pins'] = [{**pin, 'project_id': draft_project, 'page': 1}]
                 request = {'register': register(kind, [complete, draft]),

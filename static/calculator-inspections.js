@@ -173,6 +173,19 @@
     const available = rows.filter(row => sameSource(kind,entry,row,source) ||
       !register.entries.some(other => other !== entry && sameSource(kind,other,row,source)));
     const controls = element('div','calculator-inspection-source-controls'), select = element('select');
+    const dateInput = element('input');
+    dateInput.type = 'date'; dateInput.name = 'inspection_date';
+    dateInput.min = '0001-01-01'; dateInput.max = '9999-12-31';
+    dateInput.value = entry.inspection_date || '';
+    dateInput.addEventListener('change',() => {
+      if (!dateInput.validity.valid) return;
+      if (dateInput.value) entry.inspection_date = dateInput.value;
+      else if ('inspection_date' in entry) delete entry.inspection_date;
+      else return;
+      changed(kind);
+    });
+    const dateField = field('Inspection date',dateInput);
+    dateField.classList.add('calculator-inspection-date');
     select.name = 'calculator_register_row';
     select.add(new Option(window.CeasefireI18n.translate('Select'),''));
     for (const row of available) select.add(new Option([row.line, row.location, row.duct_size || row.section_id, row.product].filter(value => value !== '' && value != null).join(' · '), String(row.line)));
@@ -191,7 +204,7 @@
     });
     const refresh = button('Refresh register',() => loadRows(kind));
     refresh.disabled = state.loading || !register.calculator_id;
-    controls.append(field('Calculator register row',select),refresh); card.append(controls);
+    controls.append(dateField,field('Calculator register row',select),refresh); card.append(controls);
     if (state.loading) card.append(element('p','helper','Loading calculator register…'));
     if (!state.loading && rows.length && !available.length) {
       card.append(element('p','helper','All calculator rows are assigned to other inspections.'));
@@ -262,6 +275,12 @@
       finally { if (context === epoch) { state.photos = false; if (visible(kind)) render(kind); } }
     });
     group.append(field(text,input));
+    if (key === 'gauge') {
+      const optional = element('p','helper','Optional');
+      optional.id = 'calculator-inspection-optional-' + (++fieldIndex);
+      input.setAttribute('aria-describedby',optional.id);
+      group.append(optional);
+    }
     entry[key].forEach((url,index) => {
       const figure = element('figure'), image = element('img'); image.src = url; image.alt = text + ' ' + (index+1); image.loading = 'lazy';
       figure.append(image,window.ClassifireFormControls.iconButton('Remove photo','remove',() => { entry[key].splice(index,1); changed(kind); render(kind); })); group.append(figure);
@@ -326,7 +345,11 @@
     for (const [key,text] of Object.entries(phases)) if (key !== 'gauge') grid.append(photoField(kind,entry,key,text));
     photos.append(grid); form.append(photos,readingsSection(kind,entry));
     const gauge = element('section','card'); gauge.append(photoField(kind,entry,'gauge',phases.gauge)); form.append(gauge);
-    if (window.ClassifireRegisterPlans) form.append(window.ClassifireRegisterPlans.section({entry,entries:registers[kind].entries,changed:() => changed(kind),el:element,field,label}));
+    if (window.ClassifireRegisterPlans) form.append(window.ClassifireRegisterPlans.section({entry,entries:registers[kind].entries,changed:() => changed(kind),el:element,field,label,optional:true}));
+    form.append(window.ClassifireFormControls.registerSignature({entry, el:element, field,
+      isCurrent:() => visible(kind) && currentEntry(kind) === entry,
+      onChange:() => { changed(kind); state.message = ''; render(kind); },
+      onError:error => status(kind,error)}));
     const footer = element('div','register-footer-actions register-actions'); footer.append(...actions(kind,entry));
     form.append(element('p','helper','Save the project to keep this register.'),footer); root.replaceChildren(form); updateReadings(kind,entry); return true;
   }

@@ -6,9 +6,10 @@ import re
 from .assessment_references import UNAVAILABLE_RESULT, report_reference_text
 from .catalog import ValidationError
 from .documentation_catalog import CALCULATOR_INSPECTIONS
-from .passive_fire_register import MAX_NUMBER, _check_photo_groups, _entry_number, _fields, _photos
+from .passive_fire_register import (MAX_NUMBER, _check_photo_groups, _entry_number, _fields, _photos,
+                                    normalize_signature_details)
 from .register_plans import normalize_pins
-from .swms import _text
+from .swms import _date, _text, validate_signature
 from .workbook_runtime import DUCT_LOCATION_COLUMN, SCHEDULE_CAPACITY
 
 
@@ -126,7 +127,8 @@ def _readings(value):
 
 
 def _entry(value, kind):
-    source = _fields(value, {'entry_id', 'number', 'row', 'source_estimate_id', 'readings', 'plan_pins', *PHOTOS}, 'Inspection entry')
+    source = _fields(value, {'entry_id', 'number', 'row', 'source_estimate_id', 'readings', 'plan_pins',
+                             'inspection_date', 'signature', 'signature_details', *PHOTOS}, 'Inspection entry')
     identity, number = _entry_number(source, 0, True)
     row = source.get('row')
     entry = {'entry_id': identity, 'number': number,
@@ -134,6 +136,12 @@ def _entry(value, kind):
              'readings': _readings(source.get('readings', [])),
              **{key: _photos(source.get(key, [])) for key in PHOTOS},
              'plan_pins': normalize_pins(source.get('plan_pins', []))}
+    if 'inspection_date' in source:
+        entry['inspection_date'] = _date(source['inspection_date'], 'Inspection date')
+    signature = validate_signature(source.get('signature'))
+    if signature or 'signature_details' in source:
+        entry['signature_details'] = normalize_signature_details(source.get('signature_details'), signature)
+        entry['signature'] = signature
     if 'source_estimate_id' in source:
         estimate_id = source['source_estimate_id']
         if row is None or not isinstance(estimate_id, str) or not re.fullmatch(r'estimate-(?:1|[0-9a-f]{32})', estimate_id):

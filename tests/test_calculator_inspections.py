@@ -137,6 +137,10 @@ class CalculatorInspectionTests(unittest.TestCase):
     def test_open_and_save_keep_selected_rows_readings_and_identifiers(self):
         registers = {'duct': _register(self.duct, [74]), 'steel': _register(self.board, [29.5, 32.25])}
         registers['steel']['entries'][0]['source_estimate_id'] = 'estimate-' + 'a' * 32
+        registers['steel']['entries'][0].update(
+            inspection_date='2026-01-01', signature={'version': 1, 'strokes': [[[0, 0], [1, 1]]], 'ratio': 2},
+            signature_details={'member_id': str(uuid4()), 'name': 'Inspection signer', 'date': '2026-01-02'},
+        )
         with tempfile.TemporaryDirectory() as path:
             store = Store(Path(path) / 'disposable.sqlite3')
             previous = load_project_bytes(store, export_project(store, {'estimate': {}}))
@@ -158,6 +162,21 @@ class CalculatorInspectionTests(unittest.TestCase):
         updated['steel']['entries'][0]['source_estimate_id'] = 'Other estimate'
         with self.assertRaisesRegex(ValidationError, 'valid source estimate'):
             normalize_calculator_inspections(updated)
+
+    def test_reject_invalid_inspection_date_and_signature_details(self):
+        register = _register(self.duct, [74])
+        entry = register['entries'][0]
+        entry['inspection_date'] = '2026-02-30'
+        with self.assertRaisesRegex(ValidationError, 'Inspection date must be a valid date'):
+            normalize_calculator_inspections({'duct': register})
+        entry['inspection_date'] = '2026-02-28'
+        entry['signature_details'] = {'member_id': str(uuid4()), 'name': 'Inspection signer', 'date': '2026-03-01'}
+        with self.assertRaisesRegex(ValidationError, 'require a signature'):
+            normalize_calculator_inspections({'duct': register})
+        entry['signature'] = {'version': 1, 'strokes': [[[0, 0], [1, 1]]], 'ratio': 2}
+        entry['signature_details']['member_id'] = 'someone else'
+        with self.assertRaisesRegex(ValidationError, 'staff member'):
+            normalize_calculator_inspections({'duct': register})
 
     def test_reports_include_photos_reading_count_and_exact_plan_pin(self):
         with tempfile.TemporaryDirectory() as path:
@@ -199,7 +218,10 @@ class CalculatorInspectionTests(unittest.TestCase):
         pdf = PdfReader(BytesIO(render_calculator_inspections(duct, {}, 'duct', company=DEFAULTS)))
         self.assertIn('2 x 38mm', ' '.join(page.extract_text() for page in pdf.pages))
         duct['entries'][0]['gauge'].clear()
-        with self.assertRaisesRegex(ValidationError, 'Photo of Gauge'):
+        pdf = PdfReader(BytesIO(render_calculator_inspections(duct, {}, 'duct', company=DEFAULTS)))
+        self.assertIn('2 x 38mm', ' '.join(page.extract_text() for page in pdf.pages))
+        duct['entries'][0]['after'].clear()
+        with self.assertRaisesRegex(ValidationError, 'After Photos'):
             render_calculator_inspections(duct, {}, 'duct', company=DEFAULTS)
 
     def test_documentation_routes_identify_each_download(self):

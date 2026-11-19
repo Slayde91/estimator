@@ -10,12 +10,15 @@ from .assessment_references import UNAVAILABLE_RESULT, saved_report_references
 from .calculator_inspections import PHOTOS, inspection_number, normalize_inspection_register, recorded_thickness
 from .catalog import ValidationError
 from .company_settings import company_logo
+from .date_display import display_date
 from .documentation_catalog import CALCULATORS, CALCULATOR_INSPECTIONS, CALCULATOR_REGISTERS
-from .inspection_register_report import register_photo_cells, render_register_table
-from .passive_fire_register import _append_evidence, _INSPECTION_RED
+from .inspection_photo_layout import inspection_detail_width, inspection_photo_layout
+from .inspection_register_report import register_download_date, register_photo_cells, render_register_table
+from .passive_fire_register import _INSPECTION_RED
 from .pdf_fonts import FONT_REGULAR
 from .register_plans import append_plan_pages
 from .report import _Report, _company_header, _register_fonts, _LINE, _MUTED
+from .swms_pdf import Signature
 
 
 _SOURCE_FIELDS = {
@@ -50,7 +53,7 @@ def _ready(entry):
         )
     if not entry['readings']:
         missing.append('Recorded Thickness (mm)')
-    missing.extend(label for phase, label in PHOTOS.items() if not entry[phase])
+    missing.extend(label for phase, label in PHOTOS.items() if phase != 'gauge' and not entry[phase])
     if missing:
         raise ValidationError(f"Inspection {inspection_number(entry)}: complete " + ', '.join(missing) + '.')
 
@@ -98,8 +101,7 @@ def render_calculator_register(register, details, kind, *, company, plan_session
         raise ValidationError(f'There are no completed {CALCULATOR_INSPECTIONS[kind][0].lower()}.')
 
     title, _ = CALCULATOR_REGISTERS[kind]
-    columns = (('Location', 58), ('Inspection ID', 58), ('Calculator Register', 63),
-               *_REGISTER_SOURCE[kind], *_REGISTER_COLUMNS)
+    columns = (('Location', 58), ('Inspection ID', 58), *_REGISTER_SOURCE[kind], *_REGISTER_COLUMNS)
     labels, weights = zip(*columns)
     payload = render_register_table(
         title, details, company, labels + tuple(PHOTOS.values()), weights + (45,) * len(PHOTOS),
@@ -111,6 +113,21 @@ def render_calculator_register(register, details, kind, *, company, plan_session
     return payload
 
 
+def _inspection_photos(entry):
+    promoted, remaining = [], []
+    limits = {'gauge': 3} if entry['gauge'] else {'before': 1, 'during': 1, 'after': 1}
+    title = f'Inspection {inspection_number(entry)}'
+    for phase, label in PHOTOS.items():
+        photos = entry[phase]
+        for index, photo in enumerate(photos):
+            caption = f'{title} - {label}'
+            if len(photos) > 1:
+                caption += f' ({index + 1}/{len(photos)})'
+            destination = promoted if index < limits.get(phase, 0) else remaining
+            destination.append((caption, photo))
+    return promoted, remaining
+
+
 def render_calculator_inspections(register, details, kind, *, company, plan_sessions=None, takeoffs=None):
     entries = normalize_inspection_register(register, kind)['entries']
     if not entries:
@@ -120,33 +137,45 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
     title, _ = CALCULATOR_INSPECTIONS[kind]
     _register_fonts()
     report = _Report({})
-    report.styles['photo_caption'] = report.styles['subheading'].clone('CalculatorInspectionPhotoCaption', alignment=TA_CENTER)
+    report.styles['photo_caption'] = report.styles['subheading'].clone(
+        'CalculatorInspectionPhotoCaption', alignment=TA_CENTER, fontSize=9, leading=11, spaceBefore=0, spaceAfter=4)
     logo = company_logo(company)
     output = BytesIO()
     width, height = A4
     margin = 36
     content = width - 2 * margin - 12
+    facts_width = inspection_detail_width(content)
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
                                  topMargin=90, bottomMargin=43, title=title, author=company.get('name') or 'CLASSIFIRE')
 
     def field_table(rows, calculator_id=None):
-        cells = [[report.p(label, 'head'), _field_cell(report, label, value, calculator_id)]
+        cells = [[report.p(label, 'head'), value if isinstance(value, Signature)
+                  else _field_cell(report, label, value, calculator_id)]
                  for label, value in rows]
-        return report.table(None, cells, [content * .34, content * .66], compact=True,
+        return report.table(None, cells, [facts_width * .42, facts_width * .58], compact=True,
                             row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
 
     report.story.append(report.p(title, 'title'))
     project_rows = [(label, details[key]) for key, label in
                     (('project_no', 'Project number'), ('client', 'Client'), ('site_address', 'Site address'))
                     if details.get(key)]
-    if project_rows:
-        report.story.extend((field_table(project_rows), Spacer(1, 10)))
+    if kind == 'duct':
+        project_rows.append(('Date', register_download_date()))
     for index, entry in enumerate(entries):
         if index:
             report.story.append(PageBreak())
-        report.story.extend((field_table(_rows(entry, kind), entry['row']['calculator_id']), Spacer(1, 6)))
-        _append_evidence(report, f'Inspection {inspection_number(entry)}',
-                         ((label, entry[phase]) for phase, label in PHOTOS.items()), content)
+        facts = _rows(entry, kind)
+        facts.insert(1, ('Date', display_date(entry.get('inspection_date'))))
+        if signature := entry.get('signature'):
+            signer = entry.get('signature_details') or {}
+            facts.extend((('Name', signer.get('name')), ('Date signed', display_date(signer.get('date'))),
+                          ('Signature', Signature(signature, 144, 36))))
+        tables = [field_table(facts, entry['row']['calculator_id'])]
+        if index == 0 and project_rows:
+            tables[:0] = [field_table(project_rows), Spacer(1, 8)]
+
+        promoted, remaining = _inspection_photos(entry)
+        report.story.extend(inspection_photo_layout(report, tables, promoted, remaining, content, _INSPECTION_RED))
 
     def decorate(canvas, doc):
         canvas.saveState()

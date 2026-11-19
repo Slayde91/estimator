@@ -9,6 +9,7 @@ from .catalog import ValidationError
 
 THEMES = {'ceasefire': '#bd0018', 'midnight': '#244a75', 'ocean': '#155e75',
           'forest': '#166534', 'slate': '#334155'}
+CLASSIFIRE_RED = colors.HexColor(THEMES['ceasefire'])
 _theme = ContextVar('document_theme', default='ceasefire')
 
 

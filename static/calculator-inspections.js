@@ -42,6 +42,10 @@
     return {entry_id:crypto.randomUUID(), number:registers[kind].next_number, row:null,
       before:[], during:[], after:[], gauge:[], readings:[], plan_pins:[]};
   }
+  function todayInSydney() {
+    const dates = window.ClassifireDates;
+    return dates.parseDate(dates.date(Date.now(), {timeZone:'Australia/Sydney'}));
+  }
   function changed(kind) {
     const register = registers[kind], state = states[kind];
     if (!register.entries.length) { register.entries.push(state.placeholder); register.next_number++; }
@@ -178,11 +182,9 @@
     dateInput.min = '0001-01-01'; dateInput.max = '9999-12-31';
     dateInput.value = entry.inspection_date || '';
     dateInput.addEventListener('change',() => {
-      if (!dateInput.validity.valid) return;
-      if (dateInput.value) entry.inspection_date = dateInput.value;
-      else if ('inspection_date' in entry) delete entry.inspection_date;
-      else return;
-      changed(kind);
+      if (!dateInput.validity.valid || dateInput.value === entry.inspection_date) return;
+      entry.inspection_date = dateInput.value;
+      if (register.entries.length || dateInput.value) changed(kind);
     });
     const dateField = field('Inspection date',dateInput);
     dateField.classList.add('calculator-inspection-date');
@@ -304,7 +306,8 @@
     const state = states[kind], register = registers[kind], icon = window.ClassifireFormControls.iconButton;
     const back = icon('Back','back',() => window.CeasefireProject.openDocumentation());
     const add = icon('Add entry','add',() => {
-      register.entries.push(newEntry(kind)); register.next_number++; state.current = register.entries.length-1;
+      register.entries.push({...newEntry(kind),inspection_date:todayInSydney()});
+      register.next_number++; state.current = register.entries.length-1;
       changed(kind); state.message = ''; render(kind);
     }); add.disabled = register.entries.length >= 200;
     const remove = icon('Remove entry','remove',async () => {
@@ -333,6 +336,8 @@
   function render(kind) {
     const root = rootFor(kind); if (!root) return false;
     const state = states[kind], entry = currentEntry(kind), form = element('fieldset','register-form calculator-inspection-form');
+    const defaultedDate = !Object.hasOwn(entry,'inspection_date');
+    if (defaultedDate) entry.inspection_date = todayInSydney();
     form.disabled = state.photos;
     if (kind === 'steel') form.append(methodSection());
     const toolbar = element('div','register-toolbar register-actions card'), select = element('select');
@@ -351,7 +356,9 @@
       onChange:() => { changed(kind); state.message = ''; render(kind); },
       onError:error => status(kind,error)}));
     const footer = element('div','register-footer-actions register-actions'); footer.append(...actions(kind,entry));
-    form.append(element('p','helper','Save the project to keep this register.'),footer); root.replaceChildren(form); updateReadings(kind,entry); return true;
+    form.append(element('p','helper','Save the project to keep this register.'),footer); root.replaceChildren(form); updateReadings(kind,entry);
+    if (defaultedDate && registers[kind].entries.length) changed(kind);
+    return true;
   }
   function capture() {
     if (Object.values(states).some(state => state.photos || state.loading)) throw new Error('Finish preparing the inspection register before continuing.');

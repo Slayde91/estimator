@@ -43,18 +43,22 @@ _WIDTH = _PAGE_WIDTH - 2 * _MARGIN
 def _company_header(canvas, logo, page_width, page_height, margin, report_label, *, label_below_logo=False,
                     company=None, centered_title_color=None):
     """Draw the same contact header within the reserved space on every PDF page."""
+    contact_width = page_width * .5 - margin
+    logo_limit = 146
+    if centered_title_color is not None:
+        half_title = pdfmetrics.stringWidth(report_label, FONT_BOLD, 16) / 2
+        contact_width = max(1, contact_width - half_title - 10)
+        logo_limit = min(logo_limit, contact_width)
     logo_width, logo_height = logo.getSize()
-    scale = min(146 / logo_width, 35 / logo_height)
+    scale = min(logo_limit / logo_width, 35 / logo_height)
     canvas.drawImage(logo, margin, page_height - 22 - logo_height * scale,
                      width=logo_width * scale, height=logo_height * scale, mask="auto")
     canvas.setFillColor(_MUTED)
     canvas.setFont(FONT_REGULAR, 7.5)
-    contact_width = page_width * .5 - margin
     if centered_title_color is not None:
         canvas.setFont(FONT_BOLD, 16)
         canvas.setFillColor(centered_title_color)
         canvas.drawCentredString(page_width / 2, page_height - 43, report_label)
-        contact_width -= pdfmetrics.stringWidth(report_label, FONT_BOLD, 16) / 2 + 10
         canvas.setFillColor(_MUTED)
     elif label_below_logo:
         canvas.drawString(margin, page_height - 69, report_label)

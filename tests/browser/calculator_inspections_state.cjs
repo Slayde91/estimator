@@ -7,6 +7,8 @@ async function checkInspectionState(browser) {
   const errors = [];
   page.on('pageerror',error => errors.push(error.message));
   try {
+    await page.clock.setFixedTime(new Date('2026-01-01T15:10:00Z'));
+    const todayInSydney = '2026-01-02';
     const signerId = 'e8700568-3daf-4f95-8ff1-cf1e1f3c23a2';
     const signature = {version:1,ratio:2,strokes:[[[.1,.3],[.9,.7]]]};
     let staleSigner = true;
@@ -50,6 +52,9 @@ async function checkInspectionState(browser) {
     for (const file of ['dates.js','form-controls.js','calculator-inspections.js']) await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     await page.evaluate(() => window.ClassifireCalculatorInspections.open('steel'));
     const steel = page.locator('#structural-steel-inspections-root');
+    const steelInspectionDate = steel.getByLabel('Inspection date',{exact:true});
+    await expect(steelInspectionDate).toHaveValue(todayInSydney);
+    assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value),null);
     await steel.getByRole('checkbox',{name:'Steel (board)',exact:true}).check();
     await expect(steel.getByRole('checkbox',{name:'Steel (board)',exact:true})).toBeChecked();
     await steel.getByLabel('Calculator register row').selectOption('10');
@@ -84,6 +89,7 @@ async function checkInspectionState(browser) {
     const toolbar = steel.locator('.register-toolbar');
     await expect(picker).toHaveValue('10');
     await toolbar.getByRole('button',{name:'Add entry',exact:true}).click();
+    await expect(steelInspectionDate).toHaveValue(todayInSydney);
     await expect(picker.locator('option[value="10"]')).toHaveCount(0);
     await expect(steel.getByText('All calculator rows are assigned to other inspections.')).toBeVisible();
     await entryPicker.selectOption('0');
@@ -117,11 +123,20 @@ async function checkInspectionState(browser) {
 
     const legacy = before.value;
     delete legacy.steel.entries[0].source_estimate_id;
+    delete legacy.steel.entries[0].inspection_date;
+    legacy.steel.entries.push({...legacy.steel.entries[0],entry_id:'2126d309-dadc-4090-8143-d82cf8bc717f',number:2,row:null});
+    legacy.steel.next_number = 3;
     await page.evaluate(snapshot => {
       window.inspectionEstimates=['estimate-1'];
       window.ClassifireCalculatorInspections.applyProject(snapshot);
-      return window.ClassifireCalculatorInspections.open('steel');
     },legacy);
+    assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.hasProjectChanges()),false);
+    await page.evaluate(() => window.ClassifireCalculatorInspections.open('steel'));
+    await expect(steelInspectionDate).toHaveValue(todayInSydney);
+    assert.deepEqual(await page.evaluate(() => ({
+      dates:window.ClassifireCalculatorInspections.capture().value.steel.entries.map(entry => entry.inspection_date ?? null),
+      dirty:window.ClassifireCalculatorInspections.hasProjectChanges(),
+    })),{dates:[todayInSydney,null],dirty:true});
     await expect(picker).toHaveValue('saved');
     await toolbar.getByRole('button',{name:'Add entry',exact:true}).click();
     await expect(picker.locator('option[value="10"]')).toHaveCount(0);
@@ -159,7 +174,7 @@ async function checkInspectionState(browser) {
     const inspectionDate = duct.getByLabel('Inspection date',{exact:true});
     const signerName = duct.getByRole('textbox',{name:'Name',exact:true});
     const signingDate = duct.getByRole('textbox',{name:'Date',exact:true});
-    await expect(inspectionDate).toHaveValue('');
+    await expect(inspectionDate).toHaveValue(todayInSydney);
     await inspectionDate.fill('2025-12-19');
     await expect(signerName).toHaveJSProperty('readOnly',true);
     await expect(signingDate).toHaveJSProperty('readOnly',true);
@@ -192,8 +207,18 @@ async function checkInspectionState(browser) {
     await duct.getByRole('button',{name:'Clear signature',exact:true}).click();
     await expect(signingDate).toHaveValue('');
     await expect(inspectionDate).toHaveValue('2025-12-19');
+    await inspectionDate.fill('');
+    await duct.getByRole('button',{name:'Refresh register',exact:true}).click();
+    await expect(inspectionDate).toHaveValue('');
+    await page.waitForFunction(() => !window.ClassifireCalculatorInspections.busy());
+    const clearedDate = await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value);
+    assert.equal(clearedDate.duct.entries[0].inspection_date,'');
+    await page.evaluate(value => {window.ClassifireCalculatorInspections.applyProject(value);return window.ClassifireCalculatorInspections.open('duct');},clearedDate);
+    await expect(inspectionDate).toHaveValue('');
     await page.evaluate(() => {window.ClassifireCalculatorInspections.applyProject();return window.ClassifireCalculatorInspections.open('duct');});
     await expect(duct.locator('img')).toHaveCount(0);
+    await expect(inspectionDate).toHaveValue(todayInSydney);
+    await inspectionDate.fill('');
     assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value),null);
     assert.ok(requests.every(request => JSON.stringify(request.schedule_rows)==='[10]' && request.inputs.synthetic));
     assert.deepEqual(errors,[]);

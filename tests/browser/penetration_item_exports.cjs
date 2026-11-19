@@ -114,7 +114,22 @@ async function fill(column, value) { const field = page.locator(`[data-penetrati
   const scheduleCapture=response.request().postDataJSON(),scheduleFile=await response.json();assert.equal(scheduleFile.saved,true);
   assert.deepEqual(scheduleCapture.draft,before.penetration.draft);assert.deepEqual(scheduleCapture.configuration,before.pricing);assert.equal(scheduleCapture.item,undefined);assert.equal(scheduleCapture.diagram,undefined);
   const scheduleRelative=path.relative(output,scheduleFile.path);assert.ok(scheduleRelative&&!scheduleRelative.startsWith('..')&&!path.isAbsolute(scheduleRelative));
-  const scheduleContent=spawnSync(python,['-c',"from pypdf import PdfReader; import sys; r=PdfReader(sys.argv[1]); t='\\n'.join(p.extract_text() for p in r.pages); assert 'Schedule' in t and 'Copper Pipes' in t and '4.00' in t; assert '2.12' not in t; assert 'CURRENT UNSAVED - EXPORT THIS ITEM ONLY' not in t; assert all(i.image.size!=(320,160) for p in r.pages for i in p.images); print('Independent Schedule PDF content passed')",scheduleFile.path],{cwd:root,windowsHide:true,encoding:'utf8'});assert.equal(scheduleContent.status,0,`${scheduleContent.stdout}\n${scheduleContent.stderr}`);
+  const scheduleContent=spawnSync(python,['-c',String.raw`
+import re
+import sys
+from pypdf import PdfReader
+
+pages = PdfReader(sys.argv[1]).pages
+first = ' '.join(pages[0].extract_text().split())
+text = '\n'.join(page.extract_text() for page in pages)
+assert first.count('FIRESTOPPING SCHEDULE') == 1, first
+assert re.search(r'Site Address.*? Date \d{2}/\d{2}/\d{4}', first), first
+assert all('FIRESTOPPING SCHEDULE' not in page.extract_text() for page in pages[1:])
+assert 'Copper Pipes' in text and '4.00' in text
+assert '2.12' not in text and 'CURRENT UNSAVED - EXPORT THIS ITEM ONLY' not in text
+assert all(image.image.size != (320, 160) for page in pages for image in page.images)
+`,scheduleFile.path],{cwd:root,windowsHide:true,encoding:'utf8'});
+  assert.equal(scheduleContent.status,0,scheduleContent.stderr);
   assert.deepEqual(await snapshot(),before,'New Schedule entry preserves current unsaved item and independent Schedule');
   const scheduleExport={path:scheduleFile.path,sha256:hash(fs.readFileSync(scheduleFile.path)),capture:scheduleCapture,independentContent:true};
   await toggle.click();await expect(page.locator('#penetration-excel')).toHaveAccessibleName('Download Firestopping Schedule');

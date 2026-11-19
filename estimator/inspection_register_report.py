@@ -1,16 +1,14 @@
 """Tabular PDF of completed Passive Fire Inspections in the current project."""
 import base64
-from datetime import datetime
 from io import BytesIO
 from itertools import zip_longest
-from zoneinfo import ZoneInfo
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import Image, LongTable, PageBreak, SimpleDocTemplate, Spacer
 
 from .catalog import ValidationError
 from .company_settings import company_logo
-from .date_display import display_date
+from .date_display import pdf_download_date
 from .documentation_catalog import register_options
 from .passive_fire_register import JPEG_PREFIX, PHASES, _INSPECTION_RED, _ready, normalize_register
 from .pdf_fonts import FONT_REGULAR
@@ -24,10 +22,6 @@ TITLE = 'Passive Fire Register'
 HEADINGS = ('Level/Location', 'Penetration ID', 'Substrate', 'Orientation', 'Category', 'Services',
             'Manufacturer', 'FRL', 'Report Numbers', *PHASES.values())
 FACETS = ('substrate', 'orientation', 'category', 'services', 'manufacturer', 'frl')
-
-
-def register_download_date():
-    return display_date(datetime.now(ZoneInfo('Australia/Sydney')))
 
 
 class _RegisterTable(LongTable):
@@ -116,7 +110,7 @@ def render_register_table(title, details, company, headings, weights, rows):
     report.story.append(report.p('Project Details', 'subheading'))
     project_rows = [[report.p(label, 'head'), report.p(details.get(key) or '—', 'cell')]
                     for key, label in [('project_no', 'Project No.'), ('client', 'Client'), ('site_address', 'Site Address')]]
-    project_rows.append([report.p('Date', 'head'), report.p(register_download_date(), 'cell')])
+    project_rows.append([report.p('Date', 'head'), report.p(pdf_download_date(), 'cell')])
     report.story.append(report.table(None, project_rows, [content * .18, content * .82],
                                      compact=True, row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED))
     report.story.append(Spacer(1, 10))

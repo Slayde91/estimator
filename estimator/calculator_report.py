@@ -23,9 +23,10 @@ from .excel_engine import column_name
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _text, _LINE, _MUTED
 from .workbook_calculators import FYREWRAP_DIRECTION_NOTE, calculator_session, source_model
-from .date_display import display_source_dates
+from .date_display import display_source_dates, pdf_download_date
 from .board_steel_area import board_net_steel_areas, steel_area_display
 from .download_disclosure import calculator_download_data, duct_schedule_outputs
+from .document_theme import CLASSIFIRE_RED
 
 
 REPORT_SCOPES = {
@@ -442,7 +443,8 @@ class _ScheduleReport(_Report):
         # Paragraphs split safely even for 2,000-character notes or identifiers.
         return self.p(' | '.join(f'{label}: {self.display(value, blank="Blank")}' for label, value in values), 'small')
 
-    def overview(self, *, materials=False, include_project_details=True, project_report_title=None, include_references=True, quote_scope=False):
+    def overview(self, *, materials=False, include_project_details=True, project_report_title=None,
+                 include_references=True, quote_scope=False, download_date=None):
         data = self.data
         if quote_scope:
             from .quote_schedule import append_scope_schedule_heading
@@ -469,6 +471,8 @@ class _ScheduleReport(_Report):
                    for key, label in (('project_no', 'Project No.'), ('client', 'Client'),
                                       ('site_address', 'Site Address'))]
         if include_project_details and not quote_scope:
+            if download_date:
+                details.append([self.p('Date', 'cell'), self.p(download_date, 'cell')])
             self.story.append(self.table(['Project details', 'Recorded value'], details,
                                          [self.content_width * .20, self.content_width * .80]))
             self.story.append(Spacer(1, 10))
@@ -729,8 +733,12 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
         from .quote_schedule import append_scope_intro
         append_scope_intro(report, scope_intro)
     data = report.data
+    schedule_header = ''
+    if not (materials or quote_scope or project_report_title or report_footer):
+        schedule_header = 'DUCT SCHEDULE' if calculator_id == 'ductwork' else 'STEEL SCHEDULE'
+    download_date = pdf_download_date() if schedule_header and include_project_details else None
     report.overview(materials=materials, include_project_details=include_project_details, project_report_title=project_report_title,
-                    include_references=include_references, quote_scope=quote_scope)
+                    include_references=include_references, quote_scope=quote_scope, download_date=download_date)
     if data.get('assessment_notes') and not quote_scope:
         # Assessment evidence can occupy several pages. Start its quantities
         # on a fresh page so neither a section title nor table header is left
@@ -756,9 +764,10 @@ def _build_calculator_pdf(calculator_id, inputs, *, materials, project_details=N
 
     def decorate(canvas, doc):
         canvas.saveState()
+        title = schedule_header if doc.page == 1 else ''
         _company_header(canvas, logo, width, height, _MARGIN,
-                        '',
-                        label_below_logo=True, company=company)
+                        title, label_below_logo=True, company=company,
+                        centered_title_color=CLASSIFIRE_RED if title else None)
         if quote_scope:
             # The assembled quotation supplies the only page-number sequence.
             canvas.restoreState()

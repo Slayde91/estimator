@@ -10,10 +10,10 @@ from .assessment_references import UNAVAILABLE_RESULT, saved_report_references
 from .calculator_inspections import PHOTOS, inspection_number, normalize_inspection_register, recorded_thickness
 from .catalog import ValidationError
 from .company_settings import company_logo
-from .date_display import display_date
+from .date_display import display_date, pdf_download_date
 from .documentation_catalog import CALCULATORS, CALCULATOR_INSPECTIONS, CALCULATOR_REGISTERS
 from .inspection_photo_layout import inspection_detail_width, inspection_photo_layout
-from .inspection_register_report import register_download_date, register_photo_cells, render_register_table
+from .inspection_register_report import register_photo_cells, render_register_table
 from .passive_fire_register import _INSPECTION_RED
 from .pdf_fonts import FONT_REGULAR
 from .register_plans import append_plan_pages
@@ -114,8 +114,15 @@ def render_calculator_register(register, details, kind, *, company, plan_session
 
 
 def _inspection_photos(entry):
-    promoted, remaining = [], []
-    limits = {'gauge': 3} if entry['gauge'] else {'before': 1, 'during': 1, 'after': 1}
+    # The phase order in each selection is the order beside the details.
+    limits = (
+        {'before': 1, 'during': 1, 'after': 1},
+        {'gauge': 1, 'before': 1, 'after': 1},
+        {'gauge': 2, 'before': 1},
+        {'gauge': 3},
+    )[min(len(entry['gauge']), 3)]
+    promoted = {phase: [] for phase in limits}
+    remaining = []
     title = f'Inspection {inspection_number(entry)}'
     for phase, label in PHOTOS.items():
         photos = entry[phase]
@@ -123,9 +130,9 @@ def _inspection_photos(entry):
             caption = f'{title} - {label}'
             if len(photos) > 1:
                 caption += f' ({index + 1}/{len(photos)})'
-            destination = promoted if index < limits.get(phase, 0) else remaining
+            destination = promoted[phase] if index < limits.get(phase, 0) else remaining
             destination.append((caption, photo))
-    return promoted, remaining
+    return [photo for photos in promoted.values() for photo in photos], remaining
 
 
 def render_calculator_inspections(register, details, kind, *, company, plan_sessions=None, takeoffs=None):
@@ -155,12 +162,11 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
         return report.table(None, cells, [facts_width * .42, facts_width * .58], compact=True,
                             row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
 
-    report.story.append(report.p(title, 'title'))
     project_rows = [(label, details[key]) for key, label in
                     (('project_no', 'Project number'), ('client', 'Client'), ('site_address', 'Site address'))
                     if details.get(key)]
     if kind == 'duct':
-        project_rows.append(('Date', register_download_date()))
+        project_rows.append(('Date', pdf_download_date()))
     for index, entry in enumerate(entries):
         if index:
             report.story.append(PageBreak())
@@ -179,7 +185,9 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, title, company=company)
+        first_page = doc.page == 1
+        _company_header(canvas, logo, width, height, margin, title.upper() if first_page else '',
+                        company=company, centered_title_color=_INSPECTION_RED if first_page else None)
         canvas.setStrokeColor(_LINE)
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFillColor(_MUTED)

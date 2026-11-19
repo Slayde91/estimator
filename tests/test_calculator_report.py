@@ -7,11 +7,14 @@ import unittest
 from unittest.mock import patch
 
 from pypdf import PdfReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from estimator.calculator_report import build_calculator_report, build_calculator_summary_report, project_calculator_report, report_label, _material_rows, _source_text
 from estimator.catalog import ValidationError
 from estimator.company_settings import DEFAULTS
+from estimator.document_theme import document_theme
 from estimator.excel_engine import WorkbookEngine, column_number
+from estimator.pdf_fonts import FONT_BOLD
 from estimator.perlifoc_assessment import Assessment as PerlifocAssessment
 from estimator.promat_spray_assessment import Assessment as PromatAssessment
 from estimator.workbook_calculators import calculator_engine, source_model
@@ -433,6 +436,53 @@ class CalculatorReportTests(unittest.TestCase):
                     self.assertNotIn('EXTRA BOARDS', summary.splitlines())
                     self.assertIn('Board stock totals by product and thickness', summary)
                     self.assertNotIn('Bags are not applicable', summary)
+
+    def test_standalone_schedules_put_red_title_in_first_page_header_and_date_after_address(self):
+        schedules = (
+            ('ductwork', 'DUCT SCHEDULE', 'CALCULATOR', 11,
+             {'B': '250x250', 'C': 'CAFCO 300', 'D': 10, 'E': '120/120/120', 'F': 1, 'G': 0,
+              'H': 'External', 'I': 'Horizontal'}),
+            ('steel_board', 'STEEL SCHEDULE', 'CALCULATOR', 9,
+             {'A': 'Board fixture', 'B': 'Level 2', 'C': 'PROMATECT-XS', 'D': '200UC46',
+              'F': 10, 'G': 4, 'H': 120, 'I': 'Column', 'J': 550}),
+            ('steel_intumescent', 'STEEL SCHEDULE', 'SCHEDULE', 10,
+             {'A': 'Paint fixture', 'B': 'Nullifire SC902', 'C': 'I/H beam - 3 sides',
+              'D': 550, 'E': 'A/V', 'G': 200, 'H': 120, 'I': 2, 'J': 3, 'K': .4}),
+            ('steel_vermiculite', 'STEEL SCHEDULE', 'SCHEDULE', 10,
+             {'A': 'Spray fixture', 'B': 'CAFCO 300', 'C': 'Re-entrant - 3 sides',
+              'D': 620, 'E': 'Section', 'F': '410UB54', 'H': 120, 'I': 2, 'J': 3}),
+        )
+        date = '03/02/2026'
+        details = {'project_no': 'SC-22', 'client': 'Sample client', 'site_address': '123 Export Street'}
+        with document_theme('ocean'), patch('estimator.calculator_report.pdf_download_date', return_value=date):
+            for identity, title, sheet, start, values in schedules:
+                with self.subTest(calculator=identity):
+                    inputs = {sheet: {f'{column}{row}': value for row in range(start, start + 35)
+                                      for column, value in values.items()}}
+                    pdf = PdfReader(BytesIO(build_calculator_report(identity, inputs, project_details=details)))
+                    self.assertGreater(len(pdf.pages), 1)
+                    for number, page in enumerate(pdf.pages, 1):
+                        headings = []
+                        location = color = None
+                        for operands, operator in page.get_contents().operations:
+                            if operator == b'rg':
+                                color = tuple(round(channel * 255) for channel in operands)
+                            elif operator == b'Tm':
+                                location = operands[4:6]
+                            elif operator == b'Tj' and str(operands[0]) == title:
+                                headings.append((color, location))
+
+                        words = ' '.join(page.extract_text().split())
+                        if number == 1:
+                            (color, (x, y)), = headings
+                            self.assertEqual(color, (189, 0, 24))
+                            self.assertAlmostEqual(x + stringWidth(title, FONT_BOLD, 16) / 2,
+                                                   float(page.mediabox.width) / 2, places=3)
+                            self.assertAlmostEqual(y, float(page.mediabox.height) - 43, places=3)
+                            self.assertIn(f'Site Address 123 Export Street Date {date}', words)
+                        else:
+                            self.assertEqual(headings, [])
+                            self.assertNotIn(date, words)
 
     def test_board_summary_omits_only_requested_text_and_retains_extra_items_and_guidance(self):
         scenario = next(s for s in read_fixture('steel_board', 'variations')['scenarios']

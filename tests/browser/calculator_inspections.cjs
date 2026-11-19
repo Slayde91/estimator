@@ -25,6 +25,7 @@ const reportUrls={
 };
 const registers={duct:{id:'duct_register',title:'Duct Register'},steel:{id:'structural_steel_register',title:'Structural Steel Register'}};
 const covers={duct:{file:'Duct cover.pdf',text:'DUCT INSPECTION TEST COVER'},steel:{file:'Steel cover.pdf',text:'STEEL INSPECTION TEST COVER'}};
+const todayInSydney=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Australia/Sydney',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 async function documentRow(id){
   await openProjectSection(page,'documentation');
   const row=page.locator('tr[data-document-kind="'+id+'"]');await expect(row).toBeAttached();
@@ -180,6 +181,7 @@ async function run(){
   const png=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=20;return canvas.toDataURL('image/png').split(',')[1];});
   const photo={name:'inspection.png',mimeType:'image/png',buffer:Buffer.from(png,'base64')};
   let duct=await openInspection('duct');await duct.getByLabel('Calculator register row').selectOption('1');
+  await expect(duct.getByLabel('Inspection date',{exact:true})).toHaveValue(todayInSydney());
   for(const value of ['Ground','250x250','FyreWrap','2 x 38mm','FC17299-01-1'])await expect(duct.locator('tbody')).toContainText(value);
   await duct.getByLabel('Reading 1 (mm)',{exact:true}).fill('61.91');
   await duct.getByRole('button',{name:'Add reading',exact:true}).click();
@@ -193,6 +195,7 @@ async function run(){
   await page.screenshot({path:path.join(output,'duct-desktop.png')});
   const steel=await openInspection('steel');await steel.getByRole('checkbox',{name:'Steel (board)',exact:true}).check();await idle();
   await steel.getByLabel('Calculator register row').selectOption('1');
+  await expect(steel.getByLabel('Inspection date',{exact:true})).toHaveValue(todayInSydney());
   for(const value of ['Level 1','200UC46','PROMATECT-XS','FAS230021 RIR1.4'])await expect(steel.locator('tbody')).toContainText(value);
   await steel.getByLabel('Reading 1 (mm)',{exact:true}).fill('25');await steel.getByRole('button',{name:'Add reading',exact:true}).click();
   await steel.getByLabel('Reading 2 (mm)',{exact:true}).fill('35');

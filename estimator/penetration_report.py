@@ -10,6 +10,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.platypus import Image, SimpleDocTemplate, Spacer, TableStyle
 
 from .calculator_register import _sheet, _table
+from .date_display import pdf_download_date
+from .document_theme import CLASSIFIRE_RED
 from .pricing_workbook import _serialize_exact
 from .pdf_fonts import FONT_REGULAR
 from .report import _Report, _company_header, _register_fonts, _number, _numeric, _LINE, _MUTED
@@ -155,18 +157,21 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
     margin = 32
     content = width - 2 * margin
     logo = company_logo(company)
+    standalone = not (project_report_title or report_footer or quote_scope)
     if project_report_title and not quote_scope:
         from .quote_schedule import append_project_report_title
         append_project_report_title(report, project_report_title)
     elif quote_scope:
         from .quote_schedule import append_scope_schedule_heading
         append_scope_schedule_heading(report, 'penetration')
-    else:
+    elif not standalone:
         report.story.append(report.p('FIRESTOPPING SCHEDULE', 'title'))
     details = [('Project No.', project_details.get('project_no', '')),
                ('Client', project_details.get('client', '')),
                ('Site Address', project_details.get('site_address', ''))]
     if include_project_details and not quote_scope:
+        if standalone:
+            details.append(('Date', pdf_download_date()))
         report.story.append(report.table(['Project details', 'Value'],
             [[report.p(label, 'cell'), report.p(value, 'cell')] for label, value in details],
             [content * .25, content * .75]))
@@ -209,7 +214,9 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
 
     def decorate(canvas, doc):
         canvas.saveState()
-        _company_header(canvas, logo, width, height, margin, '', label_below_logo=True, company=company)
+        title = 'FIRESTOPPING SCHEDULE' if standalone and doc.page == 1 else ''
+        _company_header(canvas, logo, width, height, margin, title, label_below_logo=True, company=company,
+                        centered_title_color=CLASSIFIRE_RED if title else None)
         if quote_scope:
             canvas.restoreState()
             return
@@ -217,7 +224,7 @@ def render_penetration_pdf(result, definition, project_details, *, library=None,
         canvas.line(margin, 32, width - margin, 32)
         canvas.setFont(FONT_REGULAR, 7)
         canvas.setFillColor(_MUTED)
-        canvas.drawString(margin, 20, report_footer or 'FIRESTOPPING SCHEDULE')
+        canvas.drawString(margin, 20, report_footer or 'Firestopping schedule')
         canvas.drawRightString(width - margin, 20, f'Page {doc.page}')
         canvas.restoreState()
 

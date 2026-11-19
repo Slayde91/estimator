@@ -281,6 +281,12 @@ def import_schedule_workbook(calculator_id, payload, filename, current_inputs=No
         accepted_columns = [columns, all_columns, legacy_columns,
                             [field for field in columns if not field.get('quantity')],
                             [field for field in all_columns if not field.get('quantity')]]
+        if calculator_id == 'ductwork':
+            # The prior application template already supported Quantity but
+            # did not include Location. Retain both of its accepted shapes.
+            location = schedule['location_column']
+            accepted_columns += [[field for field in fields if field['column'] != location]
+                                 for fields in accepted_columns if fields is not legacy_columns]
         max_columns = max(len(fields) for fields in accepted_columns) + 1
         if sheet.max_row > capacity + 1 or sheet.max_column > max_columns:
             raise ValidationError(f"The schedule must contain at most {capacity} rows and only the exported input columns.")

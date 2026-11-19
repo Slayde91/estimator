@@ -11,12 +11,13 @@ import re
 
 from openpyxl.formula.translate import Translator
 
-from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, range_addresses
+from .workbook_catalog import load_workbook_catalog, list_workbook_catalogs, range_addresses, column_number
 from .calculator_defaults import default_calculator_inputs, MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES
 from .ductwork_policy import apply_ductwork_choices
 
 
 SCHEDULE_CAPACITY = 1000
+DUCT_LOCATION_COLUMN = 'DA'
 APPLICATION_TITLES = {
     'steel_vermiculite': 'Steel (spray)',
     'steel_board': 'Steel (board)',
@@ -433,6 +434,26 @@ def _add_perlifoc_assessment(model):
     calculator['J30']['formula'] = '""'
 
 
+def _add_duct_location(model):
+    # The workbook has no Location input. Place metadata after its private
+    # quantity calculations without changing the source cells or formulas.
+    schedule = model['schedule']
+    sheet = next(item for item in model['sheets'] if item['name'] == schedule['sheet'])
+    first, last, header = schedule['first_row'], schedule['last_row'], schedule['header_row']
+    location, number = DUCT_LOCATION_COLUMN, column_number(DUCT_LOCATION_COLUMN)
+    assert not any(address.startswith(location) for address in sheet['cells'])
+    sheet['cells'][f'{location}{header}'] = {**deepcopy(sheet['cells'][f'B{header}']), 'value': 'Location'}
+    for row in range(first, last + 1):
+        sheet['cells'][f'{location}{row}'] = {'data_type': 'n', 'style': sheet['cells'][f'B{row}'].get('style', 0)}
+    sheet['application_display_columns'].append(number)
+    for field in ('page_range', 'dimension'):
+        sheet[field] = re.sub(r':[A-Z]+([1-9]\d*)$', rf':{location}\1', sheet[field])
+    sheet['columns'].append({'min': str(number), 'max': str(number), 'width': '24', 'hidden': '0'})
+    schedule.update(location_column=location, last_column=location)
+    schedule['columns'].append({'column': location, 'label': 'Location', 'type': 'text', 'editable': True})
+    model['input_ranges'][schedule['sheet']].append(f'{location}{first}:{location}{last}')
+
+
 @lru_cache(maxsize=4)
 def _application_catalog(calculator_id):
     """Private, shared model; consumers must treat it as immutable."""
@@ -466,6 +487,8 @@ def _application_catalog(calculator_id):
     if calculator_id in {'steel_board', 'ductwork'}:
         from .schedule_quantity import add_quantity_inputs
         add_quantity_inputs(model)
+    if calculator_id == 'ductwork':
+        _add_duct_location(model)
     return model
 
 

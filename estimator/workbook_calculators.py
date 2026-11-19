@@ -12,7 +12,8 @@ from openpyxl.formula.translate import Translator
 
 from .catalog import ROOT, ValidationError
 from .excel_engine import WorkbookEngine, FormulaError, CellRange, coordinates, column_name, column_number, parse_formula, relative_formula, steel_criteria_matches
-from .workbook_runtime import _application_catalog, list_application_catalogs, application_editable_cells as editable_cells
+from .workbook_runtime import (DUCT_LOCATION_COLUMN, _application_catalog, list_application_catalogs,
+                               application_editable_cells as editable_cells)
 from .calculator_defaults import (default_calculator_inputs, yield_review,
                                   MONOKOTE_APPLICATION_BASIS_CELLS, MONOKOTE_APPLICATION_BASES)
 from .ductwork_policy import canonical_ductwork_value, normalize_schedule_choices
@@ -73,7 +74,7 @@ _REGISTER_COLUMNS = {
     'steel_vermiculite': [26, 27, *range(1, 26)],
     'steel_intumescent': [26, 27, *range(1, 26)],
     'steel_board': [*range(1, 7), 88, *range(7, 36)],
-    'ductwork': [*range(1, 5), 91, *range(5, 37), 40, 41, 37, 38, 39,
+    'ductwork': [1, column_number(DUCT_LOCATION_COLUMN), *range(2, 5), 91, *range(5, 37), 40, 41, 37, 38, 39,
                  42, 43, 86, 87, 88],
 }
 _DISPLAY_TEXT = {

@@ -23,7 +23,7 @@ from estimator.workbook_calculators import source_model
 
 EXTENTS = {
     "steel_vermiculite": {"CALCULATOR": (41, 14), "SCHEDULE": (1009, 27), "BAGS": (29, 14), "SETTINGS": (570, 65)},
-    "ductwork": {"CALCULATOR": (1010, 91), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
+    "ductwork": {"CALCULATOR": (1010, 105), "SUMMARY": (45, 12), "PRODUCT SETTINGS": (164, 17)},
     "steel_board": {"START": (100, 12), "CALCULATOR": (1008, 88), "BOARD SUMMARY": (38, 12), "EXTRA BOARDS": (45, 14), "SETTINGS": (51, 17)},
 }
 
@@ -255,8 +255,9 @@ class CalculatorPresentationApiTests(unittest.TestCase):
         self.assertTrue(self.cells(advanced)["X1008"]["editable"])
         self.assertFalse(self.cells(advanced)["AI1008"]["editable"])
         duct = self.worksheet("ductwork", "CALCULATOR", include_advanced=True)
-        self.assertEqual(duct["visible_columns"], [*range(1, 5), 91, *range(5, 37),
+        self.assertEqual(duct["visible_columns"], [1, 105, *range(2, 5), 91, *range(5, 37),
                                                  40, 41, 37, 38, 39, 42, 43, 86, 87, 88])
+        self.assertTrue(self.cells(duct)['DA11']['editable'])
         self.assertIn('CM11', self.cells(duct))
         self.assertNotIn('CN11', self.cells(duct))
         self.assertNotIn('CL1010', self.cells(duct))
@@ -265,7 +266,7 @@ class CalculatorPresentationApiTests(unittest.TestCase):
 
     def test_register_column_choices_include_real_fields_and_exclude_internal_keys(self):
         cases = [('steel_vermiculite', 'SCHEDULE', 10, 27), ('steel_intumescent', 'SCHEDULE', 10, 27),
-                 ('steel_board', 'CALCULATOR', 9, 36), ('ductwork', 'CALCULATOR', 11, 47)]
+                 ('steel_board', 'CALCULATOR', 9, 36), ('ductwork', 'CALCULATOR', 11, 48)]
         for identity, sheet, first, count in cases:
             with self.subTest(identity=identity):
                 result = self.worksheet(identity, sheet, include_advanced=True,

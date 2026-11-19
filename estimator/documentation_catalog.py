@@ -10,6 +10,14 @@ PDF = 'application/pdf'
 XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 CALCULATORS = {'steel_vermiculite':'Steel (spray)', 'steel_intumescent':'Steel (intumescent)',
                'steel_board':'Steel (board)', 'ductwork':'Ductwork'}
+CALCULATOR_INSPECTIONS = {
+    'duct': ('Duct Inspections', 'duct_inspections'),
+    'steel': ('Structural Steel Inspections', 'structural_steel_inspections'),
+}
+CALCULATOR_INSPECTION_ROUTES = {
+    '/api/project/' + key.replace('_', '-') + '.pdf': kind
+    for kind, (label, key) in CALCULATOR_INSPECTIONS.items()
+}
 PDF_SCOPES = {'steel_vermiculite':'Steel | Spray', 'steel_intumescent':'Steel | Paint',
               'steel_board':'Steel | Board', 'ductwork':'Duct'}
 SCOPES = {'steel':'Steel', 'duct':'Duct', 'walls_floors':'Walls and floors',
@@ -50,6 +58,8 @@ def document_catalog(edition='full'):
                 add('passive_fire_register.pdf', 'Passive Fire Inspections', 'pdf', 'passive_fire_register',
                     options=register_options())
                 add('passive_fire_registers.pdf', 'Passive Fire Register', 'pdf', 'passive_fire_register', action='register')
+                for kind, (label, key) in CALCULATOR_INSPECTIONS.items():
+                    add(key + '.pdf', label, 'pdf', 'calculator_inspections', kind=kind)
     add('pricing.library.xlsx','Pricing Library','xlsx','pricing')
     add('certification','Installation Certificate','pdf','certification')
     add('swms', 'Safe Work Method Statement', 'pdf', 'swms')
@@ -83,6 +93,8 @@ def export_identity(route, body):
              '/api/penetration/register.xlsx':'firestopping.schedule.xlsx'}
     if route in fixed:
         return fixed[route], ''
+    if route in CALCULATOR_INSPECTION_ROUTES:
+        return CALCULATOR_INSPECTIONS[CALCULATOR_INSPECTION_ROUTES[route]][1] + '.pdf', ''
     if route == '/api/swms/issue':
         return 'swms', str(body.get('id', ''))
     if (route == '/api/commercial/issue' and isinstance(body.get('kind'), str)

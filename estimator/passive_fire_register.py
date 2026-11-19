@@ -152,31 +152,34 @@ def _photo_groups(entry):
 
 
 def _check_photos(entries):
+    _check_photo_groups(group for entry in entries for group in _photo_groups(entry))
+
+
+def _check_photo_groups(groups):
     encoded_size = total_pixels = 0
-    for entry in entries:
-        for group in _photo_groups(entry):
-            for photo in group:
-                if not isinstance(photo, str) or not photo.startswith(JPEG_PREFIX):
-                    raise ValidationError('Attach a JPEG image to the register.')
-                encoded_size += len(photo)
-                if encoded_size > MAX_ENCODED_PHOTOS:
-                    raise ValidationError('Register photos exceed the 10 MiB combined encoded limit.')
-                if len(photo) > len(JPEG_PREFIX) + 4 * ((MAX_PHOTO_BYTES + 2) // 3):
+    for group in groups:
+        for photo in group:
+            if not isinstance(photo, str) or not photo.startswith(JPEG_PREFIX):
+                raise ValidationError('Attach a JPEG image to the register.')
+            encoded_size += len(photo)
+            if encoded_size > MAX_ENCODED_PHOTOS:
+                raise ValidationError('Register photos exceed the 10 MiB combined encoded limit.')
+            if len(photo) > len(JPEG_PREFIX) + 4 * ((MAX_PHOTO_BYTES + 2) // 3):
+                raise ValidationError('Each register photo must be at most 1 MiB.')
+            try:
+                data = base64.b64decode(photo[len(JPEG_PREFIX):], validate=True)
+                if len(data) > MAX_PHOTO_BYTES:
                     raise ValidationError('Each register photo must be at most 1 MiB.')
-                try:
-                    data = base64.b64decode(photo[len(JPEG_PREFIX):], validate=True)
-                    if len(data) > MAX_PHOTO_BYTES:
-                        raise ValidationError('Each register photo must be at most 1 MiB.')
-                    with PillowImage.open(BytesIO(data), formats=['JPEG']) as image:
-                        pixels = image.width * image.height
-                        total_pixels += pixels
-                        if pixels > 4_000_000 or total_pixels > 128_000_000:
-                            raise ValidationError('Register photos exceed the image resolution limit.')
-                        image.load()
-                except ValidationError:
-                    raise
-                except (ValueError, binascii.Error, OSError, UnidentifiedImageError, PillowImage.DecompressionBombError) as error:
-                    raise ValidationError('A register photo contains invalid JPEG data.') from error
+                with PillowImage.open(BytesIO(data), formats=['JPEG']) as image:
+                    pixels = image.width * image.height
+                    total_pixels += pixels
+                    if pixels > 4_000_000 or total_pixels > 128_000_000:
+                        raise ValidationError('Register photos exceed the image resolution limit.')
+                    image.load()
+            except ValidationError:
+                raise
+            except (ValueError, binascii.Error, OSError, UnidentifiedImageError, PillowImage.DecompressionBombError) as error:
+                raise ValidationError('A register photo contains invalid JPEG data.') from error
 
 
 def normalize_register(value, *, _validate_photos=True):

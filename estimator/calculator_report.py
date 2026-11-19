@@ -182,6 +182,7 @@ def _project_calculator_report(calculator_id, normalized, engine):
               for column in range(1, _OUTPUT_LAST[calculator_id] + 1)}
     rows = []
     quantity_column = schedule.get('quantity_column')
+    location_column = schedule.get('location_column')
     for row in range(schedule['first_row'], schedule['last_row'] + 1):
         supplied = {column: engine.value(sheet_name, column + str(row)) for column in input_columns}
         # A private legacy fallback of one is not an entered schedule item.
@@ -195,6 +196,8 @@ def _project_calculator_report(calculator_id, normalized, engine):
                   for column in range(1, _OUTPUT_LAST[calculator_id] + 1)}
         if quantity_column:
             values[quantity_column] = supplied[quantity_column]
+        if location_column:
+            values[location_column] = supplied[location_column]
         record = {'row': row, 'line': row - schedule['first_row'] + 1, 'values': values,
                   'input_columns': input_columns, 'labels': labels}
         if calculator_id == 'ductwork':

@@ -280,7 +280,7 @@ class ScheduleWorkbookTests(unittest.TestCase):
 
     def test_rejects_headers_extra_columns_rows_and_foreign_sheets(self):
         actions = [lambda book: setattr(book["CALCULATOR"]["A1"], "value", "Wrong header"),
-                   lambda book: setattr(book["CALCULATOR"]["J2"], "value", 123),
+                   lambda book: setattr(book["CALCULATOR"]["K2"], "value", 123),
                    lambda book: setattr(book["CALCULATOR"]["B1002"], "value", "250x250"),
                    lambda book: book.create_sheet("DATABASE")]
         for action in actions:

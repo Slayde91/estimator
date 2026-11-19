@@ -2,6 +2,7 @@
 import re
 
 from .technical_brand_presentation import manufacturer_names
+from .firefly_steel_presentation import firefly_structural_fields
 from .technical_discovery import SNAP_FILTER_SOURCE
 from .library_opening_types import project_opening_types
 from .technical_service_instructions import present_service_instructions
@@ -65,4 +66,4 @@ def public_prose_fields(record):
         fields.append(field if public == value else {**field, 'value': public})
     if 'trafalgar' in manufacturer_names(record):
         return present_service_instructions(fields)
-    return fields
+    return firefly_structural_fields(record, fields)

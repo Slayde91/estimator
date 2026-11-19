@@ -986,7 +986,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     result = calculate(body.get("inputs", {}), configuration, body.get('penetration'), body.get('work_items'))
                     self.send_payload(200, {**result, "work_summary": compile_work_summary(workflow, result)})
                 elif route == "/api/configuration" and self.command == "PUT":
-                    self.send_payload(200, store.save_configuration(body))
+                    configuration = store.save_configuration(body)
+                    libraries.queue_main_price_refresh()
+                    self.send_payload(200, configuration)
                 elif route == "/api/quotes" and self.command == "POST":
                     self.send_quote(201, store.save_quote(body))
                 elif route.startswith("/api/quotes/") and self.command == "PUT":
@@ -1086,9 +1088,9 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
     if warm_libraries and (libraries.directory / 'library.json').is_file():
         def prepare_libraries():
             try:
-                # The default page builds both validated indexes and primes
-                # prices under their existing configuration and draft hashes.
+                # Build the validated indexes and populate current prices.
                 libraries.listing('penetration')
+                libraries.queue_main_price_refresh()
             except (OSError, ValidationError, sqlite3.Error, CalculationBusy):
                 # A foreground request checks the current files again and
                 # reports the regular validation or storage error.

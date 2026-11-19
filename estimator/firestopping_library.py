@@ -1,8 +1,9 @@
-"""Editable library items with immutable pricing snapshots and revision checks.
+"""Editable library items with live shared prices and revision checks.
 
 The supplier bundle remains the original source. User saves are separate SQLite
 records; neither the shared pricing library nor a project's draft is changed.
-All prices are computed by the existing workbook calculator on the server.
+Current prices are computed by the workbook calculator on the server. Original
+workbook prices and pricing captured in projects remain separate.
 """
 
 from collections import OrderedDict
@@ -14,16 +15,19 @@ import binascii
 import hashlib
 from io import BytesIO
 import json
+import logging
 import math
 from pathlib import Path
 import re
+import sqlite3
+from threading import Lock, Thread
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .catalog import ValidationError, configuration_catalog, validate_configuration
-from .calculation_work import calculation_work
+from .calculation_work import CalculationBusy, calculation_work
 from .penetration_entry import validate_item_for_add
-from .penetration_calculator import (CALCULATION_POLICY_VERSION, calculate, canonical_frl,
+from .penetration_calculator import (CALCULATION_POLICY_VERSION, PRICE_COLUMNS, calculate, canonical_frl,
                                      canonical_service_type, canonical_substrate, definition,
                                      engine_for_draft, normalize_draft, source_model)
 from .reference_library import ReferenceLibrary, ReferenceNotFound, identifier
@@ -53,6 +57,7 @@ DIAGRAM_SIZE = (2000, 2000)
 THUMBNAIL_SIZE = (240, 160)
 DIAGRAM_EXTENSIONS = {'.png': 'PNG', '.jpg': 'JPEG', '.jpeg': 'JPEG', '.webp': 'WEBP'}
 UNCHANGED = object()
+LOGGER = logging.getLogger(__name__)
 
 
 def empty_library():
@@ -178,6 +183,11 @@ class LibraryEdits:
                     id TEXT PRIMARY KEY,
                     source_sha256 TEXT NOT NULL,
                     deleted_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS firestopping_live_prices (
+                    id TEXT PRIMARY KEY,
+                    fingerprint TEXT NOT NULL,
+                    amount REAL NOT NULL
                 );
             ''')
 
@@ -309,6 +319,23 @@ class LibraryEdits:
             db.execute('INSERT OR IGNORE INTO firestopping_prices VALUES(?,?)', (token, content))
         return token
 
+    def live_prices(self, keys):
+        prices = {}
+        with self.store.connect() as db:
+            for start in range(0, len(keys), 500):
+                batch = keys[start:start + 500]
+                placeholders = ','.join('?' for _ in batch)
+                prices.update((key, (fingerprint, amount)) for key, fingerprint, amount in db.execute(
+                    f'SELECT id,fingerprint,amount FROM firestopping_live_prices WHERE id IN ({placeholders})',
+                    batch))
+        return prices
+
+    def save_live_prices(self, entries):
+        if entries:
+            with self.store.connect() as db:
+                db.executemany('INSERT INTO firestopping_live_prices VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET '
+                               'fingerprint=excluded.fingerprint,amount=excluded.amount', entries)
+
     def save(self, key, revision, source, data, snapshot, diagram=UNCHANGED):
         content = encoded(snapshot)
         token = hashlib.sha256(content.encode()).hexdigest()
@@ -338,6 +365,7 @@ class LibraryEdits:
             db.execute('INSERT INTO firestopping_deleted VALUES(?,?,?)',
                        (key, source, timestamp()))
             db.execute('DELETE FROM firestopping_items WHERE id=?', (key,))
+            db.execute('DELETE FROM firestopping_live_prices WHERE id=?', (key,))
             db.execute('DELETE FROM firestopping_images WHERE item_id=?', (key,))
             db.execute('DELETE FROM firestopping_links WHERE penetration_id=?', (key,))
             db.execute('DELETE FROM firestopping_unlinks WHERE penetration_id=?', (key,))
@@ -351,6 +379,9 @@ class FirestoppingLibrary(ReferenceLibrary):
         self._effective = None
         self._price_cache = OrderedDict()
         self._diagram_cache = OrderedDict()
+        self._refresh_lock = Lock()
+        self._refresh_running = False
+        self._refresh_pending = False
 
     @staticmethod
     def _copy_for_overlay(source):
@@ -630,15 +661,18 @@ class FirestoppingLibrary(ReferenceLibrary):
 
     @calculation_work()
     def _effective_prices(self, items):
-        """Price only the requested page against each item's frozen snapshot.
-
-        Supplier amounts and saved historical amounts remain immutable. Batch
-        compatible rows so a page hydrates its pricing lookups once, and bound
-        the in-memory cache independently of the installed library size.
-        """
+        """Calculate and persist current prices for the requested shared items."""
         base = super()._load()
         created, saved = self.edits.created(), self.edits.all()
         snapshots, groups = {}, {}
+        shared = self._main_pricing()
+        persisted = self.edits.live_prices([item['id'] for item in items]) if shared else {}
+        product_options = {}
+        if shared:
+            snapshots['main'] = shared
+            product_options = {field['column']: {name.casefold() for name in field['options']}
+                               for field in definition(shared)['row_fields'] if field['column'] in PRICE_COLUMNS}
+        updates = []
         for item in items:
             key = item['id']
             try:
@@ -647,7 +681,9 @@ class FirestoppingLibrary(ReferenceLibrary):
                 own = created.get(key)
                 original = own['item'] if own else base['_records']['penetration'][key]
                 edit = saved.get(key)
-                if edit or own:
+                if shared:
+                    token = 'main'
+                elif edit or own:
                     token = (edit or own)['pricing_token']
                     if token not in snapshots:
                         snapshots[token] = self.edits.snapshot(token)['configuration']
@@ -661,6 +697,11 @@ class FirestoppingLibrary(ReferenceLibrary):
                 draft = self._library_draft(edit['draft'] if edit else original['estimate']['draft'])
                 if len(draft['rows']) != 1:
                     raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
+                inputs = draft['rows'][0]['inputs']
+                for column, options in product_options.items():
+                    selection = inputs.get(column)
+                    if selection and selection.casefold() not in options:
+                        raise ValidationError(f'{selection} is no longer available in this Main Library product group.')
                 configuration = snapshots[token]
                 # A source bundle may change its frozen pricing while retaining
                 # item IDs. Hash actual configuration, not just an item alias.
@@ -671,37 +712,100 @@ class FirestoppingLibrary(ReferenceLibrary):
                         'configuration_hash': hashlib.sha256(encoded(configuration).encode()).hexdigest(),
                         'globals': draft['globals'], 'entries': []}
                 group = groups[group_key]
-                cache_key = (CALCULATION_POLICY_VERSION, group['configuration_hash'],
+                cache_key = (CALCULATION_POLICY_VERSION, source_model()['source']['sha256'],
+                             group['configuration_hash'],
                              hashlib.sha256(encoded(draft).encode()).hexdigest())
-                if cache_key in self._price_cache:
+                fingerprint = hashlib.sha256(encoded(cache_key).encode()).hexdigest()
+                if shared and key in persisted and persisted[key][0] == fingerprint:
+                    item['price'] = price(persisted[key][1], 'Library price')
+                elif cache_key in self._price_cache:
                     self._price_cache.move_to_end(cache_key)
                     item['price'] = deepcopy(self._price_cache[cache_key])
                     if item['price'] is None:
                         item['price_error'] = 'The current calculation does not have a finite item price.'
+                    elif shared:
+                        updates.append((key, fingerprint, item['price']['amount']))
                 else:
-                    group['entries'].append((item, draft['rows'][0]['inputs'], cache_key))
+                    group['entries'].append((item, inputs, cache_key, fingerprint))
             except (ValidationError, KeyError) as error:
                 item['price'] = None
                 item['price_error'] = str(error)
         for group in groups.values():
             entries = group['entries']
-            if not entries:
-                continue
-            draft = {'globals': group['globals'],
-                     'rows': [{'id': f'price-{index}', 'inputs': inputs}
-                              for index, (_, inputs, _) in enumerate(entries)]}
-            engine, _ = engine_for_draft(draft, group['configuration'])
-            for index, (item, _, cache_key) in enumerate(entries, 4):
-                amount = engine.value('CALC', f'H{index}')
-                current = (price(amount, 'Library price') if isinstance(amount, (int, float))
-                           and not isinstance(amount, bool) and math.isfinite(amount) else None)
-                item['price'] = current
-                if current is None:
-                    item['price_error'] = 'The current calculation does not have a finite item price.'
-                self._price_cache[cache_key] = deepcopy(current)
-                self._price_cache.move_to_end(cache_key)
-                while len(self._price_cache) > 2048:
-                    self._price_cache.popitem(last=False)
+            # The same evaluator serves a page of results and a full refresh.
+            for start in range(0, len(entries), 100):
+                batch = entries[start:start + 100]
+                draft = {'globals': group['globals'],
+                         'rows': [{'id': f'price-{index}', 'inputs': inputs}
+                                  for index, (_, inputs, _, _) in enumerate(batch)]}
+                engine, _ = engine_for_draft(draft, group['configuration'])
+                for index, (item, _, cache_key, fingerprint) in enumerate(batch, 4):
+                    amount = engine.value('CALC', f'H{index}')
+                    current = (price(amount, 'Library price') if isinstance(amount, (int, float))
+                               and not isinstance(amount, bool) and math.isfinite(amount) else None)
+                    item['price'] = current
+                    if current is None:
+                        item['price_error'] = 'The current calculation does not have a finite item price.'
+                    elif shared:
+                        updates.append((item['id'], fingerprint, amount))
+                    self._price_cache[cache_key] = deepcopy(current)
+                    self._price_cache.move_to_end(cache_key)
+                    while len(self._price_cache) > 2048:
+                        self._price_cache.popitem(last=False)
+        self.edits.save_live_prices(updates)
+
+    def _main_pricing(self, *, require_saved=True):
+        config = self.edits.store.shared_configuration(require_saved=require_saved)
+        if config is not None:
+            config['catalog'] = configuration_catalog(config)
+        return config
+
+    def _main_snapshot(self, source, *, require_saved=True):
+        config = self._main_pricing(require_saved=require_saved)
+        if config is not None:
+            snapshot = {'basis': 'shared', 'label': 'Shared Pricing Library',
+                        'source_sha256': source['source_sha256'], 'configuration': config}
+            return snapshot, hashlib.sha256(encoded(snapshot).encode()).hexdigest()
+        return None
+
+    def refresh_main_prices(self):
+        """Persist all compatible shared prices with the saved Main Library rates."""
+        with self._lock:
+            data = self._load()
+            if data is None or self.edits.store.configuration(require_saved=True) is None:
+                return {'priced': 0, 'unavailable': []}
+            items = [{'id': item['id'], 'editable': item['editable'], 'library_id': item['library_id']}
+                     for item in data['_records']['penetration'].values()]
+            self._effective_prices(items)
+            unavailable = [{'library_id': item['library_id'], 'reason': item['price_error']}
+                           for item in items if item['price'] is None]
+            return {'priced': len(items) - len(unavailable), 'unavailable': unavailable}
+
+    def queue_main_price_refresh(self):
+        """Keep at most one background refresh, with a rerun for newer saves."""
+        with self._refresh_lock:
+            self._refresh_pending = True
+            if self._refresh_running:
+                return
+            self._refresh_running = True
+        Thread(target=self._refresh_main_prices_in_background, name='FirestoppingPriceRefresh', daemon=True).start()
+
+    def _refresh_main_prices_in_background(self):
+        while True:
+            with self._refresh_lock:
+                if not self._refresh_pending:
+                    self._refresh_running = False
+                    return
+                self._refresh_pending = False
+            try:
+                result = self.refresh_main_prices()
+                if result['priced']:
+                    LOGGER.info('Saved current Main Library prices for %d Firestopping items.', result['priced'])
+                if result['unavailable']:
+                    LOGGER.warning('Firestopping: %d items need review before they can use the current Main Library.',
+                                   len(result['unavailable']))
+            except (OSError, ValidationError, sqlite3.Error, CalculationBusy):
+                LOGGER.warning('Could not precompute current Firestopping prices.', exc_info=True)
 
     def listing(self, kind, **query):
         with self._lock:
@@ -806,7 +910,10 @@ class FirestoppingLibrary(ReferenceLibrary):
         detail = self.detail('penetration', key)
         original = self._context(key)[0]
         result['definition'] = definition(snapshot['configuration'], service_types=self.service_types())
-        amount = result['rows'][0]['outputs'].get('H')
+        row = result['rows'][0]
+        unavailable = snapshot['basis'] == 'shared' and any(
+            error['cell'].rstrip('0123456789') in PRICE_COLUMNS for error in row['errors'])
+        amount = None if unavailable else row['outputs'].get('H')
         current_price = price(amount, 'Calculated item price') if isinstance(amount, (int, float)) and not isinstance(amount, bool) and math.isfinite(amount) else None
         return {'id': key, 'library_id': detail['library_id'], 'title': detail['title'], 'revision': revision,
                 'source_price': deepcopy(original['price']), 'price': current_price, 'draft': draft,
@@ -1008,7 +1115,10 @@ class FirestoppingLibrary(ReferenceLibrary):
     def edit(self, key):
         with self._lock:
             item, source, saved, snapshot, token = self._context(key)
-            if saved:
+            shared = self._main_snapshot(source)
+            if shared:
+                snapshot, token = shared
+            elif saved:
                 token = saved['pricing_token']
                 snapshot = self.edits.snapshot(token)
             return self._response(key, saved['draft'] if saved else item['estimate']['draft'],
@@ -1102,7 +1212,15 @@ class FirestoppingLibrary(ReferenceLibrary):
             token = body['pricing_token']
             if not isinstance(token, str) or not re.fullmatch('[a-f0-9]{64}', token):
                 raise ValidationError('Invalid captured pricing token.')
-            snapshot = workbook if token == workbook_token else self.edits.snapshot(token)
+            shared = self._main_snapshot(source, require_saved=action != 'refresh-pricing')
+            if action == 'refresh-pricing':
+                snapshot, token = shared
+            elif shared:
+                snapshot, current_token = shared
+                if token != current_token:
+                    raise LibraryConflict('Main Library prices have changed. Refresh from Pricing Library before continuing.')
+            else:
+                snapshot = workbook if token == workbook_token else self.edits.snapshot(token)
             if snapshot['source_sha256'] != source['source_sha256']:
                 raise LibraryConflict('The captured pricing belongs to another library version. Reopen the item before saving.')
             draft = self._library_draft(body['draft'])
@@ -1110,10 +1228,6 @@ class FirestoppingLibrary(ReferenceLibrary):
                 raise ValidationError('A Firestopping Library item must contain exactly one calculation row.')
             diagram = diagram_upload(body['diagram']) if action == 'save' and 'diagram' in body else UNCHANGED
             if action == 'refresh-pricing':
-                config = self.edits.store.shared_configuration()
-                config['catalog'] = configuration_catalog(config)
-                snapshot = {'basis': 'shared', 'label': 'Shared Pricing Library',
-                            'source_sha256': source['source_sha256'], 'configuration': validate_configuration(config)}
                 token = self.edits.capture(snapshot)
             result = calculate(draft, snapshot['configuration'])
             if action == 'save':

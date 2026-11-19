@@ -55,19 +55,22 @@ class Store:
         finally:
             db.close()
 
-    def configuration(self):
+    def configuration(self, *, require_saved=False):
         with self.connect() as db:
             row = db.execute("SELECT data FROM settings WHERE id=1").fetchone()
-        return json.loads(row[0]) if row else {"inventory": {}, "rates": {}}
+        if row:
+            return json.loads(row[0])
+        return None if require_saved else {"inventory": {}, "rates": {}}
 
-    def shared_configuration(self):
+    def shared_configuration(self, *, require_saved=False):
         """Source-reviewed shared metadata, without rewriting stored settings.
 
         Saved project/quote configurations never pass through this overlay.
         Explicit Save pricing persists the reviewed values in the usual way.
         """
         from .pricing_manufacturers import with_manufacturer_defaults
-        return with_manufacturer_defaults(active_configuration(self.configuration()))
+        configuration = self.configuration(require_saved=require_saved)
+        return with_manufacturer_defaults(active_configuration(configuration)) if configuration is not None else None
 
     def company_settings(self):
         from .company_settings import DEFAULTS

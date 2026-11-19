@@ -274,6 +274,17 @@
     return kind !== "technical" || String(field.value ?? "").trim() !== "" || Boolean(field.images?.length || field.table || field.tables?.length || field.table_links?.length);
   }
 
+  function detailFields(record, kind) {
+    const fields = (record.fields || []).filter(field => visibleField(record, field, kind));
+    if (kind !== "technical") return { fields };
+    const barrier = fields.filter(field => field.label === "Barrier Construction");
+    const size = fields.filter(field => field.label === "Service Size / Configuration");
+    if (barrier.length !== 1 || size.length !== 1) return { fields };
+    const ordered = fields.filter(field => field !== barrier[0]);
+    ordered.splice(ordered.indexOf(size[0]), 0, barrier[0]);
+    return { fields: ordered, barrier: barrier[0], size: size[0] };
+  }
+
   function installationHeading(lines, index) {
     if (!/^Installation (?:through|against)\b/.test(lines[index] || "")) return null;
     let text = "";
@@ -451,7 +462,7 @@
     return sections.flatMap(section => parse(section, options)).map(renderBlock);
   }
 
-  const api = Object.freeze({ parse, render, compact, readable, fieldText, componentList, displayTitle, displaySubtitle, visibleField });
+  const api = Object.freeze({ parse, render, compact, readable, fieldText, componentList, displayTitle, displaySubtitle, visibleField, detailFields });
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LibraryDetailText = api;
 })(typeof window !== "undefined" ? window : globalThis);

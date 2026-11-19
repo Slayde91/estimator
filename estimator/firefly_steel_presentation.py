@@ -104,8 +104,6 @@ def _remove_repeated_purlin_table(record, fields, by_label):
                           'to seal the purlin into the aperture.')
     elif length != _normal(by_label.get(_WRAP, {}).get('value', '')):
         return
-    report = next(iter(proof)).upper()
-    _put(fields, by_label, 'Report Page', f'{report}, PDF page {page}')
     for name in ('table', 'tables', 'table_captions', 'table_row_ids'):
         size.pop(name, None)
     target = {'field': _SIZE, 'table_index': 0}

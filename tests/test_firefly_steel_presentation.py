@@ -29,13 +29,17 @@ def purlin(*, length_location='Service Wrap (length)'):
 
 
 class FireflySteelPresentationTests(unittest.TestCase):
-    def test_service_and_source_page_remain_visible_when_redundant_table_is_removed(self):
+    def test_service_and_report_link_remain_when_redundant_page_and_table_are_removed(self):
         item = purlin()
+        item['fields'] += [{'label': 'Report Number', 'value': 'FAS190235'},
+                           {'label': 'Report Page', 'value': 'FAS190235, PDF page 32'}]
         original = deepcopy(item)
         fields = {field['label']: field for field in public_prose_fields(item)}
         self.assertEqual(item, original)
         self.assertNotIn('table', fields['Service Size / Configuration'])
-        self.assertEqual(fields['Report Page']['value'], 'FAS190235, PDF page 32')
+        self.assertNotIn('Report Page', fields)
+        self.assertEqual(fields['Report Number']['value'], 'FAS190235')
+        self.assertEqual(item['sources'], [{'document_id': 'fas190235', 'page': 32}])
         self.assertEqual(fields['Service']['value'], 'Steel C or Z purlin')
         self.assertIn('concrete slab or roof insulation', fields['Local Protection']['value'])
         self.assertIn('Item 119', fields['Local Protection']['value'])

@@ -110,6 +110,7 @@
   .library-detail-navigation .library-document-menu .calculator-document-actions{inset-inline:0 auto;max-width:100%}
 }
 .library-record-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;margin:22px 0}
+.library-record-field-pair-start{grid-column:1}
 .library-record-field{padding:13px 0;border-bottom:1px solid var(--line);min-width:0}
 .library-record-field dt{font-size:11px;font-weight:650;color:var(--muted);margin-bottom:5px}
 .library-record-field dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}

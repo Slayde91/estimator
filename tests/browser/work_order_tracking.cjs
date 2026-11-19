@@ -93,7 +93,7 @@ async function assertTracking(host, expected, percentages) {
 }
 async function download(host) {
   const done = page.waitForResponse(response => /\/api\/commercial\/(?:saved-)?issue$/.test(new URL(response.url()).pathname));
-  await host.getByRole('button', {name:'Download PDF', exact:true}).click();
+  await host.locator('.commercial-editor-actions').getByRole('button', {name:'Download PDF', exact:true}).click();
   const response = await done, value = await response.json(); assert.equal(response.status(), 200, JSON.stringify(value));
   assert.equal(value.saved, true); await idle(); return value;
 }
@@ -128,7 +128,7 @@ async function download(host) {
   }
   await saveDocument(quote); await download(quote); await saveProject();
   const originalQuote = documents(info).find(value => value.kind === 'quote');
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click(); await openProjectSection(page, 'work-orders');
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click(); await openProjectSection(page, 'work-orders');
   let work = page.locator('#commercial-work-order-root'); await work.getByRole('button', {name:'New Work Order', exact:true}).click(); await idle();
   await expect(work.getByLabel('Document title', {exact:true})).toHaveCount(0);
   await work.getByLabel('Linked Quote', {exact:true}).selectOption(originalQuote.id);
@@ -260,9 +260,9 @@ async function download(host) {
   checks.push('Chinese and Arabic controls/headings translate on real language-menu navigation while canonical descriptions, identities, percentages and enum values stay unchanged; reopening in English restores the original UI labels');
 
   stage = 'issued source remains immutable after an unissued Quote edit';
-  await work.getByRole('button', {name:'Back to Work Orders', exact:true}).click(); quote = await openDocument('quote', quoteTitle);
+  await work.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Work Orders', exact:true}).click(); quote = await openDocument('quote', quoteTitle);
   await quote.locator('.commercial-lines tbody tr').first().locator('textarea').fill('Unissued changed Quote row'); await saveDocument(quote);
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click(); work = await openDocument('work-orders', workTitle);
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click(); work = await openDocument('work-orders', workTitle);
   await assertTracking(work, expected, percentages); await saveDocument(work); await saveProject();
   assert.deepEqual(ownedWork(info).fields.work_tracking, baseline);
   assert.equal(documents(info).find(value => value.kind === 'quote').fields.lines[0].description, 'Unissued changed Quote row');
@@ -277,7 +277,7 @@ async function download(host) {
   checks.push('Main Project Save and native Load reopen the exact row percentages and selected enum values');
 
   stage = 'prefilling a new claim from its client and designated accounts contact';
-  await work.getByRole('button', {name:'Back to Work Orders', exact:true}).click();
+  await work.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Work Orders', exact:true}).click();
   await work.getByRole('button', {name:'New Work Order',exact:true}).click();
   await idle();
   const newBilling=work.locator('[data-claim-billing]');

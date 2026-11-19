@@ -6,6 +6,55 @@ from estimator.technical_installation_text import present_installation_fields
 from estimator.technical_display import technical_field_text
 
 
+class ReviewedStructuralTextTests(unittest.TestCase):
+    profile_note = ("Use an SHS designation within this system's listed range that is expressly included in "
+                    'FAS210123 R2.0 Table 97. ')
+    scope = 'Follow FAS210123 R2.0 and FAS200363 R2.4 for the assessed configuration.'
+
+    def present(self, barrier, text, *, size='89SHS6.3', scope=scope):
+        fields = [{'label': label, 'value': value} for label, value in (
+            ('Barrier Construction', barrier), ('Service Size / Configuration', size),
+            ('Installation Details', text), ('Assessment Scope', scope),
+            ('FRL', '-/120/120'), ('Max. Opening Size', '587 mm × 990 mm'),
+        )]
+        present_installation_fields(fields)
+        once = deepcopy(fields)
+        present_installation_fields(fields)
+        self.assertEqual(fields, once)
+        return {field['label']: field['value'] for field in fields}
+
+    def test_assessed_rediwall_and_wrapped_section_keep_steps_and_conditions(self):
+        fields = self.present('AFS RediWall RW156C, minimum 156 mm',
+            'Use 156 mm AFS RediWall RW156C tested or assessed by an accredited testing laboratory to '
+            'achieve at least 120 minutes of integrity and insulation under AS 1530.4:2014, as specified '
+            'by FAS200363 R2.4 § 4.4.8. Fit the mechanically fixed Slide-on End Caps. '
+            'See FAS200363 R2.4 Table 1, page 10, § 11.3.1 and Appendix A.28.\n\n' +
+            self.profile_note + 'Extend wrap 500 mm from each board face. '
+            'Use the symmetrical service protection shown in the tested prototypes. '
+            'See FAS210123 R2.0, pages 60, 62 and Table 97, pages 160–161.')
+        self.assertEqual(fields['Installation Details'],
+                         'Fit the mechanically fixed Slide-on End Caps.\n\nExtend wrap 500 mm from each board face.')
+        self.assertIn('at least 120 minutes of integrity and insulation under AS 1530.4:2014', fields['Assessment Scope'])
+        self.assertIn('the same service protection on each side', fields['Assessment Scope'])
+        self.assertEqual(fields['FRL'], '-/120/120')
+        self.assertEqual(fields['Max. Opening Size'], '587 mm × 990 mm')
+
+    def test_kingspan_rating_and_wrap_free_steps_remain_available(self):
+        fields = self.present('150 mm Kingspan K-Roc Firemaster Ultima wall',
+            'Use a 150mm Kingspan K-Roc Firemaster Ultima wall tested or assessed by an Accredited '
+            'Testing Laboratory to achieve -/180/180 or 180/180/180. Reinforce the aperture.\n\n' +
+            self.profile_note + 'Install the service protection symmetrically. '
+            'See FAS210123 R2.0 Table 97, pages 165–166.', size='180SHS5')
+        self.assertEqual(fields['Installation Details'], 'Reinforce the aperture.\n\nInstall the service protection symmetrically.')
+        self.assertIn('FRL -/180/180 or 180/180/180', fields['Assessment Scope'])
+
+    def test_profile_range_and_other_report_scopes_keep_section_selection_note(self):
+        for kwargs in ({'size': 'SHS up to 250 x 10'}, {'scope': 'See FAS210123 R2.0 only.'}):
+            with self.subTest(kwargs=kwargs):
+                value = self.profile_note + 'Seal exposed board edges.'
+                self.assertEqual(self.present('Structural wall', value, **kwargs)['Installation Details'], value)
+
+
 class ServiceConfigurationTextTests(unittest.TestCase):
     label = 'Service Size / Configuration'
     components = ('1 × DN100 DWV uPVC pipe\n1 × 100 mm to 80 mm PVC offset reducer\n1 × 80 mm waste pipe\n'

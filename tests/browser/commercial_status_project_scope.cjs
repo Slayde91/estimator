@@ -23,7 +23,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  const stages=['Draft','Review','Presented','Accepted','Lost'];
  await expect(quote.getByLabel('Status',{exact:true})).toHaveCount(0);
  await quote.getByLabel('Introduction',{exact:true}).fill('Unsaved scope fixture');
- await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+ await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
  await page.getByRole('dialog',{name:'Discard the current quote?',exact:true}).getByRole('button',{name:'Yes',exact:true}).click();
  await expect(quote.locator('.commercial-column')).toHaveCount(stages.length);
  assert.deepEqual(await quote.locator('.commercial-column').evaluateAll(lanes=>lanes.map(lane=>lane.dataset.status)),stages);

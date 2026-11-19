@@ -11,7 +11,7 @@ const titles = ['Steel (spray)', 'Steel (board)', 'Ductwork (spray/wrap)'];
 const listing = ids.map((id, index) => ({ id, title: titles[index] }));
 const projectFilename = 'CEASEFIRE-Project.cf.json';
 const penetrationHelper = require('./helpers/penetration_ui.cjs');
-const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Downloads/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'downloads'}) });
+const fileResponse = type => ({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({saved:true,path:`C:/Projects/report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,filename:`report.${type.includes('spreadsheet')?'xlsx':'pdf'}`,destination:'project'}) });
 function definition(id) {
   const pages = id === 'steel_vermiculite' ? ['CALCULATOR', 'SCHEDULE'] : ['CALCULATOR'];
   return { id, title: titles[ids.indexOf(id)], pages, inputs: { CALCULATOR: { A9: 'Local saved value' } },
@@ -42,9 +42,28 @@ function harness({ penetration = false } = {}) {
     const attrs = new Map(), classes = new Set();
     return { tagName, value: '', textContent: '', children: [], options: [], dataset: {}, style: {}, listeners: {}, parts: new Map(), files: [], validity: { badInput: false },
       classList: { add(...names) { names.forEach(name => classes.add(name)); }, remove(...names) { names.forEach(name => classes.delete(name)); }, contains(name) { return classes.has(name); }, toggle(name, force) { if (force ?? !classes.has(name)) classes.add(name); else classes.delete(name); } },
-      setAttribute(name, value) { attrs.set(name, value); }, getAttribute(name) { return attrs.get(name); }, removeAttribute(name) { attrs.delete(name); },
+      setAttribute(name, value) { attrs.set(name, value); }, getAttribute(name) { return attrs.get(name); },
+      removeAttribute(name) { attrs.delete(name); if (name === 'id') this.id = ''; },
       append(...nodes) { this.children.push(...nodes); this.options = this.children; }, replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
-      querySelector(selector) { if (!this.parts.has(selector)) this.parts.set(selector, element()); return this.parts.get(selector); }, querySelectorAll() { return []; },
+      after(node) {
+        const siblings = this.parentNode.children;
+        siblings.splice(siblings.indexOf(this) + 1, 0, node);
+        node.parentNode = this.parentNode;
+      },
+      cloneNode(deep = false) {
+        const cloned = element(this.tagName);
+        cloned.id = this.id;
+        cloned.textContent = this.textContent;
+        if (deep) cloned.append(...this.children.map(child => child.cloneNode?.(true) ?? child));
+        return cloned;
+      },
+      querySelector(selector) { if (!this.parts.has(selector)) this.parts.set(selector, element()); return this.parts.get(selector); },
+      querySelectorAll(selector) {
+        if (selector === 'button' || selector === 'button[id]') {
+          return this.children.filter(child => child.tagName === 'button' && (selector === 'button' || child.id));
+        }
+        return [];
+      },
       closest() { return null; },
       addEventListener(name, fn, options = {}) { (this.listeners[name] ||= []).push({ fn, once: options.once }); },
       async emit(name, event) { const callbacks = [...this.listeners[name] || []]; this.listeners[name] = callbacks.filter(item => !item.once); for (const item of callbacks) await item.fn(event); },
@@ -71,6 +90,7 @@ vm.createContext(context);
   vm.runInContext(fs.readFileSync('static/document-workflow-board.js','utf8'),context);
   context.crypto = require('node:crypto').webcrypto;
   vm.runInContext(fs.readFileSync('static/follow-up-actions.js','utf8'),context);
+  vm.runInContext(fs.readFileSync('static/pricing-groups.js','utf8'),context);
   let calculatorSource = fs.readFileSync('static/calculators.js', 'utf8');
   const bridge = '  window.CeasefireCalculators = { open, projectSnapshot, projectFingerprint, prepareProject, applyProject };';
   assert.ok(calculatorSource.includes(bridge), 'Calculator test hook must match the actual project bridge');
@@ -114,6 +134,20 @@ vm.createContext(context);
   return { context, app, calc, bridgeApi, byId, element, addEntry, calls, chooseFile, snapshot, loadAccepted, pen, windowListeners };
 }
 
+function loadProjectPane(h) {
+  const toolbar = h.byId('project-details-actions'), pane = h.byId('project-details-pane');
+  const home = h.element();
+  home.append(toolbar, pane);
+  pane.parentNode = home;
+  for (const id of ['project-details-close', 'project-details-toolbar-save', 'project-details-load', 'project-refresh-records']) {
+    const control = h.byId(id);
+    control.tagName = 'button';
+    control.id = id;
+    toolbar.append(control);
+  }
+  vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+}
+
 let passed = 0;
 function projectCertificates(h) {
   const state={workspace:'project-A',fields:{client:'Certificate A'},revision:1,pending:false,applied:[],discarded:[],saved:[],next:0};
@@ -137,6 +171,14 @@ async function penetrationCheck(name, fn) {
   await deadline(name,()=>fn(h));passed++;console.log(`ok - ${name}`);
 }
 (async () => {
+  await check('Unsaved project identity remains readable for schedule rendering and deletion guards',async h=>{
+    h.app.state.projectFile=null;
+    const target=h.context.window.CeasefireProject.downloadTarget();
+    assert.equal(target.project_token,null);assert.equal(target.project_path,null);
+    assert.equal(target.project_context,h.app.state.quoteContext);
+    h.app.state.projectBusy=true;
+    assert.deepEqual(h.context.window.CeasefireProject.downloadTarget(),target);
+  });
   await check('Document creation requires a native saved project and assigned number, not typed identity',async h=>{
     const api=h.context.window.CeasefireProject,before=h.snapshot();let writes=0;
     h.app.setRequest(async()=>{writes++;throw Error('Guard must not save automatically');});
@@ -251,6 +293,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(calls,0);assert.equal(cert.state.workspace,'project-A');assert.match(h.byId('app-message').textContent,/certification operation/);
   });
   await check('Full-report preparation and shared save remain silent without changing their busy lifecycle', async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     h.context.window.CeasefireDownloadSound = feedback.sound;
     h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
@@ -267,6 +310,7 @@ async function penetrationCheck(name, fn) {
     assert.equal(feedback.audioAttempts, 0); assert.equal(button.disabled, false);
   });
   for (const phase of ['snapshot', 'file']) await check(`Full-report ${phase} failure stays silent and retires its busy control`, async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const prepare = deferred(), artifact = deferred(), feedback = require('./helpers/download_sound_vm.cjs').downloadSoundHarness();
     h.context.window.CeasefireDownloadSound = feedback.sound;
     h.bridgeApi.completeProjectSnapshot = () => prepare.promise;
@@ -506,6 +550,7 @@ async function penetrationCheck(name, fn) {
   });
 
   for (const id of ids) for (const action of ['schedule', 'summary', 'xlsx']) await check(`${id} ${action} download captures project identity only for PDFs`, async h => {
+    h.app.state.projectFile={save_token:'authorized',path:'C:/Projects/current.cf.json'};
     const entry = h.calc.state.entries.get(id) || h.addEntry(id); h.calc.state.current = id;
     const pending = deferred(); let sent;
     h.context.fetch = (path, options) => { sent = { path, body: JSON.parse(options.body) }; return pending.promise; };
@@ -515,7 +560,7 @@ async function penetrationCheck(name, fn) {
     assert.deepEqual(sent.body.inputs, inputs);
     if (action === 'xlsx') assert.deepEqual(Object.keys(sent.body), ['inputs','download']);
     else assert.deepEqual(sent.body.project_details, details);
-    assert.deepEqual(sent.body.download,{project_token:null});
+    assert.deepEqual(sent.body.download,{project_token:'authorized'});
     h.byId('client').value = 'Client changed after click';
     pending.resolve(fileResponse(action === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf')); await download;
     if (action !== 'xlsx') assert.match(h.byId('calculator-message').textContent, /later edits are not included/);
@@ -1492,7 +1537,7 @@ async function penetrationCheck(name, fn) {
   });
   await check('A held Save receipt keeps later pane edits and rejects unlinked clients without rejecting canonical Accounts',async h=>{
     h.byId('project-contact-name').value='Synthetic contact';h.byId('project-contact-email').value='contact@example.test';h.byId('project-contact-phone').value='0400000000';
-    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    loadProjectPane(h);
     const pane=h.context.window.CeasefireProjectPane;await pane.openCurrent();
     const captured=copy(h.context.window.CeasefireProject.details());h.app.state.projectBusy=true;
     h.byId('project-pane-client').value='Later unlinked client';await h.byId('project-pane-client').emit('input');
@@ -1531,7 +1576,7 @@ async function penetrationCheck(name, fn) {
       {id:'person-b',name:'Alex Same',account_id:'beta',company:'Stale Company label',phone:'222',email:'beta@example.test'},
       {id:'orphan',name:'Unlinked Person',account_id:null,company:'Alpha Company',phone:'333',email:''}]};
     const before=copy(directory);h.context.fetch=async path=>{assert.equal(path,'/api/contacts/directory');return{ok:true,json:async()=>copy(directory)};};
-    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    loadProjectPane(h);
     const pane=h.context.window.CeasefireProjectPane,name=h.byId('project-pane-contact-name'),client=h.byId('project-pane-client'),options=h.byId('project-contact-options');
     const focus=async control=>{control.focus();await control.emit('focus');await flush();};
     const choices=()=>options.children.filter(item=>item.getAttribute('role')==='option');
@@ -1563,7 +1608,7 @@ async function penetrationCheck(name, fn) {
       {id:'legacy',name:'Legacy Contact',company:'Alpha Company',phone:'111'},
       {id:'other',name:'Other Contact',account_id:'beta',company:'Beta Company',phone:'222'}]};
     h.context.fetch=async()=>({ok:true,json:async()=>copy(directory)});
-    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);await h.context.window.CeasefireProjectPane.openCurrent();
+    loadProjectPane(h);await h.context.window.CeasefireProjectPane.openCurrent();
     const before=copy(h.context.window.CeasefireProject.details()),name=h.byId('project-pane-contact-name');name.focus();await name.emit('focus');await flush();
     const options=h.byId('project-contact-options').children.filter(item=>item.getAttribute('role')==='option');assert.equal(options.length,1);assert.equal(options[0].textContent,'Legacy Contact');
     assert.deepEqual(h.context.window.CeasefireProject.details(),before);await options[0].emit('click');
@@ -1573,7 +1618,7 @@ async function penetrationCheck(name, fn) {
     const directory={accounts:[{id:'alpha',company:'Alpha Company',billing_address:'Alpha accounts\nPO Box 1',abn_acn:'ABN A'},
       {id:'beta',company:'Beta Company',billing_address:'Beta accounts',abn_acn:'ABN B'}],contacts:[]},before=copy(directory);
     h.context.fetch=async()=>({ok:true,json:async()=>copy(directory)});
-    vm.runInContext(fs.readFileSync('static/project-pane.js','utf8'),h.context);
+    loadProjectPane(h);
     const pane=h.context.window.CeasefireProjectPane;await pane.openCurrent();
     const client=h.byId('project-pane-client'),billing=h.byId('project-pane-billing-address'),abn=h.byId('project-pane-abn-acn');
     const choose=async name=>{client.focus();await client.emit('focus');await flush();client.value=name;await client.emit('input');await h.byId('project-account-options').children.find(item=>item.textContent===name).emit('click');};

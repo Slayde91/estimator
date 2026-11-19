@@ -1,6 +1,20 @@
 "use strict";
 const assert = require("node:assert/strict");
-const { parse, render, compact } = require("../static/library-detail-text.js");
+const { parse, render, compact, detailFields } = require("../static/library-detail-text.js");
+
+const service = { label: "Service", value: "Steel purlin" };
+const size = { label: "Service Size / Configuration", value: "100 19" };
+const report = { label: "Report Number", value: "FAS190235" };
+const barrier = { label: "Barrier Construction", value: "Structural concrete wall" };
+const originalFields = [service, size, report, barrier];
+assert.deepEqual(detailFields({ fields: originalFields }, "technical"), {
+  fields: [service, barrier, size, report], barrier, size,
+});
+assert.deepEqual(originalFields, [service, size, report, barrier]);
+assert.deepEqual(detailFields({ fields: originalFields }, "penetration"), { fields: originalFields });
+const tableBarrier = { label: "Barrier Construction", table: { columns: ["Walls"], rows: [["Hebel"]] } };
+assert.deepEqual(detailFields({ fields: [service, size, report, tableBarrier] }, "technical").fields,
+  [service, tableBarrier, size, report]);
 
 const item = (text, number) => ({ text, children: [], ...(number === undefined ? {} : { number }) });
 const paragraph = text => ({ type: "paragraph", text });

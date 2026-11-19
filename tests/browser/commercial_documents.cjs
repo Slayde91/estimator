@@ -37,7 +37,7 @@ async function save(host) {
 }
 async function download(host) {
   const responsePromise=page.waitForResponse(response=>response.url().endsWith('/api/commercial/issue') && response.request().method()==='POST');
-  await host.getByRole('button',{name:'Download PDF',exact:true}).click();
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF',exact:true}).click();
   const response=await responsePromise;
   const value=await response.json();
   assert.equal(response.status(),200,JSON.stringify(value));
@@ -214,7 +214,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await quote.locator('.commercial-lines tbody input').first().fill('3');
   await save(quote);
   assert.notEqual(await quoteTotal(),originalTotal,'The saved quote edit has a different total to the issued PDF');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await expect(quote.locator('.commercial-card .project-title-button')).toHaveText(/^Q-\d+: Example construction$/);
   assert.deepEqual(await quote.locator('.commercial-card').first().locator('.commercial-card-info dt').allTextContents(),
     ['Client','Contact','Address','Quote No.','Total','Updated']);
@@ -259,7 +259,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
     }
   }
   await expect.poll(() => JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(doc=>doc.kind==='work_order')?.status).toBe('Client Approval');
-  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   const signDialog=page.getByRole('dialog',{name:'Sign and move',exact:true});
   const column=(host,status)=>host.locator('.commercial-column').filter({has:page.getByRole('heading',{name:status,exact:true})});
   const currentWork=()=>JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.find(row=>row.kind==='work_order');
@@ -309,7 +309,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   const attachmentProof=execFileSync(process.env.CEASEFIRE_PYTHON||'python',['-c',
     'from pypdf import PdfReader; import sys; r=PdfReader(sys.argv[1]); assert r.attachments["qa-field-record.bin"][0]==b"QA portable original"; print(len(r.pages))',workPdf.path],{encoding:'utf8'});
   assert.ok(Number(attachmentProof)>1);
-  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   await workCard.dragTo(column(work,'Review'));
   await expect(signDialog).toHaveCount(0);
   await expect(column(work,'In progress').locator('.commercial-card')).toHaveCount(1);
@@ -347,7 +347,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await save(purchase);
   await expect(purchase.getByLabel('Purchase Order No.',{exact:true})).toHaveValue(/^PO-\d{2,}$/);
   await download(purchase);
-  await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
+  await purchase.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   await expect(purchase.locator('.commercial-card .project-title-button')).toHaveText(/^PO-\d+: Example supplier$/);
   await purchase.locator('.commercial-card').dragTo(column(purchase,'Requested'));
   await signDialog.getByRole('button',{name:'Sign and move',exact:true}).click();
@@ -359,7 +359,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await open('quote');
   await quote.locator('.commercial-card .project-title-button').click();
   await download(quote);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await idle();
   const saved=JSON.parse(fs.readFileSync(info.project,'utf8'));
   assert.equal(saved.commercial_documents.documents.length,3);
@@ -382,7 +382,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await work.getByRole('button',{name:assignedReference+': '+savedWork.fields.details.client,exact:true}).click();
   await expect(work.getByLabel('Work order reference',{exact:true})).toHaveValue(assignedReference);
   await expect(cost).toHaveValue(originalTotal);
-  await work.getByRole('button',{name:'Back to Work Orders',exact:true}).click();
+  await work.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Work Orders',exact:true}).click();
   checks.push('legacy saved work order opens with compact reference and its original issued quote total after a later issue');
   await open('quote');
   await expect(quote.locator('.commercial-card .project-title-button')).toHaveText(/^Q-\d+: Example construction$/);
@@ -394,7 +394,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(restored.documents.length,3);
   assert.equal(restored.documents.find(document=>document.kind==='quote').fields.sources.length,2);
   checks.push('two named estimates, distinct linked prices, exact Full Schedule content from both estimates and project reload retain links and history');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   // Two independently saved files may have the same portable document IDs.
   // Edit the second file from the register while the original remains active.
   const otherPath = path.join(info.directory, 'other-project.cf.json');
@@ -443,7 +443,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   assert.equal(ownerQuote().fields.title,'Other project quote','Editing the saved copy keeps its historic title');
   assert.deepEqual(fs.readFileSync(second.path),retainedQuotePDF,'Editing the copy preserves the original issued PDF exactly');
   const issue = page.waitForResponse(response=>response.url().endsWith('/api/commercial/saved-issue'));
-  await quote.getByRole('button',{name:'Download PDF'}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Download PDF'}).click();
   const issueResponse = await issue;
   assert.equal(issueResponse.status(),200,await issueResponse.text());
   await expect(quote.locator('.commercial-message')).toContainText('PDF saved');
@@ -456,7 +456,7 @@ print(json.dumps({'ids':[entry['id'] for entry in entries],'prices':[store.prepa
   await save(quote);
   assert.notEqual(await quoteTotal(),otherTotal);
   assert.equal(await page.evaluate(()=>window.CeasefireProject.context().project_path),info.project);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await otherCard.locator('summary').click();
   await otherCard.getByRole('button',{name:'Create WO'}).click();
   await expect(work.getByLabel('Linked Quote',{exact:true})).toHaveValue(clonedQuote.id);

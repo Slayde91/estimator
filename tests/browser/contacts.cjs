@@ -82,7 +82,7 @@ const ready = new Promise((resolve, reject) => {
     await page.setViewportSize({width,height:884});await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
     const [conflict] = await Promise.all([
       page.waitForResponse(response=>new URL(response.url()).pathname==='/api/contacts/leads' && response.request().method()==='POST'),
-      dlg.getByRole('button',{name:'Save',exact:true}).click()
+      dlg.getByRole('button',{name:'Save',exact:true}).first().click()
     ]);
     assert.equal(conflict.status(),409);
     const alert=dlg.locator('[data-contacts-notice]');await expect(alert).toHaveText(companyConflict);await expect(alert).toHaveAttribute('role','alert');
@@ -91,7 +91,7 @@ const ready = new Promise((resolve, reject) => {
     await expect(dlg.getByLabel('Name',{exact:true})).toHaveValue('Robin Sample');
   }
   await page.unroute('**/api/contacts/leads');await page.setViewportSize({width:1915,height:884});await page.evaluate(()=>document.documentElement.dataset.theme='ceasefire');
-  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await dlg.getByRole('button',{name:'Save',exact:true}).first().click();
   const card=root.locator('.project-kanban-card').filter({hasText:'Robin Sample'});
   await expect(root.locator('[data-status="New"] article')).toContainText('Robin Sample');
   const partialDirectory=await page.evaluate(async()=>await(await fetch('/api/contacts/directory')).json());
@@ -109,7 +109,7 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByLabel('Email',{exact:true}).fill('robin@example.test');
   await dlg.getByLabel('Next action',{exact:true}).fill('Call about east wing');
   await dlg.getByLabel('Follow-up date',{exact:true}).fill('2027-01-18');
-  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await dlg.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(card).toContainText('Call about east wing');
   const cutoff = root.getByLabel('Follow up by',{exact:true});
   await cutoff.fill('2027-01-17'); await expect(card).toHaveCount(0);
@@ -160,7 +160,7 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByRole('button',{name:'Cancel',exact:true}).click();
   await card.locator('summary').click(); await card.getByRole('button',{name:'Edit',exact:true}).click();
   await dlg.getByLabel('Title',{exact:true}).fill('Technician');
-  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await dlg.getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(card).toContainText('Technician');
   await expect(card.locator('dl.kanban-card-details dt')).toContainText(['Company','Title']);
   const detailColumns=await card.locator('dl.kanban-card-details').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
@@ -231,7 +231,7 @@ const ready = new Promise((resolve, reject) => {
   await dlg.getByLabel('Phone',{exact:true}).fill('0401');
   await dlg.getByLabel('Email',{exact:true}).fill('second@example.test');
   await dlg.getByLabel('Site address',{exact:true}).fill('Second Site');
-  await dlg.getByRole('button',{name:'Save',exact:true}).click();
+  await dlg.getByRole('button',{name:'Save',exact:true}).first().click();
   await page.locator('#estimate-navigation-toggle').click();
   await page.locator('#estimate-navigation-toggle').press('Escape');
   await showEstimateNotes(page);await page.locator('#measurements').fill('Keep these unsaved project notes');

@@ -32,7 +32,7 @@ async function saveQuote(host) {
   await expect(host.locator('.commercial-message')).toContainText('Document saved.');
 }
 async function discardQuote(host) {
-  await host.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await host.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await expect(host.getByRole('button',{name:'New Quote',exact:true})).toBeVisible();
 }
@@ -86,7 +86,7 @@ async function discardQuote(host) {
   const savedResponse=page.waitForResponse(response=>response.url().endsWith('/api/project/save'));
   await clickProjectControl(page,'Save'); assert.equal((await savedResponse).status(),200); await idle();
   const originalFile=fs.readFileSync(info.project,'utf8');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   const card=quote.locator('.commercial-card[data-document-id="'+JSON.parse(originalFile).commercial_documents.documents.find(doc=>doc.kind==='quote').id+'"]');
   const updated=await card.locator('dt').filter({hasText:/^Updated$/}).locator('xpath=following-sibling::dd[1]').innerText();
   assert.match(updated,/^\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2}$/);
@@ -167,7 +167,7 @@ async function discardQuote(host) {
   await card.locator('.project-title-button').click();
   await expect(ordinary).toHaveValue('130');
   await expect(quote.getByLabel('Materials',{exact:true})).toHaveValue('20');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
   for (const [key,value] of Object.entries(finalProfile.rates).filter(([key])=>key!=='access_equipment_transport')) await expect(quote.locator(`[data-rate-key="${key}"]`)).toHaveValue(value);
   await discardQuote(quote);

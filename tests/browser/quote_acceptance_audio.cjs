@@ -20,7 +20,7 @@ async function checkQuoteSound(page, expected) {
 }
 
 async function exerciseQuoteSound(page, quote, {initialStatus, saveEndpoint, statusEndpoint, title}) {
-  const save = quote.getByRole('button',{name:'Save',exact:true});
+  const save = quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true});
   const card = quote.locator('.commercial-card').first();
   async function saveUnchanged() {
     const response = page.waitForResponse(reply => new URL(reply.url()).pathname === saveEndpoint);
@@ -38,7 +38,7 @@ async function exerciseQuoteSound(page, quote, {initialStatus, saveEndpoint, sta
     await expect(card.locator('..')).toHaveAttribute('data-status',value);
   }
   const board = async () => {
-    await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+    await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
     if (title) await quote.getByLabel('Search documents',{exact:true}).fill(title);
   };
   await expect(quote.getByLabel('Status',{exact:true})).toHaveCount(0);

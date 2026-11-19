@@ -91,7 +91,7 @@ target.write_bytes(export_project(store,{**first,'estimates':[{'id':'estimate-1'
   await quote.getByRole('checkbox',{name:secondaryName,exact:true}).uncheck();await expect(rows).toHaveCount(2);await expect(add).toBeEnabled();assert.equal(derive.length,before);
   assert.equal(money(await quote.locator('.commercial-totals p').last().locator('span').innerText()),Number(((generatedUnit*2+100)*1.1).toFixed(2)));
   checks.push('closed-picker Add custom row updates totals; held selection preserves manual quantities/descriptions/custom amounts and full schedules remain lazy and cached');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await page.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   await openProjectSection(page,'documentation');await idle();
   const otherDocuments=page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true});
   if(await otherDocuments.getAttribute('aria-expanded')==='false')await otherDocuments.click();

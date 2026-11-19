@@ -99,7 +99,7 @@ function libraryFiles(){const directory=path.dirname(path.dirname(info.diagram))
  assert.deepEqual(await read('/api/contacts/directory'),directoryBefore);assert.deepEqual(fs.readFileSync(info.project),projectBefore);
  checks.push('The outlined refresh SVG matches the existing reset icon; clicking it reads newly linked Contacts without changing directory records or the saved Project.');
  const quotePdf=await quote.locator('.commercial-download-pdf .download-format-icon').innerHTML();
- await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
+ await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'documentation');
  const breakdown=page.locator('button[data-document-kind="estimate.summary.pdf"]');
  if(!await breakdown.isVisible())await page.locator('#documentation-pdf-rows').getByRole('button',{name:'Other documents',exact:true}).click();
  await breakdownButton(breakdown);

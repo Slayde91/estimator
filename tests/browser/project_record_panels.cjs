@@ -47,7 +47,7 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');await idle();
   await expect(quoteHistory.getByRole('button',{name:'Log activity',exact:true})).toBeEnabled();
   await expect(quoteHistory.getByLabel('Activity owner',{exact:true})).toBeDisabled();
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   const persisted=JSON.parse(fs.readFileSync(info.project));
   assert.ok(persisted.commercial_documents?.documents.length,'Saved Project owns the Quote');
   const documentId=persisted.commercial_documents.documents[0].id;
@@ -208,9 +208,9 @@ const ready=new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()
   siblingFile.commercial_documents.documents.find(row=>row.id===documentId).fields.introduction='Changed independently on disk';
   fs.writeFileSync(siblingPath,JSON.stringify(siblingFile));
   const refreshRead=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-open');
-  await quote.getByRole('button',{name:'Refresh Records',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Refresh Records',exact:true}).click();
   assert.equal((await refreshRead).status(),200);
-  await expect(quote.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
+  await expect(quote.locator('.commercial-editor-actions').getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
   const staleSave=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-save');
   await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
   assert.equal((await staleSave).status(),409);

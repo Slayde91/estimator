@@ -121,7 +121,7 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   checks.push('explicit Quote Save adopts current prices and canonical scope');
 
   const appliedPricing = await page.evaluate(() => window.CeasefireProject.configuration());
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await chooseLibrary(page, 'pricing');
   const price = page.locator('#pricing-body [data-price-field="supplier_price"]:enabled').first();
   await page.locator('#pricing-scope').selectOption('project');
@@ -155,7 +155,7 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   await expect(pricingChoice).toBeVisible();
   await pricingChoice.getByRole('button', {name:'Cancel save', exact:true}).click();
   await expect(quote.locator('.commercial-message')).toContainText('Save cancelled');
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await chooseLibrary(page, 'pricing');
   await page.locator('#pricing-scope').selectOption('project');
   await page.getByRole('dialog', {name:'Unsaved Pricing Library', exact:true}).getByRole('button', {name:'Continue', exact:true}).click();
@@ -174,7 +174,7 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   await showScope(quote);
   checks.push('scope preview skips pricing choices and preserves both conflicting drafts; explicit Save retains its pricing-choice guard');
 
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click();
   let release, notifyHeld, notifyDelivered;
   const gate = new Promise(resolve => release = resolve);
   const held = new Promise(resolve => notifyHeld = resolve);
@@ -194,7 +194,7 @@ path.write_bytes(export_project(store,{**workspace,'estimates':[{'id':'estimate-
   await quote.locator('.commercial-card-menu summary').click();
   await quote.getByRole('button', {name:'Open', exact:true}).click();
   await held;
-  await quote.getByRole('button', {name:'Back to Quotes', exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button', {name:'Back to Quotes', exact:true}).click();
   await quote.getByRole('button', {name:'New Quote', exact:true}).click();
   await showScope(quote);
   const replacement = await editorFields();

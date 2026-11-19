@@ -551,10 +551,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
     ],before=copy(fields);
     h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','owners'),fields,images:[]}));await h.api.open('technical','owners');
     const nodes=walk(h.pane('technical').detailPanel),links=nodes.filter(n=>n.className==='library-configuration-link'),tables=nodes.filter(n=>n.className==='library-field-table-scroll');
-    assert.deepEqual(links.map(n=>n.textContent),['View configuration table','View barrier construction table 1','View barrier construction table 2','View barrier construction table 1','View configuration table']);
-    assert.deepEqual(links.slice(0,3).map(n=>n.href),tables.map(n=>'#'+n.id));assert.equal(new Set(tables.map(n=>n.id)).size,3);
-    for(let i=0;i<3;i++){await links[i].emit('click',{detail:0});assert.equal(h.context.document.activeElement,tables[i]);}
-    assert.deepEqual(walk(tables[1]).filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90','Framed wall','-/60/60']);
+    assert.deepEqual(links.map(n=>n.textContent),['View configuration table','View barrier construction table 1','View barrier construction table 2','View configuration table','View barrier construction table 1']);
+    const targets=[tables[2],tables[0],tables[1]];
+    assert.deepEqual(links.slice(0,3).map(n=>n.href),targets.map(n=>'#'+n.id));assert.equal(new Set(tables.map(n=>n.id)).size,3);
+    for(let i=0;i<3;i++){await links[i].emit('click',{detail:0});assert.equal(h.context.document.activeElement,targets[i]);}
+    assert.deepEqual(walk(tables[0]).filter(n=>n.tagName==='td').map(n=>n.textContent),['Masonry','-/120/120','Panel','-/90/90','Framed wall','-/60/60']);
     assert.doesNotMatch(text(h.pane('technical').detailPanel),/private-wall|private-service|private-floor/);assert.deepEqual(fields,before);
   });
   await check('Generated Source Configuration columns stay hidden in legacy tables without shifting source cells',async h=>{

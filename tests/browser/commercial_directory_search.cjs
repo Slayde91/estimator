@@ -59,14 +59,14 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   let saved=file.commercial_documents.documents.find(item=>item.kind==='quote');assert.ok(saved);
   assert.equal(saved.fields.details.client,'Beta Company');assert.equal(saved.fields.details.contact,'Beta Contact');assert.equal(saved.fields.details.site_address,projectBefore.site_address);assert.equal(saved.fields.detail_overrides,undefined);assert.equal(saved.fields.details.account_id,beta.id);assert.equal(saved.fields.details.contact_id,person.id);
   const beforeDiscard=await page.evaluate(()=>window.CeasefireProject.details()),dirtyBeforeDiscard=await page.evaluate(()=>window.CeasefireDesktop.status().dirty);await name.fill('Discard this person');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();const discard=page.getByRole('dialog',{name:'Discard the current quote?',exact:true});await expect(discard).toBeVisible();await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(quote.locator('.commercial-board')).toBeVisible();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();const discard=page.getByRole('dialog',{name:'Discard the current quote?',exact:true});await expect(discard).toBeVisible();await discard.getByRole('button',{name:'Yes',exact:true}).click();await expect(quote.locator('.commercial-board')).toBeVisible();
   assert.equal(await page.evaluate(()=>window.CeasefireDesktop.status().dirty),dirtyBeforeDiscard,'Discard restores the prior Project dirty state when no other Project data changed');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),beforeDiscard,'Discarding an unsaved sidebar edit restores Project metadata');
   await expect(quote.locator('.commercial-card')).toContainText('Beta Company');await quote.locator('.commercial-card .project-title-button').click();
   await expandPanels(quote,'Linked Companies');
   await expect(quote.locator('.commercial-sidebar').first().getByRole('combobox',{name:'Company',exact:true})).toHaveValue('Beta Company');await expect(quote.locator('.commercial-sidebar').first().getByLabel('Site address',{exact:true})).toHaveCount(0);
   checked('Document recipient and directory IDs survive repeated saves and reopening, without changing the Project client or primary contact');
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'quotes');
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'quotes');
   await openCurrentProjectDetails(page);await expect(page.locator('#project-pane-client')).toHaveValue(projectBefore.client);
   await expect(page.locator('#project-pane-contact-name')).toHaveValue(projectBefore.contact_name);await expect(page.locator('#project-pane-address')).toHaveValue(projectBefore.site_address);
   await page.locator('#project-pane-address').fill('Project edited site\nLevel 2');
@@ -91,7 +91,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   await reopenedLeft.getByRole('combobox',{name:'Company',exact:true}).fill('Beta');await expect(reopenedLeft.getByRole('option',{name:'Beta Company',exact:true})).toBeVisible();
   await quote.screenshot({path:path.join(output,'quote-directory-desktop.png')});await reopenedLeft.getByRole('option',{name:'Beta Company',exact:true}).click();
   await reopenedLeft.getByRole('combobox',{name:'Name',exact:true}).fill('Beta');await reopenedLeft.getByRole('option',{name:'Beta Contact',exact:true}).click();await save(quote);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'purchase-orders');const purchase=page.locator('#commercial-purchase-order-root');await purchase.getByRole('button',{name:'New Purchase Order',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await openProjectSection(page,'purchase-orders');const purchase=page.locator('#commercial-purchase-order-root');await purchase.getByRole('button',{name:'New Purchase Order',exact:true}).click();
   const information=purchase.locator('.commercial-purchase-information');await expect(purchase.getByRole('combobox',{name:'Supplier company',exact:true})).toBeVisible();
   for(const label of ['Supplier company','Supplier contact','Site contact'])await expect(purchase.getByRole('combobox',{name:label,exact:true})).toHaveValue('');
   await purchase.getByRole('combobox',{name:'Supplier company',exact:true}).fill('Beta');await purchase.locator('.commercial-directory-options:visible').getByRole('option',{name:'Beta Company',exact:true}).click();
@@ -161,7 +161,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
     await option.click();
   }
   checked('Directory result lists remain in the available container at desktop/tablet/mobile widths');
-  await save(purchase);await purchase.getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
+  await save(purchase);await purchase.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Purchase Orders',exact:true}).click();
   const otherPath=path.join(path.dirname(info.project),'other-owner.cf.json'),other=JSON.parse(fs.readFileSync(info.project,'utf8'));
   other.commercial_documents.documents.find(row=>row.kind==='quote').fields.title='Other owner quote';
   other.commercial_documents.documents.find(row=>row.kind==='purchase_order').fields.title='Other owner purchase';
@@ -176,7 +176,7 @@ function checked(text){checks.push(text);fs.writeFileSync(path.join(output,'prog
   assert.deepEqual(otherSaved.estimate,other.estimate);assert.deepEqual(otherSaved.estimates,other.estimates);const recipient=otherSaved.commercial_documents.documents.find(doc=>doc.kind==='quote').fields.details;assert.equal(recipient.account_id,beta.id);assert.equal(recipient.contact_id,person.id);
   assert.equal(otherSaved.commercial_documents.documents.find(doc=>doc.kind==='quote').fields.title,'Other owner quote');
   assert.deepEqual(await page.evaluate(()=>window.CeasefireProject.details()),activeDetails);assert.equal(fs.readFileSync(info.project,'utf8'),activeBytes);
-  await quote.getByRole('button',{name:'Back to Quotes',exact:true}).click();await quote.getByLabel('Search documents',{exact:true}).fill('Other owner quote');await quote.locator('.commercial-card .project-title-button').click();await expect(otherLeft.getByLabel('Site address',{exact:true})).toHaveCount(0);
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();await quote.getByLabel('Search documents',{exact:true}).fill('Other owner quote');await quote.locator('.commercial-card .project-title-button').click();await expect(otherLeft.getByLabel('Site address',{exact:true})).toHaveCount(0);
   const outside=JSON.parse(fs.readFileSync(otherPath,'utf8'));outside.estimate.site_address='Changed by another tab';fs.writeFileSync(otherPath,JSON.stringify(outside));
   await quote.getByLabel('Introduction',{exact:true}).fill('Concurrent revision test');const stale=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/commercial/saved-save');await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();assert.equal((await stale).status(),409);
   await expect(quote.locator('.commercial-message')).toContainText('saved project changed');assert.equal(JSON.parse(fs.readFileSync(otherPath,'utf8')).estimate.site_address,'Changed by another tab');assert.equal(fs.readFileSync(info.project,'utf8'),activeBytes);

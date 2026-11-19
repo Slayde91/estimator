@@ -33,8 +33,8 @@ async function checkLeadRecordPanels(page, api, person, output) {
   await expect(left.locator('.contacts-links > details > summary')).toHaveText([
     'Linked Quotes (0)','Linked Work Orders (0)','Linked Purchase Orders (0)','Linked Projects (1)']);
   await expandPanels(left,'Linked Projects');
-  await pane.getByRole('button',{name:'Refresh Records',exact:true}).click();
-  await expect(pane.getByRole('button',{name:'Refresh Records',exact:true})).toBeEnabled();
+  await pane.getByRole('button',{name:'Refresh Records',exact:true}).first().click();
+  await expect(pane.getByRole('button',{name:'Refresh Records',exact:true}).first()).toBeEnabled();
   await expect(left.locator('[data-link-group=projects]')).toHaveJSProperty('open',true);
   await expect(left.locator('details[open]')).toHaveCount(1);
   const projectLink = left.locator('[data-link-group=projects]').getByRole('button');
@@ -52,7 +52,7 @@ async function checkLeadRecordPanels(page, api, person, output) {
   const quote = page.locator('#commercial-quote-root');
   await quote.getByRole('button',{name:'New Quote',exact:true}).click();
   await quote.getByLabel('Introduction',{exact:true}).fill('First linked Quote');
-  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).click();
+  await quote.locator('.commercial-editor-actions').getByRole('button',{name:'Save',exact:true}).first().click();
   await expect(quote.locator('.commercial-message')).toContainText('Document saved.');
   await expect.poll(async () => (await api('/api/commercial/register?refresh=1')).documents.length).toBe(1);
   const quoteCard = (await api('/api/commercial/register')).documents[0];

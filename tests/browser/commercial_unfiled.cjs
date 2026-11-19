@@ -73,7 +73,7 @@ async function save(page){
   await expect(board(other).getByLabel('Linked Project',{exact:true})).toHaveAttribute('readonly','');
   await board(other).getByLabel('Introduction',{exact:true}).fill(edited);
   await save(other);
-  await board(other).getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await board(other).locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await card(heading).locator('.commercial-card-menu summary').click();
   await card(heading).getByLabel('Move to',{exact:true}).selectOption('Presented');
   await expect(board(other).locator('.project-kanban-column').filter({has:other.getByRole('heading',{name:'Presented',exact:true})})).toContainText(heading);
@@ -110,7 +110,7 @@ async function save(page){
   await openProjectSection(owner,'quote');
   await board(owner).getByRole('button',{name:'New Quote',exact:true}).click();
   await expect(board(owner).locator('.commercial-editor')).toBeVisible();
-  await board(owner).getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await board(owner).locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await owner.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
   assert.equal(JSON.parse(fs.readFileSync(info.project,'utf8')).commercial_documents.documents.length,2,'An unsaved new draft never duplicates the recovered history');
   await other.reload();await idle(other);await openProjectSection(other,'quote');
@@ -151,7 +151,7 @@ async function save(page){
   await expect(board(owner).locator('.commercial-message')).toContainText(/reopen.*project/i);
   await expect(board(owner).locator('.commercial-message')).not.toContainText(/certificate/i);
   await expect(introduction).toHaveValue('Keep my unsaved Quote edits');
-  await board(owner).getByRole('button',{name:'Back to Quotes',exact:true}).click();
+  await board(owner).locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
   await owner.locator('#discard-dialog').getByRole('button',{name:'Yes',exact:true}).click();
 
   for(const [section,label,id] of [
@@ -167,7 +167,7 @@ async function save(page){
     if(section==='quote'){
       await pane.locator('.commercial-card').getByRole('button',{name:heading,exact:true}).click();
       await expect(introduction).toHaveValue(edited);
-      await pane.getByRole('button',{name:'Back to Quotes',exact:true}).click();
+      await pane.locator('.commercial-editor-actions').getByRole('button',{name:'Back to Quotes',exact:true}).click();
     }
     await create.click();
     await expect(pane.locator('.commercial-message')).toContainText(/reopen.*project/i);

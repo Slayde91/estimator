@@ -3,7 +3,20 @@
   const $ = id => document.getElementById(id);
   const pane = $("project-details-pane");
   if (!pane) return;
-  const dialog = $("project-new-dialog"), home = pane.parentNode, homeNext = pane.nextSibling;
+  const dialog = $("project-new-dialog"), home = pane.parentNode;
+  const toolbar = $("project-details-actions"), footer = toolbar.cloneNode(true);
+  const toolbarCopies = new Map();
+  footer.id = "project-details-footer-actions";
+  for (const control of footer.querySelectorAll("button[id]")) {
+    toolbarCopies.set(control.id, control);
+    control.dataset.projectActionCopy = control.id;
+    control.removeAttribute("id");
+  }
+  pane.after(footer);
+  const toolbarButtons = id => [$(id), toolbarCopies.get(id)];
+  function bindToolbar(id, handler) {
+    for (const control of toolbarButtons(id)) control.addEventListener("click", handler);
+  }
   const side = $("project-workspace-side"), links = $("project-workspace-links"), pricingNotice = $("project-pricing-notice");
   const translate = source => window.CeasefireI18n?.translate?.(source) || source;
   const text = (element,source) => window.CeasefireI18n ? window.CeasefireI18n.text(element,source) : (element.textContent=source);
@@ -12,7 +25,7 @@
     contact_email:"project-pane-contact-email", contact_phone:"project-pane-contact-phone"};
   const followUpHost = $("project-pane-follow-ups");
   let followUpEditor;
-  const metadataControls = [...pane.querySelectorAll("input,textarea,button"),...$("project-details-actions").querySelectorAll("button")];
+  const metadataControls = [...pane.querySelectorAll("input,textarea,button"), ...toolbar.querySelectorAll("button"), ...toolbarCopies.values()];
   const participantSlots = [$("project-company-participants"),$("project-contact-participants")];
   function revealField(control) {
     const section = control.closest("details");
@@ -86,7 +99,8 @@
     },{once:true});
     headerDetails.showModal();
   }
-  let selected = null, ticket = 0, pending = false, accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
+  let selected = null, ticket = 0, pending = false, refreshTarget = null, loadTarget = null;
+  let accounts = [], accountId = "", accountName = "", optionIndex = -1, options = [], directoryTicket = 0, currentRule = null;
   let contacts = [], contactId = "", contactName = "", contactOptions = [], contactOptionIndex = -1, contactLoading = false, contactPopupRequested = false, returningContactFocus = false;
   function details() { return {...Object.fromEntries(Object.entries(fields).map(([key,id]) => [key,$(id).value.trim()])), account_id:accountId, contact_id:contactId, follow_up_actions:followUpEditor?.value() ?? []}; }
   function dirty() { return !!selected && ["saved","new"].includes(selected.kind) && stamp(details()) !== stamp(selected.baseline); }
@@ -144,8 +158,12 @@
   function busy(value) {
     pending = value; pane.setAttribute("aria-busy", String(value));
     const recovering = selected?.kind === "new" && selected.creation?.uncertain;
-    for (const control of metadataControls) control.disabled = value || recovering && control.id !== "project-details-save" || !!selected?.blocked && control.id !== "project-details-close";
-    $("project-details-load").disabled = value || !selectedFile()?.source;
+    for (const control of metadataControls) {
+      const id = control.id || control.dataset.projectActionCopy;
+      control.disabled = value || recovering && id !== "project-details-save" || !!selected?.blocked && id !== "project-details-close"
+        || Boolean(refreshTarget && refreshTarget === selected && id === "project-refresh-records");
+    }
+    updateLoadButtons();
     for (const slot of participantSlots) slot.inert = !!(value || recovering || selected?.blocked);
     followUpHost.inert = !!(value || recovering || selected?.blocked);
     side.inert = links.inert = !!(value || recovering || selected?.blocked);
@@ -176,7 +194,7 @@
     window.ClassifireDocumentBoard.refreshFollowUps();
     $("project-browser").hidden = true;
     if (dialog?.open) dialog.close();
-    if (pane.parentNode !== home) home.insertBefore(pane, homeNext);
+    if (pane.parentNode !== home) home.insertBefore(pane, footer);
     if (previous?.kind === "new") void window.CeasefireProject.discardNewProject(previous.creation).catch(()=>{});
     busy(false);
     $("project-workspace-layout").classList.remove("project-pane-open");
@@ -190,8 +208,11 @@
     hide(); return true;
   }
   function show(values, target) {
-    $("project-details-load").disabled = pending || !selectedFile()?.source;
-    $("project-details-load").dataset.projectTitle = [values.project_no, values.client, values.site_address].filter(Boolean).join(" · ") || target;
+    const title = [values.project_no, values.client, values.site_address].filter(Boolean).join(" · ") || target;
+    for (const control of toolbarButtons("project-details-load")) {
+      control.dataset.projectTitle = title;
+    }
+    updateLoadButtons();
     window.ClassifireProjectParticipants?.show(selected.kind==="saved" ? selected.file : selected.kind==="current" ? snapshot().file : null);
     for (const [key,id] of Object.entries(fields)) $(id).value = values[key] || "";
     followUpEditor = window.ClassifireFollowUpActions.mount(followUpHost, {actions:followUpRows(values),
@@ -456,20 +477,33 @@
     }
   }
   $("project-current-details").addEventListener("click", openCurrent);
-  $("project-details-close").addEventListener("click", leave);
+  bindToolbar("project-details-close", leave);
   function selectedFile() {
     return selected?.kind === "current" ? snapshot().file : selected?.file;
   }
-  $("project-details-load").addEventListener("click", event => {
+  function updateLoadButtons() {
+    const disabled = pending || loadTarget === selected || !selectedFile()?.source;
+    for (const control of toolbarButtons("project-details-load")) control.disabled = disabled;
+  }
+  bindToolbar("project-details-load", async event => {
     const file = selectedFile();
-    if (!file?.source || pending || snapshot().busy) return;
-    void window.CeasefireProject.openLinkedProject({source:file.source, owner:file.source_project_id || "",
-      project_no:file.project_no}, event.currentTarget, false);
+    if (!file?.source || pending || loadTarget === selected || snapshot().busy) return;
+    const target = selected;
+    loadTarget = target;
+    updateLoadButtons();
+    try {
+      await window.CeasefireProject.openLinkedProject({source:file.source, owner:file.source_project_id || "",
+        project_no:file.project_no}, event.currentTarget, false);
+    } finally {
+      if (loadTarget === target) loadTarget = null;
+      updateLoadButtons();
+    }
   });
-  $("project-refresh-records").addEventListener("click", async event => {
-    if (!selected || pending || snapshot().busy || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) return;
-    const control = event.currentTarget, target = selected;
-    control.disabled = true;
+  bindToolbar("project-refresh-records", async () => {
+    if (!selected || pending || refreshTarget === selected || snapshot().busy || window.ClassifireProjectParticipants?.pending() || window.ClassifireProjectRecordPanels?.pending()) return;
+    const controls = toolbarButtons("project-refresh-records"), target = selected;
+    refreshTarget = target;
+    for (const control of controls) control.disabled = true;
     try {
       await Promise.all([
         window.ClassifireProjectRecordPanels?.refresh(),
@@ -478,9 +512,14 @@
         })
       ]);
     } catch (error) { if (target === selected) notice(error.message,true); }
-    finally { if (target === selected && !pending) control.disabled = false; }
+    finally {
+      if (refreshTarget === target) refreshTarget = null;
+      if (target === selected && !pending) {
+        for (const control of controls) control.disabled = Boolean(target.blocked);
+      }
+    }
   });
-  $("project-details-toolbar-save").addEventListener("click", () => {
+  bindToolbar("project-details-toolbar-save", () => {
     if (!selected || pending || selected.blocked || snapshot().busy) return;
     if (selected.kind === "current") $("save-current-project").click();
     else $("project-details-form").requestSubmit();

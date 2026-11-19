@@ -15,6 +15,7 @@
 .register-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,18rem),1fr)); gap: 1rem; }
 .register-form input, .register-form select, .register-form textarea { max-width: 100%; }
 .register-form section > .register-grid { margin-top: .8rem; }
+#passive-register-root .field + .field:has(> select[name=solution]) { margin-top: 1rem; }
 .register-library-picker .library-filters[hidden] { display: none; }
 .register-library-picker .field:has(select:required) > span::after { content: ' *'; color: var(--accent); }
 .register-library-picker .table-scroll { max-width: 100%; }

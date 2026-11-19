@@ -99,6 +99,34 @@ class TechnicalVariantIntegrationTests(unittest.TestCase):
         self.assertNotIn('sys_var_100_au', result['title'])
         self.assertEqual(self.library.listing('technical', search='sys_var_101_au AAC')['items'][0]['id'], child)
 
+    def test_previously_visible_variant_keeps_exact_cf_search_after_reviewed_alias(self):
+        from estimator.storage import Store
+        from estimator.technical_library_edits import ManualTechnicalLibrary
+
+        parent = self.data['libraries']['technical']['items'][0]
+        parent['fields'] = [{'label': 'ID', 'value': '8495'}, {'label': 'Manufacturer', 'value': 'Trafalgar'}]
+        same = ['Concrete wall 100 mm', '-/60/60']
+        source, _, plan = self.prepare(table={'columns': ['Barrier Construction', 'FRL'],
+                                              'rows': [same, list(same)]})
+        plan['families'][0]['variants'][1]['facets']['substrate'] = ['Concrete/masonry wall']
+        self.save_plan(plan)
+        canonical, duplicate = source['id'], variant_id(source['id'], 'row-1')
+        library = ManualTechnicalLibrary(self.root, Store(self.root.parent / 'public-ids.sqlite3'))
+        previous = {key: library.detail('technical', key)['classifire_system_id'] for key in (canonical, duplicate)}
+        self.assertNotEqual(previous[canonical], previous[duplicate])
+        self.assertEqual([row['id'] for row in library.listing('technical', search=previous[duplicate])['items']],
+                         [duplicate])
+
+        plan['aliases'] = [{'alias_id': duplicate, 'canonical_id': canonical}]
+        self.save_plan(plan)
+        result = library.listing('technical', search=previous[duplicate].lower().replace('-', ' '))
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(result['items'][0]['id'], canonical)
+        self.assertEqual(result['items'][0]['source_code'], previous[canonical])
+        self.assertEqual(library.detail('technical', duplicate)['classifire_system_id'], previous[canonical])
+        self.assertEqual(library.listing('technical', search=previous[duplicate], frl='-/120/120')['total'], 0)
+        self.assertEqual(library.listing('technical', search=previous[canonical])['total'], 1)
+
     def test_matching_headings_use_distinguishing_reviewed_fixing(self):
         parent = self.data['libraries']['technical']['items'][0]
         parent['fields'] = [{'label': 'ID', 'value': '8495'}, {'label': 'Manufacturer', 'value': 'Trafalgar'}]

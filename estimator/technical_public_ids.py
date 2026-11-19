@@ -16,6 +16,7 @@ _SNAP_SYSTEM = re.compile(r'\bSNAP system \d+\b', re.I)
 _SNAP_SOURCE = re.compile(r'\bSNAP product filter, system \d+\b', re.I)
 _SELECTOR_HEADING = re.compile(r'^(Promat(?: Australia)?|Trafalgar(?: Fire)?)\s*(?::|\s)\s*(?:sys_var_\d+_au|\d+)(?:\s*\(\+\d+ variants listed below\))?\s*(?=[—–]|$)', re.I)
 _HIDDEN_SEARCH_COLUMNS = {'id', 'configuration', 'source configuration'}
+_CF_SEARCH = re.compile(r'cf[ \t-]*([0-9]+)\Z', re.I)
 
 
 def bondek(value):
@@ -35,6 +36,14 @@ def _allocated_ids(store, keys):
                            [(key,) for key in missing])
             numbers = {key: number for number, key in db.execute('SELECT number, item_id FROM technical_library_public_ids')}
     return {key: f'CF-{number:02d}' for key, number in numbers.items()}
+
+
+def exact_classifire_match(data, search):
+    """Resolve a standalone current or previously allocated Classifire code."""
+    match = _CF_SEARCH.fullmatch(search)
+    if match:
+        return data.get('_technical_id_lookup', {}).get(f'CF-{match[1].lstrip("0").zfill(2)}')
+    return None
 
 
 def _caption_text(text, key, code):
@@ -170,6 +179,14 @@ def install_public_ids(data, store):
             name = next((f.get('value', '').strip() for f in records[key].get('fields', []) if f['label'] == 'ID'), '')
             ids[key] = displays[key].get('source_code') or name or key
     ids.update({alias: ids[target] for alias, target in data['_aliases'].items() if target in ids})
+    visible_ids = set(visible)
+    lookup = {retained[key]: key for key in visible if key in retained}
+    for alias, target in data['_aliases'].items():
+        if alias in retained and target in visible_ids:
+            # Preserve the search value of a formerly visible record's own
+            # code. The canonical record still displays its own number only.
+            lookup[retained[alias]] = target
+    data['_technical_id_lookup'] = lookup
     data['_technical_allocated_ids'] = {key: code for key, code in ids.items()
                                        if data['_aliases'].get(key, key) in retained}
     data['_technical_public_ids'] = ids

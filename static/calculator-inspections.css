@@ -3,6 +3,7 @@
 .calculator-inspection-methods input { width: 1.15rem; height: 1.15rem; }
 .calculator-inspection-source-controls { display: flex; align-items: end; gap: .8rem; }
 .calculator-inspection-source-controls .field { flex: 1; min-width: 0; }
+.calculator-inspection-source-controls .calculator-inspection-date { flex: 0 1 11rem; }
 .calculator-inspection-source-controls select { width: 100%; }
 .calculator-inspection-table { margin-top: 1rem; width: 100%; }
 .calculator-inspection-table caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
@@ -13,4 +14,7 @@
 .calculator-inspection-reading-summary { display: flex; flex-wrap: wrap; gap: 2rem; margin-top: 1rem; }
 .calculator-inspection-reading-summary output { font-weight: 600; }
 .calculator-inspection-readings .error:empty { display: none; }
-@media (max-width: 600px) { .calculator-inspection-source-controls { align-items: stretch; flex-direction: column; } }
+@media (max-width: 600px) {
+  .calculator-inspection-source-controls { align-items: stretch; flex-direction: column; }
+  .calculator-inspection-source-controls .calculator-inspection-date { flex: auto; }
+}

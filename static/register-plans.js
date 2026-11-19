@@ -16,7 +16,7 @@
     return {plan_sessions:sessions};
   }
 
-  function section({entry, entries, changed, el, field, label = passiveLabel}) {
+  function section({entry, entries, changed, el, field, label = passiveLabel, optional = false}) {
     dispose?.();
     const list = sources(), card = el('section','card register-plan-location');
     const controls = el('div','register-grid register-plan-controls'), documents = el('select'), pages = el('select');
@@ -31,6 +31,7 @@
     for (const doc of list) documents.add(new Option(doc.name + ' · ' + doc.estimate, key(doc)));
     if (selected && list.some(doc => key(doc) === key(selected))) documents.value = key(selected);
     card.append(el('h2', '', 'Plan location'));
+    if (optional) card.append(el('p', 'helper', 'Optional'));
     if (list.length) {
       controls.append(field('Source document', documents), field('Page number', pages));
       card.append(controls);

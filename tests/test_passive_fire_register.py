@@ -127,9 +127,10 @@ class PassiveFireRegisterTests(unittest.TestCase):
                     grids = [grid for page in pages for grid in self.assert_red_table_grids(page)]
                     columns, row_rules = zip(*grids)
                     if render is render_register_pdf:
-                        # Project details, inspection fields, two visible source columns and photo grids.
-                        self.assertGreater(len(columns), 3)
-                        self.assertEqual(columns, (1,) * len(columns))
+                        # One single-column photo panel follows the two-column project and inspection tables.
+                        self.assertGreater(len(columns), 4)
+                        self.assertEqual(columns[:3], (1, 1, 0))
+                        self.assertEqual(columns[3:], (1,) * (len(columns) - 3))
                         self.assertTrue(all(count > 0 for count in row_rules[:3]))
                         self.assertGreater(sum(row_rules[3:]), 0)
                     else:
@@ -234,6 +235,34 @@ class PassiveFireRegisterTests(unittest.TestCase):
                 if access=='Yes':
                     self.assertIn('Side 2 - 001-2', content)
                 self.assertTrue(any(image.image.size == (320, 180) for page in pages for image in page.images))
+
+    def test_inspection_places_one_during_after_and_label_photo_beside_details(self):
+        entry = completed_entry()
+        entry['side1']['during'] = entry['side1']['during'] * 2
+        pdf = PdfReader(BytesIO(render_register_pdf({'entries': [entry]}, {}, company=DEFAULTS)))
+        positions = {}
+        for number, page in enumerate(pdf.pages):
+            def locate(text, matrix, text_matrix, font, size):
+                name = text.strip()
+                if name in ('Location', 'Signature') or name.startswith(('Side 1 -', 'Side 2 -')):
+                    x, y = text_matrix[4:6]
+                    point = (number, x * matrix[0] + y * matrix[2] + matrix[4],
+                             x * matrix[1] + y * matrix[3] + matrix[5])
+                    self.assertNotIn(name, positions)
+                    positions[name] = point
+            page.extract_text(visitor_text=locate)
+        first_page, table_x, _ = positions['Location']
+        signature_page, _, signature_y = positions['Signature']
+        promoted = {'Side 1 - 001 - During (1/2)', 'Side 1 - 001 - After', 'Side 1 - 001 - Label'}
+        self.assertEqual(len(positions), 11)
+        for label in promoted:
+            page, x, y = positions.pop(label)
+            self.assertEqual(page, first_page)
+            self.assertGreater(x, table_x + 200)
+            self.assertGreater(y, signature_y)
+        for label, (page, _, y) in positions.items():
+            if label.startswith('Side '):
+                self.assertTrue(page > signature_page or page == signature_page and y < signature_y, label)
 
     def test_long_comments_paginate_before_signature_and_legacy_entries_default_to_blank(self):
         entry = completed_entry()

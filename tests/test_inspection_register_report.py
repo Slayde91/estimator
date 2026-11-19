@@ -1,8 +1,10 @@
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 import uuid
 
 from pypdf import PdfReader
@@ -107,18 +109,24 @@ class InspectionRegisterHTTPTests(unittest.TestCase):
         missing = {**request, 'plan_sessions': {draft_project: sessions[draft_project]}}
         self.assertEqual(self.request('POST', route, missing, headers)[0], 400)
         self.assertEqual(self.json('GET', '/api/documentation?workspace=' + workspace)['items'], [])
-        status, _, payload = self.request('POST', route, request, headers)
+        instant = datetime(2026, 11, 19, 13, 1, tzinfo=timezone.utc)
+        with patch('estimator.inspection_register_report.datetime') as clock:
+            clock.now.side_effect = instant.astimezone
+            status, _, payload = self.request('POST', route, request, headers)
         self.assertEqual(status, 200, payload[:200])
         pages = PdfReader(BytesIO(payload)).pages
         texts = [page.extract_text() for page in pages]
         self.assertEqual(texts[0].strip(), 'Register cover')
         self.assertIn('Passive Fire Register', texts[1])
+        self.assertRegex(' '.join(texts[1].split()), r'Site Address .+? Date 20/11/2026')
         self.assertFalse(any('Floor plan' in text for text in texts[:-2]))
         self.assertFalse(any('Draft only' in text for text in texts))
         self.assertEqual([text.strip().splitlines() for text in texts[-2:]],
                          [['Floor plan page 2', '001 / 001-2', '003'], ['Floor plan page 3', '001 / 001-2']])
         self.assertTrue(all(page.mediabox == pages[1].mediabox for page in pages[-2:]))
-        self.assertEqual(self.request('POST', route, request, headers)[2], payload)
+        with patch('estimator.inspection_register_report.datetime') as clock:
+            clock.now.side_effect = (instant + timedelta(days=1)).astimezone
+            self.assertEqual(self.request('POST', route, request, headers)[2], payload)
         item, = self.json('GET', '/api/documentation?workspace=' + workspace)['items']
         self.assertEqual((item['kind'], item['revision']), ('passive_fire_registers.pdf', 1))
         self.assertEqual(self.request('GET', item['url'])[2], payload)

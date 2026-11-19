@@ -7,6 +7,12 @@ async function checkInspectionState(browser) {
   const errors = [];
   page.on('pageerror',error => errors.push(error.message));
   try {
+    const signerId = 'e8700568-3daf-4f95-8ff1-cf1e1f3c23a2';
+    const signature = {version:1,ratio:2,strokes:[[[.1,.3],[.9,.7]]]};
+    let staleSigner = true;
+    await page.route('**/api/forms/signer',route => route.fulfill({json:{id:staleSigner ? 'different-user' : signerId,
+      name:'Synthetic inspector',at:'2026-01-01T15:10:00Z'}}));
+    await page.route('**/api/scheduler/bootstrap',route => route.fulfill({json:{user:{id:signerId},timezone:'Australia/Sydney'}}));
     await page.route('http://localhost/inspection-test',route => route.fulfill({contentType:'text/html',body:
       '<section class="view"><div id="duct-inspections-root"></div></section><section class="view"><div id="structural-steel-inspections-root"></div></section>'}));
     const requests = [];
@@ -22,7 +28,7 @@ async function checkInspectionState(browser) {
       }]}});
     });
     await page.goto('http://localhost/inspection-test');
-    await page.evaluate(() => {
+    await page.evaluate(({signerId,signature}) => {
       const translate = (text,args=[]) => text.replace(/\{(\d+)\}/g,(_,index) => args[index] ?? '{'+index+'}');
       window.CeasefireI18n = {translate,text(element,text,args) {element.textContent=translate(text,args);return element;},attr(element,name,text) {element.setAttribute(name,text);}};
       window.CeasefireProject = {changed(){},details(){return {client:'Synthetic'};},openDocumentation(){}};
@@ -31,13 +37,17 @@ async function checkInspectionState(browser) {
       window.upgradeBoard = false;
       window.CeasefireEstimates = {activeId:()=>window.inspectionEstimate,list:()=>window.inspectionEstimates.map(id=>({id}))};
       window.CeasefireDialogs = {confirm:async()=>true,message(){}};
+      window.ClassifireAccess = {user:{id:signerId}};
+      window.ClassifirePersonalSignature = {choose:async()=>signature,png:()=>document.createElement('canvas').toDataURL()};
       window.CeasefireCalculators = {captureTakeoffTarget:async()=>({
         inputs:{synthetic:true,estimate:window.inspectionEstimate,updated:window.upgradeBoard},schedule_rows:[10],fingerprint:'current'
       }),projectFingerprint:()=>'current'};
       window.CeasefireDownloads = {save:async(path,payload)=>{window.lastDownload={path,payload};return {saved:true,path:'synthetic.pdf'};}};
-      window.ClassifireRegisterPlans = {close(){},exportContext(){return {plan_sessions:{synthetic:'session'}};},section({entry,label,el}) {const section=el('section');section.dataset.planLabel=label(entry);return section;}};
-    });
-    for (const file of ['form-controls.js','calculator-inspections.js']) await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
+      window.ClassifireRegisterPlans = {close(){},exportContext(){return {plan_sessions:{synthetic:'session'}};},section({entry,label,el,optional}) {
+        const section=el('section');section.dataset.planLabel=label(entry);section.dataset.optionalPlan=String(optional);return section;
+      }};
+    },{signerId,signature});
+    for (const file of ['dates.js','form-controls.js','calculator-inspections.js']) await page.addScriptTag({path:path.resolve(__dirname,'../../static',file)});
     await page.evaluate(() => window.ClassifireCalculatorInspections.open('steel'));
     const steel = page.locator('#structural-steel-inspections-root');
     await steel.getByRole('checkbox',{name:'Steel (board)',exact:true}).check();
@@ -144,17 +154,44 @@ async function checkInspectionState(browser) {
     }
     await expect(duct.locator('img')).toHaveCount(4);
     await expect(duct.locator('[data-plan-label]')).toHaveAttribute('data-plan-label','001');
+    await expect(duct.locator('[data-plan-label]')).toHaveAttribute('data-optional-plan','true');
+    await expect(duct.getByLabel('Photo of Gauge',{exact:true})).toHaveAccessibleDescription('Optional');
+    const inspectionDate = duct.getByLabel('Inspection date',{exact:true});
+    const signerName = duct.getByRole('textbox',{name:'Name',exact:true});
+    const signingDate = duct.getByRole('textbox',{name:'Date',exact:true});
+    await expect(inspectionDate).toHaveValue('');
+    await inspectionDate.fill('2025-12-19');
+    await expect(signerName).toHaveJSProperty('readOnly',true);
+    await expect(signingDate).toHaveJSProperty('readOnly',true);
+    const insertSignature = duct.getByRole('button',{name:'Insert signature',exact:true});
+    await insertSignature.click();
+    await expect(duct.locator('p[role="status"]')).toHaveText('Your signature profile changed. Reopen the signature pad.');
+    await expect(signerName).toHaveValue('');
+    staleSigner = false;
+    await insertSignature.click();
+    await expect(signerName).toHaveValue('Synthetic inspector');
+    await expect(signingDate).toHaveValue('02/01/2026');
+    await expect(duct.getByRole('img',{name:'Signature',exact:true})).toBeVisible();
+    await expect(inspectionDate).toHaveValue('2025-12-19');
     await duct.locator('.register-toolbar').getByRole('button',{name:'Download PDF',exact:true}).click();
     const downloaded = await page.evaluate(() => window.lastDownload);
     assert.equal(downloaded.path,'/api/project/duct-inspections.pdf');
     assert.deepEqual(downloaded.payload.register.entries[0].readings,[61.91,64.02]);
+    assert.equal(downloaded.payload.register.entries[0].inspection_date,'2025-12-19');
+    assert.deepEqual(downloaded.payload.register.entries[0].signature,signature);
+    assert.deepEqual(downloaded.payload.register.entries[0].signature_details,{member_id:signerId,name:'Synthetic inspector',date:'2026-01-02'});
     assert.deepEqual(downloaded.payload.plan_sessions,{synthetic:'session'});
     const snapshot = await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value);
     await page.evaluate(value => {window.ClassifireCalculatorInspections.applyProject(value);return window.ClassifireCalculatorInspections.open('duct');},snapshot);
-    await expect(duct.locator('img')).toHaveCount(4);
+    await expect(duct.locator('img')).toHaveCount(5);
     await expect(duct.getByLabel('Reading 1 (mm)',{exact:true})).toHaveValue('61.91');
     await expect(duct.getByLabel('Reading 2 (mm)',{exact:true})).toHaveValue('64.02');
     await expect(duct.locator('tbody')).toContainText('2 x 38mm');
+    await expect(inspectionDate).toHaveValue('2025-12-19');
+    await expect(signingDate).toHaveValue('02/01/2026');
+    await duct.getByRole('button',{name:'Clear signature',exact:true}).click();
+    await expect(signingDate).toHaveValue('');
+    await expect(inspectionDate).toHaveValue('2025-12-19');
     await page.evaluate(() => {window.ClassifireCalculatorInspections.applyProject();return window.ClassifireCalculatorInspections.open('duct');});
     await expect(duct.locator('img')).toHaveCount(0);
     assert.equal(await page.evaluate(() => window.ClassifireCalculatorInspections.capture().value),null);

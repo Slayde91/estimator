@@ -1,9 +1,11 @@
 """Portrait inspection PDFs place selected evidence beside the recorded details."""
+from base64 import b64encode
 from io import BytesIO
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from PIL import Image
 from pypdf import PdfReader
 from reportlab.pdfbase import pdfmetrics
 
@@ -27,6 +29,26 @@ def positions(pdf):
 
         page.extract_text(visitor_text=visit)
     return locations
+
+
+def table_and_image_bounds(page):
+    tables, images = [], []
+    rectangle = None
+
+    def visit(operator, values, matrix, _text_matrix):
+        nonlocal rectangle
+        if operator == b're':
+            x, y, width, height = values
+            rectangle = (matrix[4] + x, matrix[5] + y, width, height)
+            return
+        if operator == b'S' and rectangle is not None:
+            tables.append(rectangle)
+        if operator == b'Do':
+            images.append((matrix[4], matrix[5], matrix[0], matrix[3]))
+        rectangle = None
+
+    page.extract_text(visitor_operand_before=visit)
+    return tables, images
 
 
 class CalculatorInspectionLayoutTests(unittest.TestCase):
@@ -119,6 +141,53 @@ class CalculatorInspectionLayoutTests(unittest.TestCase):
                         self.assertGreater((page, -y), (detail_page, -detail_bottom))
                     self.assertEqual(sum(len(places) for label, places in coords.items()
                                          if label.startswith('Inspection 001 - ')), len(expected))
+
+    def test_side_images_fit_only_the_inspection_table_on_each_page(self):
+        side_photos = {}
+        for phase, dimensions in (('gauge', (160, 100)), ('before', (100, 170)), ('after', (120, 120))):
+            stream = BytesIO()
+            Image.new('RGB', dimensions, '#aa533c').save(stream, 'JPEG')
+            side_photos[phase] = ['data:image/jpeg;base64,' + b64encode(stream.getvalue()).decode('ascii')]
+
+        for kind in ('duct', 'steel'):
+            first, second = entry(kind, 1), entry(kind, 2)
+            first.update(signature={'version': 1, 'ratio': 4, 'strokes': [[[0, 0], [1, 1]]]},
+                         signature_details={'member_id': str(uuid4()), 'name': 'Inspection Signer',
+                                            'date': '2026-11-18'})
+            for item in (first, second):
+                item.update(side_photos)
+            details = {'project_no': 'QA-Layout', 'client': 'Test Client', 'site_address': 'Inspection site'}
+            pdf = PdfReader(BytesIO(render_calculator_inspections(
+                register(kind, [first, second]), details, kind, company=DEFAULTS)))
+            self.assertEqual(len(pdf.pages), 2)
+            for page_number, page in enumerate(pdf.pages):
+                with self.subTest(kind=kind, page=page_number + 1):
+                    tables, images = table_and_image_bounds(page)
+                    if page_number == 0:
+                        project, *tables = tables
+                    facts, side, gallery = tables
+                    facts_x, facts_y, facts_width, facts_height = facts
+                    side_x, side_y, side_width, side_height = side
+                    gallery_x, gallery_y, gallery_width, gallery_height = gallery
+                    if page_number == 0:
+                        self.assertAlmostEqual(project[0], gallery_x, delta=.1)
+                        self.assertAlmostEqual(project[2], gallery_width, delta=.1)
+                        self.assertGreater(project[1], facts_y + facts_height)
+                    self.assertGreater(side_x, facts_x + facts_width)
+                    self.assertAlmostEqual(side_y + side_height, facts_y + facts_height, delta=.1)
+                    self.assertAlmostEqual(side_y, facts_y, delta=1)
+                    self.assertAlmostEqual(gallery_x, facts_x, delta=.1)
+                    self.assertAlmostEqual(gallery_x + gallery_width, side_x + side_width, delta=.1)
+                    self.assertGreater(facts_y - (gallery_y + gallery_height), 0)
+                    self.assertLess(facts_y - (gallery_y + gallery_height), 10)
+
+                    side_images = [(width, height) for x, y, width, height in images
+                                   if side_x < x and x + width < side_x + side_width
+                                   and side_y < y and y + height < side_y + side_height]
+                    self.assertEqual(len(side_images), 3)
+                    for (width, height), ratio in zip(side_images, (1.6, 100 / 170, 1.0)):
+                        self.assertAlmostEqual(width / height, ratio, delta=.001)
+                    self.assertEqual(sum(gallery_y < y < gallery_y + gallery_height for _, y, _, _ in images), 1)
 
     def test_long_details_continue_across_pages_before_remaining_evidence(self):
         item = entry('steel', 1)

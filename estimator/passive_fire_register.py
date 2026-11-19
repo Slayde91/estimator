@@ -399,7 +399,7 @@ def render_register_pdf(register, details, *, library=None, company, plan_append
                              [details_width * .39, details_width * .61], compact=True,
                              row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
         beside, first_side_below = _side_photos(entry['side1'], 'side1')
-        report.story.extend(inspection_photo_layout(report, [table], beside, [], content, _INSPECTION_RED))
+        report.story.extend(inspection_photo_layout(report, table, beside, [], content, _INSPECTION_RED))
         if item:
             append_technical_tables(report, (table for table in item['tables']
                                              if table['label'].casefold() not in _INSTRUCTION_FIELDS),

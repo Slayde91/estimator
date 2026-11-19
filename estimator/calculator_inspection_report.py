@@ -155,11 +155,11 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=margin, rightMargin=margin,
                                  topMargin=90, bottomMargin=43, title=title, author=company.get('name') or 'CLASSIFIRE')
 
-    def field_table(rows, calculator_id=None):
+    def field_table(rows, widths, calculator_id=None):
         cells = [[report.p(label, 'head'), value if isinstance(value, Signature)
                   else _field_cell(report, label, value, calculator_id)]
                  for label, value in rows]
-        return report.table(None, cells, [facts_width * .42, facts_width * .58], compact=True,
+        return report.table(None, cells, widths, compact=True,
                             row_header_color=_INSPECTION_RED, grid_color=_INSPECTION_RED)
 
     project_rows = [(label, details[key]) for key, label in
@@ -167,6 +167,9 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
                     if details.get(key)]
     if kind == 'duct':
         project_rows.append(('Date', pdf_download_date()))
+    if project_rows:
+        report.story.extend((field_table(project_rows, [content * .30, content * .70]), Spacer(1, 8)))
+
     for index, entry in enumerate(entries):
         if index:
             report.story.append(PageBreak())
@@ -176,12 +179,10 @@ def render_calculator_inspections(register, details, kind, *, company, plan_sess
             signer = entry.get('signature_details') or {}
             facts.extend((('Name', signer.get('name')), ('Date signed', display_date(signer.get('date'))),
                           ('Signature', Signature(signature, 144, 36))))
-        tables = [field_table(facts, entry['row']['calculator_id'])]
-        if index == 0 and project_rows:
-            tables[:0] = [field_table(project_rows), Spacer(1, 8)]
-
+        table = field_table(facts, [facts_width * .42, facts_width * .58], entry['row']['calculator_id'])
         promoted, remaining = _inspection_photos(entry)
-        report.story.extend(inspection_photo_layout(report, tables, promoted, remaining, content, _INSPECTION_RED))
+        report.story.extend(inspection_photo_layout(report, table, promoted, remaining, content, _INSPECTION_RED,
+                                                    page_height=document.height - 12))
 
     def decorate(canvas, doc):
         canvas.saveState()

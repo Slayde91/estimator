@@ -47,6 +47,25 @@ def by_label(fields):
 
 
 class ServiceInstructionProjectionTests(unittest.TestCase):
+    def test_reviewed_blank_wall_batt_method_returns_to_installation_details(self):
+        method = ('Two double-layer FyreBATT arrangements are shown for a blank wall opening. '
+                  'In concrete or solid masonry, friction-fit both layers together anywhere within the wall thickness. '
+                  'In concrete or hollow masonry, friction-fit the two layers at opposite sides, flush with the wall faces.')
+        fields = [
+            {'label': 'Report Number', 'value': 'FAS 210023'},
+            {'label': 'System Products', 'value': 'FyreBATT 60'},
+            {'label': 'Service', 'value': 'Blank Opening'},
+            {'label': 'Barrier Construction', 'value': 'Concrete/Masonry'},
+            {'label': 'Local Protection', 'value': method, 'source_labels': [INSTALL]},
+        ]
+        source = deepcopy(fields)
+        result = by_label(present_service_instructions(fields))
+        self.assertEqual(result[INSTALL], {'label': INSTALL, 'value': method, 'source_labels': [INSTALL]})
+        self.assertNotIn('Local Protection', result)
+        self.assertEqual(fields, source)
+        fields[3]['value'] = 'Plasterboard'
+        self.assertEqual(present_service_instructions(fields), fields)
+
     def test_steel_retains_only_the_selected_service_detail(self):
         fields = service_fields()
         fields[0]['table']['rows'][0][:2] = ['Bare Metal Pipes', 'Steel up to NB50']

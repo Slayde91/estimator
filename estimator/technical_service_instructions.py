@@ -32,6 +32,10 @@ _WRAP_STEP = re.compile(
 _WIDTH = re.compile(r'^(\d+(?:\.\d+)?)\s*mm$', re.I)
 _TABLE_KEYS = ('table', 'tables', 'table_row_ids', 'table_captions')
 _SERVICE_GROUPS = {'bare metal pipes', 'insulated metal pipes', 'aluminium cables'}
+_BLANK_BATT_METHOD = (
+    'Two double-layer FyreBATT arrangements are shown for a blank wall opening. In concrete or solid masonry, '
+    'friction-fit both layers together anywhere within the wall thickness. In concrete or hollow masonry, '
+    'friction-fit the two layers at opposite sides, flush with the wall faces.')
 
 
 def _text(fields, label):
@@ -160,5 +164,14 @@ def present_service_instructions(original):
     if 'Source Options' in fields:
         fields['Source Options']['value'] = '\n\n'.join(filter(None, options))
     _single_service(fields, rows)
+    # CWDB 1 in FAS 210023 gives the complete location and friction-fit method
+    # for these blank wall openings. The earlier field normalizer placed the
+    # entire reviewed Installation Details paragraph under Local Protection.
+    if (INSTALL not in fields and _text(fields, 'Report Number') == 'FAS 210023'
+            and _text(fields, 'System Products') == 'FyreBATT 60'
+            and _text(fields, 'Service') == 'Blank Opening'
+            and _text(fields, 'Barrier Construction') == 'Concrete/Masonry'
+            and _text(fields, 'Local Protection') == _BLANK_BATT_METHOD):
+        fields['Local Protection']['label'] = INSTALL
     return [fields[f['label']] for f in original if f['label'] not in ('Source Issues', 'Source Options')
             or fields[f['label']]['value'] or any(f.get(name) for name in ('table', 'tables', 'images', 'table_links'))]

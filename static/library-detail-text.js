@@ -436,8 +436,11 @@
         }
         return definitions;
       }
-      if (block.type === "paragraph") {
-        const paragraph = document.createElement("p"); paragraph.textContent = display(block.text); return paragraph;
+      const first = block.type === "list" ? block.items[0] : null;
+      const standalone = first && block.ordered && block.items.length === 1 && first.number === 1
+        && !first.label && !first.children.length && options?.fieldLabel;
+      if (block.type === "paragraph" || standalone) {
+        const paragraph = document.createElement("p"); paragraph.textContent = display(standalone ? first.text : block.text); return paragraph;
       }
       const list = document.createElement(block.ordered ? "ol" : "ul");
       if (block.items[0].label) list.className = "library-source-labelled-list";

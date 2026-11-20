@@ -250,6 +250,17 @@ class TechnicalLibraryEditTests(unittest.TestCase):
              'Confirm pipe wall thickness against FCO3520 Table 38; the printed 50 mm PVC range is unclear.'}]}
         self.assertEqual([field['value'] for field in public_prose_fields(record)], ['Seal the floor.', assessed_size])
 
+    def test_public_source_options_hide_only_selected_report_page_index(self):
+        report_pages = 'Selected configuration: FC10266-01-5 pp. 2,3,13,18,19,20.'
+        source = {'label': 'Source Options', 'value': report_pages}
+        report = {'label': 'Report Number', 'value': 'FC10266-01-5'}
+        self.assertEqual(public_prose_fields({'fields': [source, report]}), [report])
+        self.assertEqual(source['value'], report_pages)
+        condition = 'Use this assembly only for the configurations identified in the assessment.'
+        scoped = {**source, 'value': report_pages + ' ' + condition}
+        self.assertEqual(public_prose_fields({'fields': [scoped, report]}),
+                         [{**scoped, 'value': condition}, report])
+
     def install_alias(self):
         """A real source-bound group retains different descriptive wording."""
         data = json.loads(self.source.read_text(encoding='utf-8'))

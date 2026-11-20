@@ -16,6 +16,78 @@ def single_row(construction, rating):
 
 
 class TechnicalTablePresentationTests(unittest.TestCase):
+    def test_selected_ceiling_promotes_risf_and_keeps_adjacent_wall_fixing_table(self):
+        ceiling = {'columns': ['Substrate', 'FRL'], 'rows': [['FR Plasterboard 3x16mm', '-/120/120 + 60 RISF']]}
+        fixing = {'columns': ['Substrate', 'Fixings at Max. 200mm centres'],
+                  'rows': [['Hebel/AAC', 'Min. 8gx45mm Plasterboard Screws']]}
+        fields = [
+            {'label': 'Barrier Construction', 'value': 'FR Plasterboard 3 × 16 mm',
+             'table': ceiling, 'tables': [fixing], 'table_row_ids': [['ceiling'], ['fixings']],
+             'table_captions': [
+                 'Selected reviewed substrate configuration; the stated rating and limits apply to this row and '
+                 'its installation conditions. Source: drawing.pdf, page 1. Source substrate and rating alternatives.',
+                 'Steel angle to firewall fixings.']},
+            {'label': 'FRL', 'value': '-/120/120',
+             'table_links': [{'field': 'Barrier Construction', 'table_index': 0}]},
+            {'label': 'Installation Details', 'value': 'Fix the angle to the firewall as per above table.',
+             'table_links': [{'field': 'Barrier Construction', 'table_index': 1}]},
+        ]
+        for change in ('other construction', 'related source', 'conflicting rating'):
+            with self.subTest(change=change):
+                alternate = deepcopy(fields)
+                if change == 'other construction':
+                    alternate[0]['table']['rows'][0][0] = 'Corex 2x25mm'
+                elif change == 'related source':
+                    alternate[0]['table_captions'][0] = 'Related table; selected system applicability unresolved.'
+                else:
+                    alternate[0]['tables'].append({'columns': ['Substrate', 'FRL'],
+                                                   'rows': [['FR Plasterboard 3x16mm', '-/120/120 + 90 RISF']]})
+                    alternate[0]['table_captions'].append('Conflicting report evidence.')
+                    alternate[0]['table_row_ids'].append(['other-ceiling'])
+                original = deepcopy(alternate)
+                present_redundant_tables(alternate)
+                self.assertEqual(alternate, original)
+        present_redundant_tables(fields)
+        self.assertEqual(fields[0]['table'], fixing)
+        self.assertEqual(fields[0]['table_captions'], ['Steel angle to firewall fixings.'])
+        self.assertEqual(fields[0]['table_row_ids'], [['fixings']])
+        self.assertEqual(fields[1], {'label': 'FRL', 'value': '-/120/120 + 60 RISF'})
+        self.assertEqual(fields[2]['table_links'], [{'field': 'Barrier Construction', 'table_index': 0}])
+        validate_table_navigation(fields)
+
+    def test_service_size_table_disappears_when_size_and_wrap_are_exact_repeats(self):
+        fields = [
+            {'label': 'Service Size / Configuration', 'value': 'Service size / condition: up to 100mm; Wrap requirement: 600mm',
+             'table': {'columns': ['Configuration', 'Service size / condition', 'Wrap requirement'],
+                       'rows': [['Wrap configuration 2', 'up to 100 mm', '600 mm']]},
+             'table_captions': ['Selector summary; not a verified diagram configuration table.']},
+            {'label': 'Service Wrap', 'value': '600mm',
+             'table_links': [{'field': 'Service Size / Configuration', 'table_index': 0}]},
+        ]
+        distinct = deepcopy(fields)
+        distinct[1]['value'] = '600mm topside only'
+        original = deepcopy(distinct)
+        present_redundant_tables(distinct)
+        self.assertEqual(distinct, original)
+        present_redundant_tables(fields)
+        self.assertEqual(fields, [
+            {'label': 'Service Size / Configuration', 'value': 'Service size / condition: up to 100mm'},
+            {'label': 'Service Wrap', 'value': '600mm'},
+        ])
+
+    def test_service_and_barrier_text_removes_only_duplicated_clauses(self):
+        fields = [
+            {'label': 'Barrier Construction', 'value': '64 mm Speedpanel wall; established FRL -/90/90'},
+            {'label': 'FRL', 'value': '-/90/90'},
+            {'label': 'Service Size / Configuration',
+             'value': 'Service Type: Plastic Pipes; Service Detail: PEX or PEX-AL-PEX Pipes up to 32mm; TWrap Length: 450mm'},
+            {'label': 'Service Wrap', 'value': 'TWrap Length: 450 mm'},
+        ]
+        present_redundant_tables(fields)
+        self.assertEqual(fields[0]['value'], '64 mm Speedpanel wall')
+        self.assertEqual(fields[2]['value'], 'PEX or PEX-AL-PEX Pipes up to 32mm')
+        self.assertEqual(fields[3]['value'], 'TWrap Length: 450 mm')
+
     def test_floor_examples_keep_construction_rating_and_penetration_rating_separate(self):
         for thickness, material, construction_rating, locator, service_rating in (
                 (120, 'concrete, masonry or AAC', '120/120/120', 13, '-/120/120'),

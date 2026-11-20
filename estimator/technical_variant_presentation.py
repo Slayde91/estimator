@@ -4,6 +4,7 @@ from functools import lru_cache
 import re
 
 from .technical_discovery import canonical_frl, present_frl_text
+from .technical_configuration_text import clean_configuration_text
 from .firefly_steel_presentation import firefly_structural_fields
 from .technical_display import readable_technical_text
 from .technical_table_navigation import field_tables
@@ -25,7 +26,8 @@ def _short(value, limit=120):
 
 def _fields(record):
     fields = firefly_structural_fields(record, record.get('fields', []))
-    return {field['label']: field.get('value', '').strip() for field in fields}
+    values = {field['label']: field.get('value', '').strip() for field in fields}
+    return clean_configuration_text(values)
 
 
 def _selected_cells(record, scopes):

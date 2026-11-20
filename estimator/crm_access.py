@@ -190,35 +190,57 @@ class CRMAccess:
         return {'members':rows}
 
     def assign(self, payload, token):
+        return self._assign_roles([payload], token)[0]
+
+    def assign_many(self, payload, token):
+        if not isinstance(payload, dict) or set(payload) != {'changes'}:
+            raise AccessError('Include the team access changes.', 400)
+        return {'members': self._assign_roles(payload['changes'], token)}
+
+    def _assign_roles(self, changes, token):
         user=self._admin(token)
-        if not isinstance(payload,dict) or set(payload)!={'member_id','role','version'}:
-            raise AccessError('Include the staff member, access role and current version.',400)
-        if payload['role'] not in ROLES or type(payload['version']) is not int or payload['version']<0:
-            raise AccessError('Choose a valid staff access role and version.',400)
-        try:
-            if not isinstance(payload['member_id'],str) or str(uuid.UUID(payload['member_id'])) != payload['member_id']:
-                raise ValueError()
-        except (ValueError,AttributeError):
-            raise AccessError('Choose an existing staff member.',400) from None
+        if not isinstance(changes, list) or not changes:
+            raise AccessError('Include at least one team access change.', 400)
+        members = set()
+        for change in changes:
+            if not isinstance(change, dict) or set(change) != {'member_id', 'role', 'version'}:
+                raise AccessError('Include the staff member, access role and current version.', 400)
+            if change['role'] not in ROLES or type(change['version']) is not int or change['version'] < 0:
+                raise AccessError('Choose a valid staff access role and version.', 400)
+            key = change['member_id']
+            try:
+                if not isinstance(key, str) or str(uuid.UUID(key)) != key:
+                    raise ValueError()
+            except ValueError:
+                raise AccessError('Choose an existing staff member.', 400) from None
+            if key in members:
+                raise AccessError('Include each team member once.', 400)
+            members.add(key)
         with self.scheduler.connect() as db:
-            member=db.execute('SELECT role FROM scheduler_members WHERE id=?',(payload['member_id'],)).fetchone()
-        if not member:
-            raise AccessError('Choose an existing staff member.',400)
-        if member['role']=='admin':
-            raise AccessError('Team administrators retain administrator access. Manage their team role in Scheduler.',400)
+            for key in members:
+                member = db.execute('SELECT role FROM scheduler_members WHERE id=?', (key,)).fetchone()
+                if not member:
+                    raise AccessError('Choose an existing staff member.', 400)
+                if member['role'] == 'admin':
+                    raise AccessError('Team administrators retain administrator access. Manage their team role in Scheduler.', 400)
+        results = []
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            previous=db.execute('SELECT role,version FROM crm_access_roles WHERE member_id=?',(payload['member_id'],)).fetchone()
-            version=previous['version'] if previous else 0
-            if version != payload['version']:
-                raise AccessError('Staff access changed in another window. Reload before saving.',409)
-            if previous and previous['role']==payload['role']:
-                return {'member_id':payload['member_id'],**dict(previous)}
-            result={'member_id':payload['member_id'],'role':payload['role'],'version':version+1}
-            db.execute('INSERT INTO crm_access_roles VALUES(?,?,?) ON CONFLICT(member_id) DO UPDATE SET role=excluded.role,version=excluded.version',
-                       (result['member_id'],result['role'],result['version']))
-            self._audit(db,user,'access.role',payload['member_id'],dict(previous) if previous else None,result)
-            return result
+            for change in changes:
+                key = change['member_id']
+                previous = db.execute('SELECT role,version FROM crm_access_roles WHERE member_id=?', (key,)).fetchone()
+                version = previous['version'] if previous else 0
+                if version != change['version']:
+                    raise AccessError('Staff access changed in another window. Reload before saving.', 409)
+                if previous and previous['role'] == change['role']:
+                    results.append({'member_id': key, **dict(previous)})
+                    continue
+                result = {'member_id': key, 'role': change['role'], 'version': version+1}
+                db.execute('INSERT INTO crm_access_roles VALUES(?,?,?) ON CONFLICT(member_id) DO UPDATE SET role=excluded.role,version=excluded.version',
+                           (key, result['role'], result['version']))
+                self._audit(db, user, 'access.role', key, dict(previous) if previous else None, result)
+                results.append(result)
+        return results
 
     def configure(self,payload,token):
         self._admin(token)
@@ -362,7 +384,8 @@ class AccessHTTP:
                         'classifire_scheduler=; HttpOnly; SameSite=Strict; Path=/api/scheduler; Max-Age=0']
                     result={'signed_out':True}
                 elif action=='roles':
-                    result=self.access.assign(body,token)
+                    result=(self.access.assign_many(body, token) if isinstance(body, dict) and 'changes' in body
+                            else self.access.assign(body, token))
                 elif action=='settings':
                     result=self.access.configure(body,token)
                 else:

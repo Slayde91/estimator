@@ -100,6 +100,24 @@ class AccessTests(unittest.TestCase):
         self.access.authorize(self.handler(worker, member=self.worker['id']), route)
         self.assert_denied(409, self.handler(worker, member=self.admin['user']['id']), route)
 
+    def test_team_access_batch_rolls_back_every_change_on_a_stale_version(self):
+        token = self.admin['token']
+        second = self.scheduler.write('members/save', {'name':'Coordinator','email':'second@example.test',
+            'password':'Correct-second-password','role':'worker','active':True,'base_rate':'42'}, token)
+        updates = [{'member_id': self.worker['id'], 'role': 'editor', 'version': 0},
+                   {'member_id': second['id'], 'role': 'viewer', 'version': 1}]
+        with self.assertRaises(AccessError) as stale:
+            self.access.assign_many({'changes': updates}, token)
+        self.assertEqual(stale.exception.status, 409)
+        self.assertEqual({row['role'] for row in self.access.members(token)['members']}, {'none', 'admin'})
+        self.assertEqual(self.access.audit(token)['access_changes'], [])
+        updates[1]['version'] = 0
+        with self.assertRaises(AccessError):
+            self.access.assign_many({'changes': [updates[0], updates[0]]}, token)
+        saved = self.access.assign_many({'changes': updates}, token)
+        self.assertEqual(saved['members'], [{**update, 'version': 1} for update in updates])
+        self.assertEqual(len(self.access.audit(token)['access_changes']), 2)
+
     def test_deactivation_and_logout_revoke_access_without_role_or_identity_rewrite(self):
         self.enable()
         self.scheduler.write('logout',{},self.admin['token'])

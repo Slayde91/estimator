@@ -98,7 +98,8 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
         values = {field['label']: field['value'] for field in result}
         self.assertEqual(values['Seal Depth / Fillet Size'], 'Full depth around the casing / No casing fillet')
         for clause in ('at least 75 mm thick', '1000 mm high x 1200 mm wide', '170 mm opening', 'flush with one wall face',
-                       '25 x 25 mm FyreFLEX fillet', 'full depth', '300 mm on both wall faces'):
+                       '10g x 100 mm plasterboard screws', '90 mm pigtail screws', '25 x 25 mm FyreFLEX fillet',
+                       'full depth', '300 mm on both wall faces'):
             self.assertIn(clause, values['Installation Details'])
         self.assertEqual(original, before)
         self.assertEqual(next(field for field in result if field['label'] == 'Report Number'), report)

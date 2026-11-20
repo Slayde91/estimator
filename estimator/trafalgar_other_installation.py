@@ -160,6 +160,7 @@ _BLADERUNNER_PIPES = {
 # https://tfire.com.au/documents/FyreBATT-Test-Report
 # SHA-256 c870d12130ce5eff058909f28bda5553caef26f7abe8ce2dd615583cdbbb047a.
 _FYREBATT_REPORT_URL = 'https://tfire.com.au/documents/FyreBATT-Test-Report'
+_FYREBATT_MANUAL = 'Trafalgar FyreBATT 60 Technical Manual'
 _FYREBATT_FIELDS = {
     'Manufacturer': 'Trafalgar',
     'System Products': 'FyreBATT 60, SuperSTOPPER Circular (150mm only)',
@@ -186,8 +187,10 @@ _FYREBATT_PATTRESS = (
     'around the face-fixed board.'
 )
 _FYREBATT_PATTRESS_OVERLAP = (
+    # Trafalgar FyreBATT 60 Technical Manual p. 8 gives the fastener schedule for both walls.
     'Friction-fit one 60 mm FyreBATT flush with one wall face. Face-fix a second 60 mm FyreBATT on that '
-    'face with the assessed pattress fixings and 100 mm overlap on all sides. Seal the perimeter and '
+    'face using 10g x 100 mm plasterboard screws with suitable washers at 200 mm centres. Keep 100 mm '
+    'overlap on all sides. Seal the perimeter and '
     'board joints with FyreFLEX and form a 25 x 25 mm FyreFLEX fillet around the face-fixed board.'
 )
 _FYREBATT_FRICTION = (
@@ -288,13 +291,17 @@ def _fyrebatt_procedure(number):
             # TPD12 (pp. 11, 49, 113) requires full-depth sealing. TBD4 (pp. 42, 75, 107)
             # defines the two-batt pattress arrangement and aperture limit for the Hebel wall.
             expected['Seal Depth / Fillet Size'] = '100mm / No Fillet'
-        wrap_target = 'the exposed casing and bundle' if number in {'1165', '1236'} else 'the bundle'
+        reviewed_pattress = number in {'1165', '1236'}
+        wrap_target = 'the exposed casing and bundle' if reviewed_pattress else 'the bundle'
+        pigtail_size = '90 mm ' if reviewed_pattress else ''
+        if reviewed_pattress:
+            source.append(_FYREBATT_MANUAL)
         steps = (
             f'1. {construction} Keep the wall opening within {aperture_mm}.\n'
             f'2. {batt_fit}\n'
             '3. Cut a nominal 170 mm opening in the batts. Install the 150 mm SuperSTOPPER '
             'Mini Round with the specified bundle. Secure its mounting flanges to the batts '
-            'with pigtail screws. Fill the gap around the casing with FyreFLEX for the full '
+            f'with {pigtail_size}pigtail screws. Fill the gap around the casing with FyreFLEX for the full '
             'depth.\n'
             f'4. Wrap {wrap_target} for 300 mm on both wall faces with 25 mm TWrap. Secure the '
             'wrap with steel cable ties.'
@@ -320,6 +327,7 @@ def _fyrebatt_procedure(number):
                         else 'Use a concrete-filled steel deck floor with the required fire rating.')
         batt_fit = _FYREBATT_FRICTION
         wrap_target = 'the bundle'
+        pigtail_size = ''
         if number == '4822':
             construction = (
                 'Use a concrete-filled KingFlor KF70 deck designed to AS 3600 for the required fire rating '
@@ -331,12 +339,14 @@ def _fyrebatt_procedure(number):
                 'with FyreFLEX.'
             )
             wrap_target = 'the exposed casing and bundle'
+            pigtail_size = '90 mm '
+            source.append(_FYREBATT_MANUAL)
         steps = (
             f'1. {construction} Keep the floor opening within 1200 x 600 mm.\n'
             f'2. {batt_fit}\n'
             '3. Cut a nominal 170 mm opening in the batts. Insert the 150 mm SuperSTOPPER '
             'Mini Round with the specified bundle. Fix the top and bottom flanges to the '
-            'batts with pigtail screws. Fill the gap around the casing with FyreFLEX for the '
+            f'batts with {pigtail_size}pigtail screws. Fill the gap around the casing with FyreFLEX for the '
             'full depth.\n'
             f'4. Wrap {wrap_target} for 300 mm {wrap_side} with 25 mm TWrap. Secure the wrap '
             'with steel cable ties.'

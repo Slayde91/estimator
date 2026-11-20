@@ -13,6 +13,8 @@
     page: "/sounds/page.mp3",
     selectOther: "/sounds/select-2.mp3",
     checkpoint: "/sounds/checkpoint.ogg",
+    zoom: "/sounds/zoom.mp3",
+    electric: "/sounds/electric.mp3",
     // The supplied whoosh has its silent lead trimmed and uses PCM to avoid
     // adding MP3 encoder padding before the first audible sample.
     explosion: "/sounds/flame-whoosh.wav",
@@ -104,6 +106,11 @@
     function quoteAccepted() {
       if (!closed && !document.hidden) acceptedQuotePlayer?.play("accepted");
     }
+    function scheduleActionSucceeded() {
+      if (closed || document.hidden) return;
+      menu.stop?.();
+      players.play("electric");
+    }
     const selector = 'button, a.button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], input[type="image"], summary';
     const element = target => target?.nodeType === 3 ? target.parentElement : target;
     function enabled(button) {
@@ -126,8 +133,10 @@
       // Its active state supplies their context.
       const takeoff = button.closest("#view-takeoffs") || document.body?.classList?.contains("takeoffs-active");
       if (!takeoff) { players.stop(); return; }
+      if (button.closest(".takeoff-preview-transfer")) return;
       menu.stop?.();
-      players.play(button.id === "save-current-project" ? "checkpoint" : "select");
+      if (button.closest(".takeoff-zoom-button")) players.play("zoom");
+      else players.play(button.id === "save-current-project" ? "checkpoint" : "select");
     }
     function click(event) {
       const target = element(event.target);
@@ -155,7 +164,7 @@
       if (kind === "header") {players.stop();menu.play("confirm");}
       else if (kind === "page" || kind === "takeoffTab" || kind === "calculatorTab") {menu.stop?.();players.play(kind);}
     }
-    return Object.freeze({ stop, close, prepareQuote, quoteAccepted, navigationOpened });
+    return Object.freeze({ stop, close, prepareQuote, quoteAccepted, navigationOpened, scheduleActionSucceeded });
   }
 
   function createDownloadSound() {

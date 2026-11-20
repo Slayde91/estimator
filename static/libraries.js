@@ -307,6 +307,7 @@
       const receipt = await window.CeasefirePenetrations.addLibraryItem(id);
       scheduleChanged();
       if (context === actionContext(pane) && receipt?.added) {
+        window.CeasefireButtonSounds?.scheduleActionSucceeded?.();
         const text = receipt.message || "Added to the Firestopping Schedule using its current prices and allowances.";
         for (const [key, status] of pane.actionMessages) if (key === `list:${id}` || key === `detail:${id}`) {
           uiText(status, text); status.hidden = false; status.className = "message library-action-message";

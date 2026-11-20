@@ -55,6 +55,7 @@ STATIC_FILES = (
     'sounds/shutter.mp3',
     'sounds/new-explosion.mp3', 'sounds/money.mp3', 'sounds/flame-whoosh.wav', 'sounds/type.mp3', 'sounds/hover.mp3', 'sounds/select.mp3', 'sounds/select-2.mp3',
     'sounds/mixkit-vintage-dot-printing-1371.wav', 'sounds/checkpoint.ogg', 'sounds/loading.mp3',
+    'sounds/zoom.mp3', 'sounds/electric.mp3',
     'scheduler.js', 'scheduler-reports.js', 'scheduler.css', 'commercial-panels.js', 'commercial-documents.js', 'commercial-documents.css', 'commercial-pricing-picker.js', 'commercial-pricing-picker.css', 'help-glossary.js', 'help-glossary.css', 'company-settings.js', 'certification.js', 'certification.css', 'cover-sheets.js', 'documentation.js', 'documentation.css', 'passive-fire-register.js', 'passive-fire-register.css', 'theme.js', 'theme.css', 'language.js', 'language-catalog.js', 'language.css', 'laser.css', 'laser-steel.svg', 'home-steel-frame.png',
     'header-layout.css', 'workspace-art.css', 'header-steel-spray.png', 'header-steel-intumescent.png', 'header-steel-board.png', 'header-ductwork.png', 'header-firestopping.png', 'header-estimate.png', 'header-projects.png', 'projects-evidence-banner.png', 'header-firestopping-library.png', 'header-technical-library.png',
     'work-order-costs.js',

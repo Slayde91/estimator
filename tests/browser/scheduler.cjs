@@ -133,7 +133,7 @@ assert.deepEqual(readSchedulerClock({dateTime:'2026-11-08T00:00:00.000Z',textCon
   await expect(modal.getByRole('button',{name:'Save member'})).toHaveClass(/primary/);
   await submit('Save member');
   await expect(page.locator('#view-settings .scheduler-team')).toContainText('Jordan QA');
-  await expect(page.locator('#settings-team-members').getByLabel('Jordan QA Account Type')).toBeVisible();
+  await expect(page.locator('#settings-team-members').getByRole('combobox',{name:'Jordan QA Account Type',exact:true})).toBeVisible();
   checks.push('administrator adds a team member in Settings and sees the Account Type dropdown on the member card');
   await scheduler();
   await page.getByLabel('Week containing date',{exact:true}).fill('2026-11-02');

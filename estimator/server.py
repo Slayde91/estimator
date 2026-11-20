@@ -490,7 +490,10 @@ def create_server(port=8765, database=None, project_dialogs=None, library_direct
                     service, token = certificate_context(self.path)
                     self.send_payload(200, certificate_response(token, service.get(route.rsplit('/', 1)[1])))
                 elif route == '/api/libraries':
-                    self.send_payload(200, libraries.overview())
+                    overview = libraries.overview()
+                    if self.crm_user['account_type'] in ('technician', 'technician_plus', 'coordinator'):
+                        overview = {**overview, 'libraries': [item for item in overview['libraries'] if item['id'] == 'technical']}
+                    self.send_payload(200, overview)
                 elif route == '/api/libraries/technical/new':
                     self.send_payload(200, libraries.technical_edit())
                 elif re.fullmatch(r'/api/libraries/technical/[a-z0-9][a-z0-9_-]{0,119}/edit', route):

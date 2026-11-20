@@ -12,6 +12,7 @@ import re
 import sqlite3
 import uuid
 from .scheduler import SchedulerError
+from .account_types import ACCOUNT_TYPES, TECHNICIAN_TYPES, account_type, allows_local_request
 from .catalog import ValidationError
 from .documentation_catalog import (CALCULATOR_INSPECTION_ROUTES, CALCULATOR_REGISTER_ROUTES,
                                     INSPECTION_REGISTER_XLSX_ROUTES)
@@ -136,13 +137,17 @@ class CRMAccess:
         member = self._member(token)
         if not member:
             return None
-        if member['role'] == 'admin':
+        typed = account_type(member)
+        if typed == 'admin':
             role = 'admin'
+        elif typed:
+            role = 'none' if typed in TECHNICIAN_TYPES else 'editor'
         else:
             with self.connect() as db:
                 assignment = db.execute('SELECT role FROM crm_access_roles WHERE member_id=?',(member['id'],)).fetchone()
             role = assignment['role'] if assignment else 'none'
-        return {'id':member['id'], 'name':member['name'], 'email':member['email'], 'role':role}
+        return {'id':member['id'], 'name':member['name'], 'email':member['email'], 'role':role,
+                'account_type':typed}
 
     def staff(self, include_roles=False):
         """Minimal active assignment roster, deliberately excluding pay/password data."""
@@ -151,12 +156,14 @@ class CRMAccess:
                 return [dict(row) for row in db.execute(
                     'SELECT id,name FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
             members = [dict(row) for row in db.execute(
-                'SELECT id,name,role FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
+                'SELECT id,name,role,account_type FROM scheduler_members WHERE active=1 ORDER BY name COLLATE NOCASE,id')]
         with self.connect() as db:
             roles = dict(db.execute('SELECT member_id,role FROM crm_access_roles'))
         for member in members:
+            member['account_type'] = typed = account_type(member)
             if member['role'] != 'admin':
-                member['role'] = roles.get(member['id'], 'none')
+                member['role'] = ('none' if typed in TECHNICIAN_TYPES else 'editor' if typed
+                                  else roles.get(member['id'], 'none'))
         return members
 
     def session(self, token):
@@ -178,11 +185,14 @@ class CRMAccess:
     def members(self, token):
         self._admin(token)
         with self.scheduler.connect() as db:
-            rows=[dict(row) for row in db.execute('SELECT id,name,email,active,role FROM scheduler_members ORDER BY name COLLATE NOCASE,id')]
+            rows=[dict(row) for row in db.execute(
+                'SELECT id,name,email,active,role,account_type,version FROM scheduler_members ORDER BY name COLLATE NOCASE,id')]
         with self.connect() as db:
             assignments={row['member_id']:dict(row) for row in db.execute('SELECT * FROM crm_access_roles')}
         for row in rows:
             assignment=assignments.get(row['id'],{})
+            row['account_type']=account_type(row)
+            row['member_version']=row.pop('version')
             row['scheduler_role']=row.pop('role')
             row['role']='admin' if row['scheduler_role']=='admin' else assignment.get('role','none')
             row['version']=assignment.get('version',0)
@@ -219,11 +229,13 @@ class CRMAccess:
         with self.scheduler.connect() as db:
             for change in changes:
                 key = change['member_id']
-                member = db.execute('SELECT role FROM scheduler_members WHERE id=?', (key,)).fetchone()
+                member = db.execute('SELECT role,account_type FROM scheduler_members WHERE id=?', (key,)).fetchone()
                 if not member:
                     raise AccessError('Choose an existing staff member.', 400)
                 if member['role'] == 'admin':
                     raise AccessError('Team administrators retain administrator access. Manage their team role in Scheduler.', 400)
+                if member['account_type']:
+                    raise AccessError('Update this member’s Account Type in Settings.', 409)
         results = []
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -242,6 +254,31 @@ class CRMAccess:
                 self._audit(db, user, 'access.role', key, dict(previous) if previous else None, result)
                 results.append(result)
         return results
+
+    def assign_account_types(self, payload, token, actor_id):
+        if not isinstance(payload, dict) or set(payload) != {'changes'}:
+            raise AccessError('Include the account type changes.', 400)
+        changes = payload['changes']
+        if not isinstance(changes, list) or not 0 < len(changes) <= 500:
+            raise AccessError('Include one or more team members.', 400)
+        updates, members = [], set()
+        for change in changes:
+            if not isinstance(change, dict) or set(change) != {'member_id', 'account_type', 'version'}:
+                raise AccessError('Include a team member, account type and current version.', 400)
+            member, target, version = (change[key] for key in ('member_id', 'account_type', 'version'))
+            if (not isinstance(member, str) or type(version) is not int or version < 1
+                    or target not in ACCOUNT_TYPES):
+                raise AccessError('Choose a valid team member and account type.', 400)
+            try:
+                if str(uuid.UUID(member)) != member:
+                    raise ValueError()
+            except ValueError:
+                raise AccessError('Choose a valid team member.', 400) from None
+            if member in members:
+                raise AccessError('Include each team member once.', 400)
+            updates.append((member, target, version))
+            members.add(member)
+        return self.scheduler.assign_account_types(token, actor_id, updates)
 
     def configure(self,payload,token):
         self._admin(token)
@@ -331,6 +368,15 @@ class CRMAccess:
         if not user:
             raise AccessError('Sign in to use CLASSIFIRE.',401)
         role=user['role']
+        typed=user['account_type']
+        if typed and typed != 'admin':
+            read = handler.command in ('GET', 'HEAD') and route not in EDIT_GETS or read_operation
+            admin_only = route in ADMIN_WRITES | ADMIN_READS and route not in ('/api/configuration', '/api/pricing/import')
+            if not allows_local_request(typed, route, read=read, admin_only=admin_only):
+                raise AccessError('Your Account Type does not permit this action.')
+            if not read:
+                handler.crm_request_id=self.begin_request(user,handler.command,route)
+            return
         if role=='none':
             raise AccessError('Your staff account has Scheduler access only. Ask an administrator for CRM access.')
         if handler.command in ('GET','HEAD') and route not in EDIT_GETS:
@@ -366,7 +412,7 @@ class AccessHTTP:
                 if handler.headers.get('Sec-Fetch-Site')=='cross-site':
                     raise AccessError('Open staff access in the local CLASSIFIRE application.')
                 body=handler.read_json()
-                if action in {'roles','settings'}:
+                if action in {'roles','settings','account-types'}:
                     user=self.access._admin(token)
                     if handler.headers.get('X-CRM-Member') != user['id']:
                         raise AccessError('The signed-in staff account changed. Reload this tab before saving.',409)
@@ -387,6 +433,8 @@ class AccessHTTP:
                 elif action=='roles':
                     result=(self.access.assign_many(body, token) if isinstance(body, dict) and 'changes' in body
                             else self.access.assign(body, token))
+                elif action=='account-types':
+                    result=self.access.assign_account_types(body, token, user['id'])
                 elif action=='settings':
                     result=self.access.configure(body,token)
                 else:

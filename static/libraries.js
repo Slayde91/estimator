@@ -16,6 +16,8 @@
   const kinds = ["penetration", "technical"], titles = { penetration: "Firestopping Library", technical: "Technical Library" };
   const state = { current: null, metadata: null, metadataRequest: null, metadataAbort: null, panes: new Map(), history: [] };
   const $ = id => document.getElementById(id);
+  const canEditTechnical = () => !window.ClassifireAccess?.user?.account_type
+    || window.ClassifireAccess.user.account_type === "admin";
   const node = (tag, className = "", text) => { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = String(text); return el; };
   const uiTerm = (source, args = []) => window.CeasefireI18n?.term ? window.CeasefireI18n.term(source, args) : String(source).replace(/\{(\d+)\}/g, (match, index) => args[index] === undefined ? match : String(typeof args[index] === "function" ? args[index]() : args[index]));
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -86,7 +88,7 @@
     label.append(uiNode("span", "", "Search {0}", [uiTerm(titles[kind])]), pane.searchInput);
     pane.refresh = symbolButton("↻", "Refresh", () => refresh(pane)); pane.refresh.className += " refresh-button"; pane.refresh.dataset.libraryRefresh = kind;
     controls.append(label, pane.refresh);
-    if (kind === "technical") { const add = symbolButton("+", "Add Technical Library item", () => openTechnicalEditor(pane)); add.className = "button primary icon-only penetration-new-item-action library-create-action"; add.dataset.libraryCreate = kind; controls.append(add); }
+    if (kind === "technical" && canEditTechnical()) { const add = symbolButton("+", "Add Technical Library item", () => openTechnicalEditor(pane)); add.className = "button primary icon-only penetration-new-item-action library-create-action"; add.dataset.libraryCreate = kind; controls.append(add); }
     pane.filterControls = node("div", "library-filters");
     pane.count = node("p", "helper library-count"); pane.count.setAttribute("role", "status"); pane.count.dataset.libraryCount = kind;
     pane.results = node("div", "library-results"); pane.results.dataset.libraryResults = kind;
@@ -250,6 +252,7 @@
   }
   function itemActions(pane, item, place) {
     const actions = node("div", "library-item-actions");
+    if (pane.kind === "technical" && !canEditTechnical()) return actions;
     if (item.editable || pane.kind === "technical") { const edit = uiButton("Edit", () => pane.kind === "technical" ? openTechnicalEditor(pane, item.id) : editItem(pane, item.id), "button library-edit-button"); edit.dataset.libraryEdit = item.id; actions.append(edit); }
     const link = symbolButton("🔗︎", "Link Library Item", () => openLinkPicker(pane, item, link)); link.className += " link-action-button"; link.dataset.libraryLink = item.id;
     const add = button("", () => pane.kind === "technical" ? applyTechnicalToSchedule(pane, item) : addToSchedule(pane, item.id), "button secondary takeoff-physical-icon-action library-add-transfer takeoff-preview-transfer");

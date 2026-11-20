@@ -6,11 +6,11 @@ import json
 import tempfile
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import sqlite3
 
 from estimator.crm_access import CRMAccess, AccessError
-from estimator.scheduler import SchedulerStore
+from estimator.scheduler import SchedulerError, SchedulerStore
 
 class AccessTests(unittest.TestCase):
     def setUp(self):
@@ -124,6 +124,83 @@ class AccessTests(unittest.TestCase):
         self.assert_denied(401,self.handler(self.admin['token']),'/api/bootstrap')
         with self.scheduler.connect() as db:db.execute('UPDATE scheduler_members SET active=0 WHERE id=?',(self.worker['id'],))
         self.assertIsNone(self.access.user(self.login['token']))
+
+    def test_account_type_batch_is_atomic_and_keeps_an_active_administrator(self):
+        manager = self.admin['user']['id']
+        worker = self.worker['id']
+        token = self.admin['token']
+        assignment = {'member_id':worker, 'version':self.worker['version'], 'account_type':'admin'}
+        demotion = {'member_id':manager, 'version':self.admin['user']['version'], 'account_type':'estimator'}
+        with self.assertRaises(SchedulerError):
+            self.access.assign_account_types({'changes':[demotion]}, token, manager)
+        with self.assertRaises(SchedulerError):
+            self.access.assign_account_types({'changes':[assignment, {**demotion, 'version':99}]}, token, manager)
+        self.assertIsNone(self.access.user(self.login['token'])['account_type'])
+        self.access.assign_account_types({'changes':[demotion, assignment]}, token, manager)
+        self.assertIsNone(self.access.user(token))
+        self.assertIsNone(self.access.user(self.login['token']))
+        promoted = self.scheduler.write('login', {'email':'worker@example.test','password':'Correct-worker-password'})
+        self.assertEqual(self.access.user(promoted['token'])['account_type'], 'admin')
+        members = self.access.members(promoted['token'])['members']
+        self.assertEqual({item['account_type'] for item in members}, {'estimator', 'admin'})
+
+    def test_named_roles_grant_only_their_local_endpoints(self):
+        worker = self.worker['id']
+        manager = self.admin['user']['id']
+        administrator_token = self.admin['token']
+        version = self.worker['version']
+        for kind in ('estimator','coordinator','technician','technician_plus'):
+            with self.subTest(kind=kind):
+                body = {'changes':[{'member_id':worker,'account_type':kind,'version':version}]}
+                self.access.assign_account_types(body, administrator_token, manager)
+                version += 1
+                login = self.scheduler.write('login', {'email':'worker@example.test','password':'Correct-worker-password'})
+                token = login['token']
+                self.assertEqual(self.access.user(token)['account_type'], kind)
+                self.access.authorize(self.handler(token), '/api/libraries/technical')
+                self.access.authorize(self.handler(token), '/api/scheduler/state')
+                self.assert_denied(403, self.handler(token, 'POST', worker), '/api/libraries/technical')
+                self.assert_denied(403, self.handler(token), '/api/company-settings')
+                if kind != 'estimator':
+                    self.assert_denied(403, self.handler(token), '/api/calculators')
+                if kind.startswith('technician'):
+                    self.assert_denied(403, self.handler(token), '/api/projects')
+                    self.assert_denied(403, self.handler(token), '/api/libraries/penetration')
+                    self.assert_denied(403, self.handler(token, 'POST', worker), '/api/forms/template/save')
+                    self.access.authorize(self.handler(token), '/api/forms/entries')
+                with self.assertRaises(SchedulerError):
+                    self.access.assign_account_types(body, token, worker)
+
+    def test_commercial_account_types_check_the_stored_document_kind(self):
+        from estimator.commercial_http import CommercialHTTP
+        service = Mock()
+        service.document_context.return_value = (None, {'kind':'work_order'})
+        commercial = CommercialHTTP(service)
+        current = {'workspace_id':'current', 'id':'document'}
+        with self.assertRaises(AccessError):
+            commercial._authorize_edit('estimator', 'save', {**current, 'kind':'quote'})
+        with self.assertRaises(AccessError):
+            commercial._authorize_edit('estimator', 'status', current)
+        commercial._authorize_edit('coordinator', 'status', current)
+        with self.assertRaises(AccessError):
+            commercial._authorize_edit('coordinator', 'save', {**current, 'kind':'quote'})
+        commercial._authorize_edit('estimator', 'defaults', {'kind':'quote'})
+
+    def test_coordinator_can_save_a_colleagues_time_without_seeing_the_rate(self):
+        worker = self.worker['id']
+        manager = self.admin['user']['id']
+        self.access.assign_account_types({'changes':[{'member_id':worker,'account_type':'coordinator','version':1}]},
+                                         self.admin['token'], manager)
+        login = self.scheduler.write('login', {'email':'worker@example.test','password':'Correct-worker-password'})
+        entry = self.scheduler.write('entries/save', {'member_id':manager,
+                                     'start':'2026-01-01T08:00:00+11:00', 'end':'2026-01-01T09:00:00+11:00'}, login['token'])
+        self.assertNotIn('base_rate', entry)
+        query = {'start':'2026-01-01', 'end':'2026-01-02'}
+        state = self.scheduler.read('state', query, login['token'])
+        self.assertEqual([entry['id']], [item['id'] for item in state['entries']])
+        self.assertNotIn('base_rate', state['entries'][0])
+        admin_state = self.scheduler.read('state', query, self.admin['token'])
+        self.assertIn('base_rate', admin_state['entries'][0])
 
 class AccessHTTPTests(unittest.TestCase):
     def setUp(self):

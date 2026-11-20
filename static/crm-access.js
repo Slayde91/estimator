@@ -6,7 +6,7 @@
   window.fetch=async (input,options={})=>{
     const url=new URL(typeof input==='string' || input instanceof URL ? input : input.url,location.href);
     const method=(options.method || (typeof input==='object' && input.method) || 'GET').toUpperCase();
-    const accessChange=['/api/access/roles','/api/access/settings'].includes(url.pathname);
+    const accessChange=['/api/access/roles','/api/access/settings','/api/access/account-types'].includes(url.pathname);
     const identityRead=['GET','HEAD'].includes(method) && (url.pathname.startsWith('/api/forms/') || ['/api/certifications/defaults','/api/certifications/defaults/legacy','/api/scheduler/bootstrap','/api/numbering-settings','/api/document-numbering','/api/project-details'].includes(url.pathname));
     const mutation=(!['GET','HEAD'].includes(method) || url.pathname==='/api/libraries/technical/new') && (!url.pathname.startsWith('/api/access/') || accessChange) && !url.pathname.startsWith('/api/scheduler/');
     if(url.origin===location.origin && url.pathname.startsWith('/api/') && (identityRead || mutation)){
@@ -75,7 +75,10 @@
     load().catch(error=>reportError(message,error)).finally(()=>{resolveReady(session);void window.ClassifireBoot?.ready();});
     return;
   }
-  const choices=[['none','Scheduler only'],['viewer','View only'],['editor','Editor'],['admin','Administrator']];
+  const choices=[['admin','Administrator'],['estimator','Estimator'],['coordinator','Coordinator'],
+    ['technician','Technician'],['technician_plus','Technician+']];
+  const legacyTypes={editor:'Editor',viewer:'View only',none:'Scheduler only'};
+  const typeLabel=member=>choices.find(([key])=>key===member.account_type)?.[1] || legacyTypes[member.role];
   const changes=new Map();
   let renderRevision=0, saving=false;
   async function render(savedMessage=''){
@@ -100,7 +103,7 @@
       form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;try{session=await request('login',{email:email.value,password:password.value});password.value='';reloadSession();}catch(error){reportError(message,error);button.disabled=false;}});
       card.append(form,message);return;
     }
-    card.append(el('p',session.user.name+' · '+({admin:'Administrator',editor:'Editor',viewer:'View only',none:'Scheduler only'}[session.user.role]||session.user.role)));
+    card.append(el('p',session.user.name+' · '+typeLabel(session.user)));
     const out=el('button','Sign out','button secondary');out.type='button';
     out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>reportError(message,error)));
     actions.append(out);card.append(actions,message);
@@ -111,14 +114,13 @@
     window.CeasefireI18n?.attr(add,'aria-label','Add team member');
     const edit=id=>window.CeasefireScheduler.openTeamMember(id).catch(error=>reportError(message,error));
     add.addEventListener('click',()=>edit(null));heading.append(add);
-    card.append(el('p','Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
     try{
       const result=await request('members');
       if(revision!==renderRevision)return;
       const list=el('div',undefined,'scheduler-team'), footer=el('div',undefined,'actions');
       const save=el('button','Save','button primary');save.type='button';
       const controls=[];
-      const editable=new Set(result.members.filter(member=>member.role!=='admin').map(member=>member.id));
+      const editable=new Set(result.members.map(member=>member.id));
       for(const id of changes.keys())if(!editable.has(id))changes.delete(id);
       const sync=()=>{
         save.disabled=saving || !changes.size;
@@ -133,20 +135,20 @@
         editButton.addEventListener('click',()=>edit(member.id));
         memberCard.append(name,el('p',member.email,'helper'),el('p',member.active?'Active':'Inactive','helper'));
         select.setAttribute('aria-labelledby',name.id+' '+accountType.id);
-        for(const [value,name] of choices.filter(([value])=>(value==='admin')===(member.role==='admin'))){
+        if(!member.account_type){
+          const current=el('option',typeLabel(member));current.value='';current.disabled=true;current.hidden=true;select.append(current);
+        }
+        for(const [value,name] of choices){
           const option=el('option',name);option.value=value;select.append(option);
         }
-        select.value=changes.get(member.id)?.role ?? member.role;
-        if(member.role==='admin')select.disabled=true;
-        else{
-          controls.push(select);
-          select.addEventListener('change',()=>{
-            if(select.value===member.role)changes.delete(member.id);
-            else if(changes.has(member.id))changes.get(member.id).role=select.value;
-            else changes.set(member.id,{member_id:member.id,role:select.value,version:member.version});
-            sync();
-          });
-        }
+        select.value=changes.get(member.id)?.account_type ?? member.account_type ?? '';
+        controls.push(select);
+        select.addEventListener('change',()=>{
+          if(select.value===member.account_type)changes.delete(member.id);
+          else if(changes.has(member.id))changes.get(member.id).account_type=select.value;
+          else changes.set(member.id,{member_id:member.id,account_type:select.value,version:member.member_version});
+          sync();
+        });
         label.append(accountType,select);memberCard.append(label,editButton);list.append(memberCard);
       }
       footer.append(save,message);card.append(list,footer);sync();
@@ -154,8 +156,9 @@
         if(saving || !changes.size)return;
         saving=true;sync();
         try{
-          await request('roles',{changes:[...changes.values()]});
+          const result=await request('account-types',{changes:[...changes.values()]});
           changes.clear();saving=false;
+          if(result.changed_member_ids.includes(session.user.id)){reloadSession();return;}
           await render('Staff access saved.');
         }catch(error){reportError(message,error);}finally{saving=false;sync();}
       });
@@ -172,6 +175,21 @@
   }
   window.addEventListener("classifire:team-members-changed", () => { if (can("admin")) void render(); });
   request('session').then(value=>{session=value;resolveReady(value);void render();
+    if(value.user?.account_type)document.documentElement.dataset.accountType=value.user.account_type;
+    if(value.user?.account_type && value.user.role!=='admin'){
+      const settings=document.getElementById('view-settings');
+      for(const selector of ['[aria-labelledby="application-settings-heading"]','#company-settings-form',
+          '#settings-team-members','[aria-labelledby="google-maps-heading"]']){
+        const section=settings?.querySelector(selector)?.closest('.card');
+        if(section)section.hidden=true;
+      }
+      const heading=settings?.querySelector(':scope > .page-heading');
+      if(heading){
+        const button=el('button','Sign out','button secondary');button.type='button';
+        button.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(button));
+        heading.append(button);
+      }
+    }
     if(value.enabled&&value.user?.role==='viewer'){const main=document.querySelector('main');if(main){const banner=el('p','View-only access. An editor is required to save changes.','staff-access-banner');banner.setAttribute('role','status');main.prepend(banner);}}
   }).catch(()=>resolveReady(session));
 })();

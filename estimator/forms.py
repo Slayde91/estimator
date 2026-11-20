@@ -6,6 +6,7 @@ import json
 import sqlite3
 from uuid import UUID
 
+from .account_types import COORDINATOR, ESTIMATOR, TECHNICIAN_TYPES
 from .catalog import ValidationError
 from .form_fields import approval_row_ids, is_person_group, validate_template, validate_values
 from .form_rich_text import plain_form_text
@@ -56,6 +57,24 @@ def _request_key(action, user, body):
     except (UnicodeError,RecursionError,ValueError):
         raise ValidationError('Form data contains an invalid value.') from None
     return sha256(payload).hexdigest()
+
+
+def _requested_forms_only(user):
+    return user.get('account_type') in TECHNICIAN_TYPES
+
+
+def _form_role(user):
+    return 'editor' if _requested_forms_only(user) else user['role']
+
+
+def _can_manage_forms(user):
+    return user['role'] in ('admin', 'editor') and user.get('account_type') != ESTIMATOR
+
+
+def _matches_template_role(data, user, *, requested=False):
+    if _requested_forms_only(user):
+        return requested and _form_role(user) in data['roles']
+    return user.get('account_type') in (COORDINATOR, ESTIMATOR) or user['role'] in data['roles']
 
 
 class Forms:
@@ -120,18 +139,28 @@ class Forms:
     def _user(user, write=False):
         if not user:
             raise FormError('Sign in to use Forms.', 401)
+        if _requested_forms_only(user):
+            return
         if user['role'] not in (('admin', 'editor') if write else ('admin', 'editor', 'viewer')):
+            raise FormError('Your Settings role does not permit this action.', 403)
+
+    @staticmethod
+    def _manager(user):
+        Forms._user(user, True)
+        if not _can_manage_forms(user):
             raise FormError('Your Settings role does not permit this action.', 403)
 
     @staticmethod
     def _view(row, user):
         data = json.loads(row['definition'])
-        manage = user['role'] == 'admin' or user['role'] == 'editor' and row['owner'] == user['id']
+        owns_template = row['owner'] == user['id'] or user['role'] == 'admin'
+        manage = _can_manage_forms(user) and (owns_template or user.get('account_type') == COORDINATOR)
         published = data['status'] == 'published'
         fill = published and Forms._can_start(data, user)
         return {**data, 'id': row['id'], 'version': row['version'], 'updated_at': row['updated_at'],
                 'updated_by_name':row['updated_by_name'],
-                'can_manage': manage, 'can_fill': fill, 'can_assign': published and (manage or fill)}
+                'can_manage': manage, 'can_fill': fill, 'can_delete': _can_manage_forms(user) and owns_template,
+                'can_assign': published and _can_manage_forms(user) and (manage or fill)}
 
     @staticmethod
     def _query():
@@ -146,20 +175,22 @@ class Forms:
             raise _missing()
         data = self._view(row, user)
         if not internal and not (data['can_manage'] or
-                data['status'] == 'published' and user['role'] in data['roles']):
+                data['status'] == 'published' and _matches_template_role(data, user)):
             raise _missing()
         if row['deleted']:
-            data.update(deleted=True, can_manage=False, can_fill=False, can_assign=False)
+            data.update(deleted=True, can_manage=False, can_fill=False, can_assign=False, can_delete=False)
         return data
 
     def templates(self, user):
         self._user(user)
+        if _requested_forms_only(user):
+            return {'templates': []}
         with self.connect() as db:
             rows = db.execute(self._query() + 'WHERE v.version=t.version AND t.deleted=0 ORDER BY v.updated_at DESC,t.id')
             result = []
             for row in rows:
                 data = self._view(row, user)
-                if data['can_manage'] or data['status'] == 'published' and user['role'] in data['roles']:
+                if data['can_manage'] or data['status'] == 'published' and _matches_template_role(data, user):
                     result.append({k: v for k, v in data.items() if k not in ('fields', 'settings')})
             return {'templates': result}
 
@@ -184,7 +215,7 @@ class Forms:
                     if k in ('version','name','status','updated_at','updated_by_name')} for row in rows]}
 
     def save_template(self, user, body):
-        self._user(user, True)
+        self._manager(user)
         key, expected = _identity(body.get('id')), _version(body.get('version'))
         definition = validate_template(body,{person['id'] for person in self.staff()})
         request_key = _request_key('template', user, body)
@@ -193,7 +224,7 @@ class Forms:
             if row:
                 if row['deleted']:
                     raise _missing()
-                if row['owner'] != user['id'] and user['role'] != 'admin':
+                if row['owner'] != user['id'] and user['role'] != 'admin' and user.get('account_type') != COORDINATOR:
                     raise FormError('Only the template creator or an administrator can change this template.', 403)
                 if request_key == row['request_key']:
                     return self._template(db, user, key)
@@ -208,7 +239,7 @@ class Forms:
             return self._template(db, user, key)
 
     def delete_template(self, user, body):
-        self._user(user, True)
+        self._manager(user)
         if set(body) != {'id', 'version'}:
             raise ValidationError('Include the template ID and current version.')
         key, expected = _identity(body['id']), _version(body['version'])
@@ -219,7 +250,7 @@ class Forms:
                 raise _missing()
             if row['deleted'] and row['request_key'] == request_key:
                 return {'id': key, 'deleted': True}
-            if not self._template(db, user, key)['can_manage']:
+            if not self._template(db, user, key)['can_delete']:
                 raise FormError('Only the template creator or an administrator can delete this template.', 403)
             if row['version'] != expected:
                 raise FormError('This template changed. Check the latest version before deleting it.', 409)
@@ -229,13 +260,13 @@ class Forms:
 
     @staticmethod
     def _eligible(stage,user):
-        return (user['role'] in stage['roles'] and
+        return (_form_role(user) in stage['roles'] and
                 (not stage.get('member_ids') or user['id'] in stage['member_ids']))
 
     @staticmethod
-    def _can_start(template, member):
+    def _can_start(template, member, *, requested=False):
         stages = template['settings'].get('stages', []) if template['mode'] == 'workflow' else []
-        return (member['role'] in ('editor','admin') and member['role'] in template['roles']
+        return (_form_role(member) in ('editor','admin') and _matches_template_role(template, member, requested=requested)
                 and (not stages or Forms._eligible(stages[0],member)))
 
     def _assignable_template(self, db, user, identity, revision):
@@ -247,19 +278,21 @@ class Forms:
         return template
 
     def assignees(self, user, identity, revision):
-        self._user(user, True)
+        self._manager(user)
         with self.connect() as db:
             template = self._assignable_template(db, user, identity, revision)
-            return {'staff': [{'id':m['id'],'name':m['name']} for m in self.staff() if self._can_start(template, m)]}
+            return {'staff': [{'id':m['id'],'name':m['name']} for m in self.staff()
+                              if self._can_start(template, m, requested=True)]}
 
     def assign_entry(self, user, body):
-        self._user(user, True)
+        self._manager(user)
         if set(body) != {'id','template_id','template_version','member_id'} or not isinstance(body['member_id'],str):
             raise ValidationError('Choose a published template and a team member.')
         key = _identity(body['id'])
         with self.connect(True) as db:
             template = self._assignable_template(db, user, body['template_id'], body['template_version'])
-            member = next((m for m in self.staff() if m['id'] == body['member_id'] and self._can_start(template,m)),None)
+            member = next((m for m in self.staff() if m['id'] == body['member_id']
+                           and self._can_start(template, m, requested=True)), None)
             if member is None:
                 raise FormError('This team member cannot fill out this template.', 403)
             row = self._entry_row(db, key)
@@ -293,6 +326,11 @@ class Forms:
     def _entry(self, db, user, row, *, answers, cache=None):
         if row['status'] == 'deleted':
             raise _missing()
+        own = user['id'] == row['owner']
+        owns_request = bool(own and row['requested_by'])
+        requested_only = _requested_forms_only(user)
+        if requested_only and not owns_request:
+            raise _missing()
         if cache is None:
             cache = {}
         def snapshot(version):
@@ -302,20 +340,21 @@ class Forms:
             return cache[index]
         latest, template = snapshot(None), snapshot(row['template_version'])
         role = user['role']
-        allowed = role in latest['roles'] and role in template['roles']
-        own = user['id'] == row['owner']
+        allowed = (_matches_template_role(latest, user, requested=owns_request) and
+                   _matches_template_role(template, user, requested=owns_request))
+        coordinator = user.get('account_type') == COORDINATOR
         current = self._stage(template, row)
         stage_access = bool(current and self._eligible(current,user))
         approvals = json.loads(row['approvals'])
         previously_signed = any(item['member_id'] == user['id'] for item in approvals)
         assigned_start = bool(row['requested_by'] and not approvals and row['status'] in ('requested','draft'))
-        readable = own or not assigned_start and (stage_access or previously_signed or row['status']=='submitted')
+        readable = own or not assigned_start and (coordinator or stage_access or previously_signed or row['status']=='submitted')
         if not ((allowed and latest['status'] in ('published','archived') and readable) or role == 'admin'):
             raise _missing()
         published = latest['status'] == 'published' and not latest.get('deleted')
-        active = allowed and published and row['status'] in ('draft','requested') and role in ('editor','admin')
-        edit = bool(active and (own or not assigned_start) and (stage_access if current else own))
-        reopen = bool(approvals and published and (role=='admin' or allowed and role=='editor'
+        active = allowed and published and row['status'] in ('draft','requested') and _form_role(user) in ('editor','admin')
+        edit = bool(active and (own or not assigned_start) and (stage_access if current else own or coordinator))
+        reopen = bool(_can_manage_forms(user) and approvals and published and (role=='admin' or allowed and role=='editor'
                       and approvals[-1]['member_id']==user['id']))
         result = {'id': row['id'], 'version': row['version'], 'template_id': row['template_id'],
                   'name':template['name'], 'summary_values':json.loads(row['summary_values']), 'pdf_theme':row['pdf_theme'],
@@ -325,7 +364,7 @@ class Forms:
                   'updated_at': row['updated_at'], 'status': row['status'], 'stage_id': row['stage_id'],
                   'approvals': approvals, 'reversals':json.loads(row['reversals']),
                   'can_edit': edit, 'can_approve': bool(edit and current), 'can_reopen':reopen,
-                  'can_delete': role == 'admin' or role == 'editor' and (own or row['requested_by'] == user['id'])}
+                  'can_delete': _can_manage_forms(user) and (role == 'admin' or own or row['requested_by'] == user['id'])}
         if row['requested_by']:
             result.update(assigned_to=row['owner'], assigned_to_name=row['owner_name'])
         if answers:
@@ -342,7 +381,9 @@ class Forms:
         self._user(user)
         with self.connect() as db:
             if template_id is not None:
-                self._template(db, user, _identity(template_id), include_deleted=True)
+                _identity(template_id)
+                if not _requested_forms_only(user):
+                    self._template(db, user, template_id, include_deleted=True)
             rows = db.execute('SELECT id,template_id,template_version,version,owner,owner_name,requested_by,requested_by_name,status,stage_id,'
                               'approvals,reversals,created_at,updated_at,summary_values,reminders,pdf_theme FROM form_entries '
                               + "WHERE status != 'deleted' "
@@ -371,7 +412,7 @@ class Forms:
             return self._entry(db, user, row, answers=True)
 
     def delete_entry(self, user, body):
-        self._user(user, True)
+        self._manager(user)
         if set(body) != {'id', 'version'}:
             raise ValidationError('Include the form ID and current version.')
         key, expected = _identity(body['id']), _version(body['version'])
@@ -405,7 +446,6 @@ class Forms:
         request_key = _request_key('entry', user, body)
         with self.connect(True) as db:
             row = self._entry_row(db, key)
-            latest = self._template(db, user, template_id)
             if row:
                 entry = self._entry(db, user, row, answers=True)
                 if request_key == row['request_key']:
@@ -418,6 +458,9 @@ class Forms:
                 stage_id = entry['stage_id']
                 previous = entry['values']
             else:
+                if _requested_forms_only(user):
+                    raise FormError('This template is unavailable to fill for this Settings role.', 403)
+                latest = self._template(db, user, template_id)
                 if not latest['can_fill']:
                     raise FormError('This template is unavailable to fill for this Settings role.', 403)
                 if expected or revision != latest['version']:

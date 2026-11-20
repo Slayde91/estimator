@@ -97,7 +97,7 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
         result = present_trafalgar_other_installation(record, original)
         values = {field['label']: field['value'] for field in result}
         self.assertEqual(values['Seal Depth / Fillet Size'], 'Full depth around the casing / No casing fillet')
-        for clause in ('at least 75 mm thick', '1000 mm high x 1200 mm wide', '170 mm opening',
+        for clause in ('at least 75 mm thick', '1000 mm high x 1200 mm wide', '170 mm opening', 'flush with one wall face',
                        '25 x 25 mm FyreFLEX fillet', 'full depth', '300 mm on both wall faces'):
             self.assertIn(clause, values['Installation Details'])
         self.assertEqual(original, before)
@@ -128,6 +128,8 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
         self.assertIn('3x25mm conduit', result['Service Size / Configuration'])
         self.assertEqual(result['Barrier Construction'], 'Concrete-filled KF70 steel deck floor slab')
         self.assertIn('300 mm above the floor', result['Installation Details'])
+        self.assertIn('150 mm of concrete above the steel ribs', result['Installation Details'])
+        self.assertIn('keep it clear of the steel deck', result['Installation Details'])
         next(field for field in fields if field['label'] == 'FRL')['value'] = '-/180/120'
         self.assertIs(present_trafalgar_other_installation(record, fields), fields)
 

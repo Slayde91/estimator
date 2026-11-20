@@ -32,9 +32,24 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await expect(page.locator('#staff-access-settings')).toHaveCount(0);
  await expect(access.getByRole('checkbox')).toHaveCount(0);
  await expect(access.locator(':scope > button')).toHaveCount(0);
- const role=access.getByRole('combobox',{name:'CRM Viewer CRM access'}),save=access.getByRole('button',{name:'Save',exact:true});
+ const role=access.getByRole('combobox',{name:'CRM Viewer Account Type'}),save=access.getByRole('button',{name:'Save',exact:true});
  await expect(role).toHaveValue('viewer');
- await expect(access.getByRole('combobox',{name:'CRM Manager CRM access'})).toBeDisabled();
+ await expect(access.getByRole('combobox',{name:'CRM Manager Account Type'})).toBeDisabled();
+ const desktopSize=page.viewportSize();
+ for(const width of [1579,390]){
+   await page.setViewportSize({width,height:893});
+   const cards=access.locator('.scheduler-team > .card');
+   await expect(cards).toHaveCount(3);
+   assert.ok(await cards.evaluateAll(items=>items.every(card=>{
+     const field=card.querySelector('.team-member-account-type');
+     const bounds=card.getBoundingClientRect();
+     const label=field.querySelector('span').getBoundingClientRect();
+     const control=field.querySelector('select').getBoundingClientRect();
+     return control.width>=125 && control.left>=bounds.left && control.right<=bounds.right
+       && control.top>=label.bottom && control.bottom<=bounds.bottom;
+   })), 'Team member account type fits inside each card at '+width+' px');
+ }
+ await page.setViewportSize(desktopSize);
  await expect(save).toBeDisabled();
  await expect(save).toHaveClass(/primary/);
  await access.getByRole('button',{name:'Add team member',exact:true}).click();
@@ -57,7 +72,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await page.route('**/api/access/roles',route=>route.fulfill({status:409,contentType:'application/json',
    body:JSON.stringify({error:'Synthetic role conflict'})}),{times:1});
  await role.selectOption('editor');
- await access.getByRole('combobox',{name:'CRM Second CRM access'}).selectOption('viewer');
+ await access.getByRole('combobox',{name:'CRM Second Account Type'}).selectOption('viewer');
  await save.click();
  await expect(access.getByRole('alert')).toHaveText('Synthetic role conflict');
  await expect(access.getByRole('alert')).toBeInViewport();

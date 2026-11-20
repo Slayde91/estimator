@@ -125,11 +125,14 @@
         controls.forEach(control=>{control.disabled=saving;});
       };
       for(const member of result.members){
-        const memberCard=el('section',undefined,'card'), select=el('select'), label=el('label',undefined,'field');
+        const memberCard=el('section',undefined,'card'), select=el('select'), label=el('label',undefined,'field team-member-account-type');
+        const name=el('h3',member.name), accountType=el('span','Account Type');
+        name.id='team-member-name-'+member.id;
+        accountType.id='team-member-account-type-'+member.id;
         const editButton=el('button','Edit member','button secondary');editButton.type='button';
         editButton.addEventListener('click',()=>edit(member.id));
-        memberCard.append(el('h3',member.name),el('p',member.email,'helper'),el('p',member.active?'Active':'Inactive','helper'));
-        select.setAttribute('aria-label',member.name+' CRM access');
+        memberCard.append(name,el('p',member.email,'helper'),el('p',member.active?'Active':'Inactive','helper'));
+        select.setAttribute('aria-labelledby',name.id+' '+accountType.id);
         for(const [value,name] of choices.filter(([value])=>(value==='admin')===(member.role==='admin'))){
           const option=el('option',name);option.value=value;select.append(option);
         }
@@ -144,7 +147,7 @@
             sync();
           });
         }
-        label.append(el('span','CRM access'),select);memberCard.append(label,editButton);list.append(memberCard);
+        label.append(accountType,select);memberCard.append(label,editButton);list.append(memberCard);
       }
       footer.append(save,message);card.append(list,footer);sync();
       save.addEventListener('click',async()=>{

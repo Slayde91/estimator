@@ -7,5 +7,13 @@
 .staff-access-card .staff-access-table :is(th,td){padding:10px;border-bottom:1px solid var(--line)}
 .staff-access-card .staff-access-table select{min-width:140px}
 .staff-access-card .actions{flex-wrap:wrap}
+#settings-team-members .scheduler-team{grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr))}
+#settings-team-members .scheduler-team>.card{min-width:0;overflow-wrap:anywhere}
+#view-settings #settings-team-members .team-member-account-type{
+  grid-template-columns:minmax(0,1fr);
+  row-gap:8px;
+  margin-top:12px;
+}
+#view-settings #settings-team-members .team-member-account-type>select{grid-column:1}
 .staff-access-banner{padding:12px;border:1px solid var(--line);border-radius:8px;margin:12px 0}
 @media(max-width:600px){.staff-access-card .table-scroll{overflow-x:auto}}

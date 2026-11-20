@@ -278,7 +278,6 @@
       if (state.locationEntry && (state.data?.user?.id !== data.user?.id || state.locationEntry !== data.active_entry?.id)) stopLocation();
       if (state.data?.user && (state.data.user.id !== data.user?.id || state.data.user.role !== data.user?.role)) resetAccount();
       state.data = data;
-      renderTeamSettings();
       if (!state.projectsScan) void loadOrders();
       const previousWeek = state.week;
       setZone(data.settings.timezone);
@@ -297,7 +296,7 @@
   function resetAccount() {
     state.authGeneration++; state.loading++; state.mapRequest++;
     document.getElementById("staff-sign-out-dialog")?.close();
-    closeDialog(true); stopLocation(); state.data = null; renderTeamSettings(); state.settingsDirty = false; state.settingsRuleDialog = null;
+    closeDialog(true); stopLocation(); state.data = null; state.settingsDirty = false; state.settingsRuleDialog = null;
     state.busy = false; state.orders=[]; state.projectsScan=null; state.projectsLoading=false; state.projectsMessage="";
     state.page = "schedule"; state.report = null; state.member = ""; state.mine = false; state.entriesSearch = ""; state.entriesMine = false;
     updateLocationStatus();
@@ -711,32 +710,12 @@
     },"button scheduler-primary-action",translated("Create draft"));
     editor.classList.add("scheduler-shift-editor");
   }
-  function renderTeamSettings() {
-    const host = document.getElementById("settings-team-members");
-    if (!host) return;
-    host.hidden = !admin();
-    if (host.hidden) {
-      host.replaceChildren();
-      delete host.dataset.rosterVersion;
-      return;
-    }
-    const members = state.data.members;
-    const version = document.documentElement.lang + "/" + members.map(member => member.id + ":" + member.version).join(",");
-    if (host.dataset.rosterVersion === version) return;
-    host.dataset.rosterVersion = version;
-    const heading = el("div","section-heading"), title = el("h2","","Team members");
-    title.id = "team-members-heading";
-    window.CeasefireI18n?.text(title,"Team members");
-    heading.append(title,addIconButton("Add team member",() => editMember(),"scheduler-primary-action scheduler-toolbar-add"));
-    const list = el("div","scheduler-team");
-    members.forEach(member => {
-      const card = el("section","card");
-      card.append(el("h3","",member.name),el("p","helper",member.email),
-        el("p","helper",translated(member.role === "admin" ? "Administrator" : "Team member") + " · " + translated(member.active ? "Active" : "Inactive")),
-        button(translated("Edit member"),() => editMember(member)));
-      list.append(card);
-    });
-    host.replaceChildren(heading,list);
+  async function openTeamMember(id = null) {
+    if (!state.data?.user || id && !state.data.members.some(member => member.id === id)) await refresh();
+    if (!admin()) throw new Error(translated("An administrator account is required."));
+    const member = id ? state.data.members.find(person => person.id === id) : null;
+    if (id && !member) throw new Error(translated("Choose an existing staff member."));
+    editMember(member);
   }
   function editMember(member = null) {
     dialog(member ? "Edit team member" : "Add team member",host => {
@@ -1293,7 +1272,6 @@
   }
   initializeOrganizationSettings();
   window.addEventListener("ceasefire:languagechange",() => {
-    renderTeamSettings();
     if (state.page === "reports" && state.data?.user && state.root) render();
   });
   async function restoreClock() {
@@ -1319,5 +1297,5 @@
   window.addEventListener("online",() => {if(state.locationEnabled) void captureLocation();});
   window.addEventListener("pagehide",stopLocation);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded",restoreClock,{once:true}); else void restoreClock();
-  window.CeasefireScheduler = {activate,leave,openSignOut,organizationToday:today,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
+  window.CeasefireScheduler = {activate,leave,openSignOut,openTeamMember,organizationToday:today,init(options = {}) {state.root = options.root || document.getElementById("scheduler-root");},hasPendingOperation() {return state.busy || !!state.dialog || state.settingsDirty || !!state.settingsRuleDialog;}};
 })();

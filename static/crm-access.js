@@ -75,12 +75,20 @@
     load().catch(error=>reportError(message,error)).finally(()=>{resolveReady(session);void window.ClassifireBoot?.ready();});
     return;
   }
-  async function render(){
-    const host=document.getElementById('view-settings');if(!host)return;
-    let card=document.getElementById('staff-access-settings');
-    if(!card){card=el('section',undefined,'card staff-access-card');card.id='staff-access-settings';const play=host.querySelector('.play-settings-card');if(play)play.before(card);else host.append(card);}
-    card.replaceChildren(el('h2','Staff access'));
+  const choices=[['none','Scheduler only'],['viewer','View only'],['editor','Editor'],['admin','Administrator']];
+  const changes=new Map();
+  let renderRevision=0, saving=false;
+  async function render(savedMessage=''){
+    const card=document.getElementById('settings-team-members');
+    if(!card || saving)return;
+    const revision=++renderRevision;
+    card.hidden=false;
+    card.classList.add('staff-access-card');
+    const heading=el('div',undefined,'section-heading'),title=el('h2','Team members');
+    title.id='team-members-heading';heading.append(title);
+    card.replaceChildren(heading);
     const message=el('p','', 'helper');message.setAttribute('role','status');
+    if(savedMessage)text(message,savedMessage);
     const actions=el('div',undefined,'actions');
     if(!session.user){
       card.append(el('p','Sign in with a Scheduler staff account to manage access on this computer.'));
@@ -97,28 +105,67 @@
     out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>reportError(message,error)));
     actions.append(out);card.append(actions,message);
     if(session.user.role!=='admin')return;
+    const add=el('button','+','button primary icon-only penetration-new-item-action scheduler-primary-action scheduler-toolbar-add');add.type='button';
+    add.title='Add team member';add.setAttribute('aria-label',add.title);
+    window.CeasefireI18n?.attr(add,'title','Add team member');
+    window.CeasefireI18n?.attr(add,'aria-label','Add team member');
+    const edit=id=>window.CeasefireScheduler.openTeamMember(id).catch(error=>reportError(message,error));
+    add.addEventListener('click',()=>edit(null));heading.append(add);
     card.append(el('p','Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
     try{
-      const result=await request('members'),scroll=el('div',undefined,'table-scroll'),table=el('table',undefined,'staff-access-table'),thead=el('thead'),tr=el('tr'),tbody=el('tbody');
-      for(const label of ['Staff member','CRM access','Actions'])tr.append(el('th',label));thead.append(tr);table.append(thead,tbody);scroll.append(table);card.append(scroll);
+      const result=await request('members');
+      if(revision!==renderRevision)return;
+      const list=el('div',undefined,'scheduler-team'), footer=el('div',undefined,'actions');
+      const save=el('button','Save','button primary');save.type='button';
+      const controls=[];
+      const editable=new Set(result.members.filter(member=>member.role!=='admin').map(member=>member.id));
+      for(const id of changes.keys())if(!editable.has(id))changes.delete(id);
+      const sync=()=>{
+        save.disabled=saving || !changes.size;
+        controls.forEach(control=>{control.disabled=saving;});
+      };
       for(const member of result.members){
-        const row=el('tr'),name=el('td'),role=el('td'),buttons=el('td');name.textContent=member.name+(member.active?'':' (Inactive)');
-        if(member.role==='admin')role.append(el('span','Administrator'));
+        const memberCard=el('section',undefined,'card'), select=el('select'), label=el('label',undefined,'field');
+        const editButton=el('button','Edit member','button secondary');editButton.type='button';
+        editButton.addEventListener('click',()=>edit(member.id));
+        memberCard.append(el('h3',member.name),el('p',member.email,'helper'),el('p',member.active?'Active':'Inactive','helper'));
+        select.setAttribute('aria-label',member.name+' CRM access');
+        for(const [value,name] of choices.filter(([value])=>(value==='admin')===(member.role==='admin'))){
+          const option=el('option',name);option.value=value;select.append(option);
+        }
+        select.value=changes.get(member.id)?.role ?? member.role;
+        if(member.role==='admin')select.disabled=true;
         else{
-          const select=el('select'),button=el('button','Save','button secondary');select.setAttribute('aria-label',member.name+' CRM access');button.type='button';
-          for(const [value,label]of [['none','Scheduler only'],['viewer','View only'],['editor','Editor']]){const option=el('option',label);option.value=value;select.append(option);}select.value=member.role;
-          button.addEventListener('click',async()=>{button.disabled=true;try{await request('roles',{member_id:member.id,role:select.value,version:member.version});await render();}catch(error){reportError(message,error);button.disabled=false;}});
-          role.append(select);buttons.append(button);
-        }row.append(name,role,buttons);tbody.append(row);
+          controls.push(select);
+          select.addEventListener('change',()=>{
+            if(select.value===member.role)changes.delete(member.id);
+            else if(changes.has(member.id))changes.get(member.id).role=select.value;
+            else changes.set(member.id,{member_id:member.id,role:select.value,version:member.version});
+            sync();
+          });
+        }
+        label.append(el('span','CRM access'),select);memberCard.append(label,editButton);list.append(memberCard);
       }
-      const history=await request('audit'),details=el('details'),summary=el('summary','Access history');details.append(summary);
+      footer.append(save,message);card.append(list,footer);sync();
+      save.addEventListener('click',async()=>{
+        if(saving || !changes.size)return;
+        saving=true;sync();
+        try{
+          await request('roles',{changes:[...changes.values()]});
+          changes.clear();saving=false;
+          await render('Staff access saved.');
+        }catch(error){reportError(message,error);}finally{saving=false;sync();}
+      });
+      const history=await request('audit');
+      if(revision!==renderRevision)return;
+      const details=el('details'),summary=el('summary','Access history');details.append(summary);
       const auditScroll=el('div',undefined,'table-scroll'),auditTable=el('table',undefined,'staff-access-table'),auditHead=el('thead'),auditTitles=el('tr'),auditBody=el('tbody');
       for(const label of ['Time','Staff member','Action','Result'])auditTitles.append(el('th',label));auditHead.append(auditTitles);auditTable.append(auditHead,auditBody);auditScroll.append(auditTable);details.append(auditScroll);
       for(const entry of history.requests){const row=el('tr');
         for(const value of [window.ClassifireDates.dateTime(entry.at),entry.actor_name,entry.method+' '+entry.route,entry.status===null?'Outcome unknown':'HTTP '+entry.status]){const cell=el('td');cell.textContent=value;row.append(cell);}auditBody.append(row);}
       if(!history.requests.length)details.append(el('p','No activity recorded.','helper'));
-      card.append(details);
-    }catch(error){reportError(message,error);}
+      footer.before(details);
+    }catch(error){if(revision===renderRevision)reportError(message,error);}
   }
   window.addEventListener("classifire:team-members-changed", () => { if (can("admin")) void render(); });
   request('session').then(value=>{session=value;resolveReady(value);void render();

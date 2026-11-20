@@ -27,6 +27,7 @@ from .technical_barrier_text import present_barrier_text
 from .technical_brand_presentation import present_manufacturer_fields
 from .technical_table_presentation import present_redundant_tables
 from .technical_installation_text import present_installation_fields
+from .installation_details_review import reviewed_installation_details
 from .technical_prose import public_prose_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
@@ -731,6 +732,7 @@ class ReferenceLibrary:
                 present_redundant_tables(fields)
                 present_installation_fields(fields)
                 present_barrier_text(fields)
+                item['fields'] = reviewed_installation_details(item, fields)
                 item = public_item(data, key, item)
             item.pop('filter_values', None)
             item['links'] = deepcopy(data['_links'][kind][key])

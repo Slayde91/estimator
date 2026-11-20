@@ -9,6 +9,7 @@ from .technical_table_navigation import TABLE_TARGET_FIELDS, field_tables
 
 _RATING = re.compile(r'(?<![\w/])(?:-|[0-9]+)\s*/\s*(?:-|[0-9]+)\s*/\s*(?:-|[0-9]+)(?![\w/])')
 _BLANK_SEAL_COLUMNS = {'Max Aperture Size', 'Separating Element', 'FRL'}
+_SELECTED_SERVICE_COLUMNS = {BARRIER, 'Service', SERVICE_SIZE, 'Service Wrap', 'FRL'}
 _OPENING_SIZE_LABELS = {'Maximum Opening Size', 'Max. Opening Size', 'Max Opening Size'}
 # Report and diagram fields have specialised rendering. Other canonical text
 # fields expose their scalar value, or in the case of selector IDs both
@@ -223,6 +224,10 @@ def present_redundant_tables(fields):
                 or owner.get('table_captions', []) not in ([], ['Reviewed source configuration'])):
             continue
         values = dict(zip(columns, rows[0]))
+        if label == SERVICE_SIZE and values.keys() == _SELECTED_SERVICE_COLUMNS:
+            # Compare this generated row using the same repeat-only cleanup as
+            # its scalar fields. The source table and any differing cell stay intact.
+            values = clean_configuration_text(values)
         blank_seal = label == 'Barrier Construction' and set(columns) == _BLANK_SEAL_COLUMNS
         if blank_seal:
             values = _blank_seal_values(by_label, owner, values)

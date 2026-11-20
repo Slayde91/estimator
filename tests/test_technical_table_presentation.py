@@ -103,6 +103,32 @@ class TechnicalTablePresentationTests(unittest.TestCase):
             present_redundant_tables(fields)
             validate_table_navigation(fields)
 
+    def test_selected_service_summary_uses_same_cleanup_for_table_and_scalar_values(self):
+        selected = {
+            'Barrier Construction': '64 mm Speedpanel wall; established FRL -/90/90',
+            'Service': 'PEX / PEX-AL-PEX pipes',
+            'Service Size / Configuration': 'Service Type: Plastic Pipes; Service Detail: '
+                                           'PEX or PEX-AL-PEX Pipes up to 32mm; TWrap Length: 450mm',
+            'Service Wrap': 'TWrap Length: 450mm',
+            'FRL': '-/90/90',
+        }
+        fields = [{'label': label, 'value': value} for label, value in selected.items()]
+        owner = fields[2]
+        owner['table'] = {'columns': list(selected), 'rows': [list(selected.values())]}
+        owner['table_captions'] = ['Reviewed source configuration']
+        for column, cell in ((0, '75 mm Speedpanel wall'), (2, 'PEX up to 25mm'),
+                             (3, '450mm topside only'), (4, '-/90/60')):
+            with self.subTest(column=column):
+                distinct = deepcopy(fields)
+                distinct[2]['table']['rows'][0][column] = cell
+                before = deepcopy(distinct[2]['table'])
+                present_redundant_tables(distinct)
+                self.assertEqual(distinct[2]['table'], before)
+        present_redundant_tables(fields)
+        self.assertEqual(owner, {'label': 'Service Size / Configuration',
+                                 'value': 'PEX or PEX-AL-PEX Pipes up to 32mm'})
+        validate_table_navigation(fields)
+
     def test_complete_selected_service_row_matches_every_field_including_id(self):
         owner = {'label': 'Service Size / Configuration', 'value': '100 mm',
                  'table': {'columns': ['ID', 'Barrier Construction', 'Service Size / Configuration', 'FRL'],

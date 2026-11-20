@@ -64,7 +64,7 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  assert.equal(await page.evaluate(()=>window.roleErrorBleeps),1,'The staff access error announces once');
  await expect(role).toHaveValue('editor');
  await save.click();
- await expect(access.getByText('Team member access saved.',{exact:true})).toBeVisible();
+ await expect(access.getByText('Staff access saved.',{exact:true})).toBeVisible();
  const savedRoles=(await(await admin.request.get(base+'/api/access/members')).json()).members;
  assert.ok(savedRoles.some(member=>member.id===worker.id&&member.role==='editor'));
  assert.ok(savedRoles.some(member=>member.id===second.id&&member.role==='viewer'));

@@ -105,8 +105,10 @@
     out.addEventListener('click',()=>window.CeasefireScheduler.openSignOut(out).catch(error=>reportError(message,error)));
     actions.append(out);card.append(actions,message);
     if(session.user.role!=='admin')return;
-    const add=el('button','+','button primary scheduler-toolbar-add');add.type='button';
-    add.setAttribute('aria-label','Add team member');window.CeasefireI18n?.attr(add,'aria-label','Add team member');
+    const add=el('button','+','button primary icon-only penetration-new-item-action scheduler-primary-action scheduler-toolbar-add');add.type='button';
+    add.title='Add team member';add.setAttribute('aria-label',add.title);
+    window.CeasefireI18n?.attr(add,'title','Add team member');
+    window.CeasefireI18n?.attr(add,'aria-label','Add team member');
     const edit=id=>window.CeasefireScheduler.openTeamMember(id).catch(error=>reportError(message,error));
     add.addEventListener('click',()=>edit(null));heading.append(add);
     card.append(el('p','Editors can update CRM records; viewers can read records; Scheduler-only staff have no CRM access.','helper'));
@@ -151,7 +153,7 @@
         try{
           await request('roles',{changes:[...changes.values()]});
           changes.clear();saving=false;
-          await render('Team member access saved.');
+          await render('Staff access saved.');
         }catch(error){reportError(message,error);}finally{saving=false;sync();}
       });
       const history=await request('audit');

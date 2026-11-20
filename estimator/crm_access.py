@@ -217,7 +217,8 @@ class CRMAccess:
                 raise AccessError('Include each team member once.', 400)
             members.add(key)
         with self.scheduler.connect() as db:
-            for key in members:
+            for change in changes:
+                key = change['member_id']
                 member = db.execute('SELECT role FROM scheduler_members WHERE id=?', (key,)).fetchone()
                 if not member:
                     raise AccessError('Choose an existing staff member.', 400)
@@ -235,7 +236,7 @@ class CRMAccess:
                 if previous and previous['role'] == change['role']:
                     results.append({'member_id': key, **dict(previous)})
                     continue
-                result = {'member_id': key, 'role': change['role'], 'version': version+1}
+                result = {'member_id': key, 'role': change['role'], 'version': version + 1}
                 db.execute('INSERT INTO crm_access_roles VALUES(?,?,?) ON CONFLICT(member_id) DO UPDATE SET role=excluded.role,version=excluded.version',
                            (key, result['role'], result['version']))
                 self._audit(db, user, 'access.role', key, dict(previous) if previous else None, result)

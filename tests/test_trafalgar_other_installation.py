@@ -61,7 +61,7 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
             '7945': ('25 mm FyreCOLLAR Conduit inverted', 'collar projecting 10 mm', 'fixing-tab side'),
             '8261': ('175 mm', '72 mm hole', '300 mm above the floor'),
             '8799': ('Fyrechek layer on each wall face', '8g x 50 mm', '7.5 mm'),
-            '1183': ('face-fix a second', '300 mm on both wall faces'),
+            '1183': ('at least 96 mm thick', 'face-fix a second', '300 mm on both wall faces'),
             '1200': ('two 13 mm', 'Friction-fit two 60 mm'),
             '1254': ('78 mm Speedpanel', '600 x 600 mm'),
             '1312': ('300 mm above the floor', '170 mm opening'),
@@ -84,6 +84,55 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
                 changed_product = deepcopy(original)
                 next(f for f in changed_product if f['label'] == 'System Products')['value'] = 'Other product'
                 self.assertIs(present_trafalgar_other_installation(record, changed_product), changed_product)
+
+    def test_hebel_tpd12_uses_the_assessed_seal_depth_and_pattress_fit(self):
+        record = {'id': 'trafalgar-selector-1236'}
+        expected, _, _ = _procedure('1236')
+        original = [{'label': label, 'value': value} for label, value in expected.items()]
+        self.assertIs(present_trafalgar_other_installation(record, original), original)
+        report = next(field for field in original if field['label'] == 'Report Number')
+        report['report_links'] = [{'url': 'https://tfire.com.au/documents/FyreBATT-Test-Report'}]
+        before = deepcopy(original)
+
+        result = present_trafalgar_other_installation(record, original)
+        values = {field['label']: field['value'] for field in result}
+        self.assertEqual(values['Seal Depth / Fillet Size'], 'Full depth around the casing / No casing fillet')
+        for clause in ('at least 75 mm thick', '1000 mm high x 1200 mm wide', '170 mm opening', 'flush with one wall face',
+                       '10g x 100 mm plasterboard screws', '90 mm pigtail screws', '25 x 25 mm FyreFLEX fillet',
+                       'full depth', '300 mm on both wall faces'):
+            self.assertIn(clause, values['Installation Details'])
+        self.assertEqual(original, before)
+        self.assertEqual(next(field for field in result if field['label'] == 'Report Number'), report)
+        self.assertIs(present_trafalgar_other_installation(record, result), result)
+
+    def test_tpd12_narrows_the_13_mm_wall_opening_to_the_supported_branch(self):
+        record = {'id': 'trafalgar-selector-1165'}
+        expected, _, _ = _procedure('1165')
+        fields = [{'label': label, 'value': value} for label, value in expected.items()]
+        next(field for field in fields if field['label'] == 'Report Number')['report_links'] = [
+            {'url': 'https://tfire.com.au/documents/FyreBATT-Test-Report'},
+        ]
+        result = {field['label']: field['value'] for field in present_trafalgar_other_installation(record, fields)}
+        self.assertEqual(result['Maximum Opening Size'], 'Up to 600 mm high x 600 mm wide')
+        self.assertIn('within 600 mm high x 600 mm wide', result['Installation Details'])
+        self.assertIn('at least 90 mm thick', result['Installation Details'])
+
+    def test_steel_deck_tpd41_replaces_only_the_missing_single_coil_bundle(self):
+        record = {'id': 'trafalgar-selector-4822'}
+        expected, _, _ = _procedure('4822')
+        fields = [{'label': label, 'value': value} for label, value in expected.items()]
+        next(field for field in fields if field['label'] == 'Report Number')['report_links'] = [
+            {'url': 'https://tfire.com.au/documents/FyreBATT-Test-Report'},
+        ]
+        result = {field['label']: field['value'] for field in present_trafalgar_other_installation(record, fields)}
+        self.assertIn('1x 3/8 + 3/4 paircoils', result['Service Size / Configuration'])
+        self.assertIn('3x25mm conduit', result['Service Size / Configuration'])
+        self.assertEqual(result['Barrier Construction'], 'Concrete-filled KF70 steel deck floor slab')
+        self.assertIn('300 mm above the floor', result['Installation Details'])
+        self.assertIn('150 mm of concrete above the steel ribs', result['Installation Details'])
+        self.assertIn('keep it clear of the steel deck', result['Installation Details'])
+        next(field for field in fields if field['label'] == 'FRL')['value'] = '-/180/120'
+        self.assertIs(present_trafalgar_other_installation(record, fields), fields)
 
     def test_publishes_the_corrected_intrwall_collar_only_for_the_reviewed_configuration(self):
         original = [{'label': label, 'value': value} for label, value in _INTRWALL_PEX_SOURCE.items()]

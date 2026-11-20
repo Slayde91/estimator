@@ -41,6 +41,13 @@ _WALL_SEAL = {
     ('Kingspan Walls - KRoc Firemaster Ultima Walls', '-/120/120'):
         'Friction-fit two layers of FyreBATT 50 in the opening of the K-Roc Firemaster Ultima wall. '
         'Set the unexposed batt face flush with the wall.',
+    ('Kingspan Walls - KRoc Firemaster Ultima Walls', '-/180/180'):
+        'Use a fire-rated 150 mm K-Roc Firemaster Ultima wall with an opening up to 600 mm high and '
+        '1100 mm wide. Reinforce the opening with perimeter steel angles fixed at about 300 mm centres '
+        'and bedded in FyreMASTIC A-R. Brush-coat the opening and friction-fit two FyreBATT 50 layers. '
+        'Set the first layer flush with the unexposed face and apply a serpentine bead of FyreMASTIC A-R '
+        'between the layers. Fit steel pigtail screws on the exposed batt face around the perimeter at '
+        '200 mm centres, about 100 mm from the edge. Seal exposed joints with a nominal 5 mm bead.',
     ('Hebel Walls 75mm', '-/120/120'):
         'Fit one layer of FyreBATT 50 inside the opening and fix the second layer to the wall face with a 100 mm overlap.',
 }
@@ -50,6 +57,30 @@ _STRAP = 'Cut the batts closely around the service. Keep the gap at the opening 
 _STRAP_FINISH = 'Finish the strap-to-batt joint with a 5 × 5 mm fillet of FyreMASTIC A-R on each side.'
 _STRAP_SEAL = '2 x layers of FyreBAND GWS on both sides of FyreBATT 50 / FyreMASTIC A-R 5 x 5mm fillet'
 _STRAP_PRODUCTS = 'FyreBATT 50, FyreMASTIC A-R, FyreBAND GWS'
+_HPR_PRODUCTS = 'FyreBATT 50, FyreMASTIC HP-R'
+_STEEL_PRODUCTS = 'FyreBATT 50, FyreMASTIC A-R, ServoWrap'
+_STEEL_FILLET = '30 x 30mm Fillet of FyreMASTIC A-R on Outside of Wrap'
+_STEEL_WRAP = (
+    'Support the steel independently. Cut the batts for a tight fit around the steel with a gap no greater '
+    'than 1 mm. Fit 300 mm of ServoWrap on each side, tight to the batts. Fill the recesses around the web '
+    'and flanges with ServoWrap so the wrap fits the section. Secure the wrap with stainless steel cable '
+    'ties starting 50 mm from the batt face and spaced at 100 mm centres. Apply a 30 × 30 mm FyreMASTIC A-R '
+    'fillet around the wrap at each batt face.'
+)
+
+# FAS210123 R2.0 (pp. 142, 168, 295) and Trafalgar's manuals (wall penetrations p. 16,
+# structural penetrations p. 18) resolve three selector transcription errors.
+# https://tfire.com.au/documents/FyreBATT-50-and-ServoWrap-wall-penetrations-technical-manual
+# https://tfire.com.au/documents/RyanBatt-Structural-Penetration-Systems
+_SELECTOR_SIZE_CORRECTIONS = (
+    (range(9192, 9204), 'Conduits - PVC', _HPR_PRODUCTS, 'Wrap Free',
+     'FyreMASTIC HP-R Full Depth/ Flush finish both sides', '25mm or 30mm PVC Conduit',
+     '25 or 32 mm PVC conduit with two 2.5 mm² TPS cables'),
+    (range(9300, 9312), 'Structural Elements - Steel', _STEEL_PRODUCTS, '300mm both sides', _STEEL_FILLET,
+     'UB up to 410UB54 or C Purlin 200 x 12mm', 'UB up to 410UB54 or C purlin up to 200 × 1.2 mm'),
+    (range(9312, 9324), 'Structural Elements - Steel', _STEEL_PRODUCTS, '300mm both sides', _STEEL_FILLET,
+     'C Purlin 200 x 12mm', 'C purlin up to 200 × 1.2 mm'),
+)
 
 # The row identity guards retain the selected report, wall, service and
 # products as well as the installation qualifiers supplied by the selector.
@@ -84,6 +115,12 @@ _SERVICE_DETAILS = (
     (range(9180, 9192), 'Conduits - PVC', '3 x 25mm PVC conduits', 'Wrap Free',
      _STRAP_PRODUCTS, _STRAP_SEAL,
      _STRAP + 'Fit two layers of FyreBAND GWS around the bundle at each side of the batt seal. ' + _STRAP_FINISH),
+    # 24SFR00068, specimens 5 and 6, FAS210123 pp. 142, 294–295.
+    (range(9192, 9204), 'Conduits - PVC', '25 or 32 mm PVC conduit with two 2.5 mm² TPS cables',
+     'Wrap Free', _HPR_PRODUCTS, 'FyreMASTIC HP-R Full Depth/ Flush finish both sides',
+     'Use one 25 or 32 mm PVC conduit with a nominal 2 mm wall and two 2.5 mm² TPS cables inside it. '
+     'Leave an 8–12 mm gap around the conduit. Fill the gap through both batts with FyreMASTIC HP-R and '
+     'finish flush on both faces. Leave the conduit unwrapped.'),
     # 25SFR00004, specimen 3, and Trafalgar wall manual, conduit method.
     (range(9204, 9216), 'Conduits - PVC', '50mm PVC conduit', 'Wrap Free',
      'FyreBATT 50, FyreMASTIC HP-R',
@@ -91,6 +128,12 @@ _SERVICE_DETAILS = (
      'Use the conduit containing five 2.5 mm² 2C+E TPS cables and five CAT6 cables. Leave an 8 mm gap '
      'around the conduit. Fill the gap with FyreMASTIC HP-R through both batts and finish with '
      'a 15 × 15 mm fillet of the same sealant on each face.'),
+    # PF20095 R3 specimens A/C, FAS210123 pp. 44 and 145 explicitly cover both 16 mm materials.
+    (range(9216, 9228), 'Pipes - PEX Pipes', '16mm PE-Xa or 16mm PEX - Al - PEX Pipe', 'Wrap Free',
+     _HPR_PRODUCTS, 'FyreMASTIC HP-R Full Depth / Flush finish both sides',
+     'Use a 16 mm PE-Xa or PEX-Al-PEX pipe with a nominal 2.29 mm wall. Leave a 10–30 mm gap '
+     'around the pipe. Fill the gap with FyreMASTIC HP-R through both 50 mm batts. Finish the sealant '
+     'flush with both batt faces. Leave the pipe unwrapped.'),
     # 23SFR00073, specimen A, FAS210123 p. 150, and the exact seal in the selector.
     (range(9228, 9240), 'Cable Trays, Cables - Power',
      'Appendix D1 Copper Power Cables, with or without cable tray', 'Wrap Free',
@@ -128,16 +171,47 @@ _SERVICE_DETAILS = (
      'and around the steel. '
      'Apply a nominal 5 mm bead of FyreMASTIC A-R to the batt mating joints, including concealed joints. '
      'Seal the batt-to-purlin junction with a 20 × 20 mm FyreMASTIC A-R fillet on each side. Keep the installation symmetrical.'),
+    (range(9300, 9312), 'Structural Elements - Steel', 'UB up to 410UB54 or C purlin up to 200 × 1.2 mm',
+     '300mm both sides', _STEEL_PRODUCTS, _STEEL_FILLET, _STEEL_WRAP),
+    (range(9312, 9324), 'Structural Elements - Steel', 'C purlin up to 200 × 1.2 mm',
+     '300mm both sides', _STEEL_PRODUCTS, _STEEL_FILLET, _STEEL_WRAP),
 )
+
+
+def _selector_id(record):
+    prefix = 'trafalgar-selector-'
+    key = record.get('id', '')
+    number = key[len(prefix):]
+    if key.startswith(prefix) and number.isascii() and number.isdecimal() and len(number) <= 5:
+        return int(number)
+    return 0
+
+
+def present_verified_fyre_batt_service_sizes(record):
+    """Correct matching service sizes on the projected record before it is indexed."""
+    selector = _selector_id(record)
+    match = next((scope for ids, *scope in _SELECTOR_SIZE_CORRECTIONS if selector in ids), None)
+    if match is None or manufacturer_names(record) != {'trafalgar'}:
+        return
+    service, products, wrap, fillet, original, corrected = match
+    fields = record['fields']
+    by_label = {field['label']: field for field in fields}
+    expected = {'Report Number': 'FAS 210123', 'Orientation': 'Vertical', 'Barrier Type': 'Walls',
+                'Service': service, 'System Products': products, 'Service Wrap': wrap,
+                'Seal Depth / Fillet Size': fillet, 'Service Size / Configuration': original}
+    wall = (by_label.get('Barrier Construction', {}).get('value'), by_label.get('FRL', {}).get('value'))
+    if (len(by_label) != len(fields) or wall not in _WALL_SEAL
+            or any(by_label.get(label, {}).get('value') != value for label, value in expected.items())):
+        return
+    field = by_label['Service Size / Configuration']
+    field['value'] = corrected
 
 
 def trafalgar_fyre_batt_installation(record, fields):
     """Add an assessed method only to the reviewed, unchanged selector configuration."""
-    prefix = 'trafalgar-selector-'
-    key = record.get('id', '')
-    if not key.startswith(prefix) or not key[len(prefix):].isdecimal():
+    selector = _selector_id(record)
+    if not selector:
         return fields
-    selector = int(key[len(prefix):])
     match = next((details for selectors, *details in _SERVICE_DETAILS if selector in selectors), None)
     if not match or manufacturer_names(record) != {'trafalgar'}:
         return fields
@@ -158,10 +232,17 @@ def trafalgar_fyre_batt_installation(record, fields):
         return fields
     result = list(fields)
     instructions = '\n\n'.join((wall + ' ' + _BATT_EDGES, match[-1]))
+    detail = {'label': 'Installation Details', 'value': instructions}
+    if 9192 <= selector < 9204:
+        detail['source_labels'] = ['FAS210123 R2.0, 24SFR00068 specimens 5 and 6', 'Trafalgar FyreBATT 50 wall penetrations manual']
+    elif 9216 <= selector < 9228:
+        detail['source_labels'] = ['FAS210123 R2.0, PF20095 R3 specimens A and C']
+    elif 9300 <= selector < 9324:
+        detail['source_labels'] = ['FAS210123 R2.0, 24SFR00064', 'Trafalgar FyreBATT 50 structural penetrations manual']
     for index, field in enumerate(result):
         if field['label'] == 'Installation Details':
-            result[index] = {**field, 'value': instructions}
+            result[index] = {**field, **detail}
             return result
     result.insert(next((index for index, field in enumerate(result) if field['label'] == 'Report Number'), len(result)),
-                  {'label': 'Installation Details', 'value': instructions})
+                  detail)
     return result

@@ -3,7 +3,8 @@ import re
 import unittest
 
 from estimator.trafalgar_other_installation import (
-    _FCO3527_FIELDS, _FCO3527_SERVICES, _procedure, present_trafalgar_other_installation,
+    _FCO3527_FIELDS, _FCO3527_SERVICES, _INTRWALL_PEX_SOURCE, _procedure,
+    present_trafalgar_other_installation, present_verified_intrwall_pex_scope,
 )
 
 
@@ -57,6 +58,7 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
             '7947': ('aluminium cable', 'FyrePEX HP', 'each wall face'),
             '7949': ('one RG6 cable, one RG11 cable and three CAT6 cables', 'FyreFLEX', '5 mm'),
             '7950': ('copper cable', 'FyreFLEX', '50 x 50 mm'),
+            '7945': ('25 mm FyreCOLLAR Conduit inverted', 'collar projecting 10 mm', 'fixing-tab side'),
             '8261': ('175 mm', '72 mm hole', '300 mm above the floor'),
             '8799': ('Fyrechek layer on each wall face', '8g x 50 mm', '7.5 mm'),
             '1183': ('face-fix a second', '300 mm on both wall faces'),
@@ -82,3 +84,21 @@ class TrafalgarOtherInstallationTests(unittest.TestCase):
                 changed_product = deepcopy(original)
                 next(f for f in changed_product if f['label'] == 'System Products')['value'] = 'Other product'
                 self.assertIs(present_trafalgar_other_installation(record, changed_product), changed_product)
+
+    def test_publishes_the_corrected_intrwall_collar_only_for_the_reviewed_configuration(self):
+        original = [{'label': label, 'value': value} for label, value in _INTRWALL_PEX_SOURCE.items()]
+        record = {'id': 'trafalgar-selector-7945', 'fields': deepcopy(original),
+                  'summary': _INTRWALL_PEX_SOURCE['System Products']}
+        fields = record['fields']
+        self.assertIs(present_trafalgar_other_installation(record, fields), fields)
+        different = deepcopy(record)
+        next(f for f in different['fields'] if f['label'] == 'FRL')['value'] = '-/90/90'
+        preserved = deepcopy(different)
+        present_verified_intrwall_pex_scope(different)
+        self.assertEqual(different, preserved)
+        present_verified_intrwall_pex_scope(record)
+        self.assertEqual(record['summary'], '25 mm FyreCOLLAR Conduit, FyreFLEX Sealant')
+        result = {f['label']: f['value'] for f in present_trafalgar_other_installation(record, fields)}
+        self.assertNotIn('10 mm', result['Maximum Opening Size'])
+        self.assertNotIn('5mm', result['Seal Depth / Fillet Size'])
+        self.assertIn('projecting 10 mm', result['Installation Details'])

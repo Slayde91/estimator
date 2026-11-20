@@ -7,6 +7,7 @@
   const pdfThemes = [['ceasefire','CLASSIFIRE'],['midnight','Midnight'],['ocean','Ocean'],['forest','Forest'],['slate','Slate']];
   let generation = 0, pending = false, editor = null, fields = null, dirty = false, changeCount = 0;
   let staff = [], records = [], templates = [], panel = 'templates', query = '';
+  const assignedFormsOnly = () => ['technician', 'technician_plus'].includes(window.ClassifireAccess.user?.account_type);
   const el = (tag, value, cls) => {
     const node = document.createElement(tag);
     if (value !== undefined && value !== null) node.textContent = value;
@@ -188,18 +189,20 @@
       const [library, register, people] = await Promise.all([api('templates'),api('entries'),api('staff')]);
       if (stamp !== generation) return false;
       templates = library.templates; records = register.entries; staff = people.staff;
+      if (assignedFormsOnly()) panel = 'records';
       libraryView();return true;
     } catch(error) {if(stamp === generation) {content.replaceChildren(button('Retry',refresh)); report(error);}return false;}
   }
   function libraryView() {
     const host = frame(), box = el('section', null, 'card forms-register');
     const tabs = el('div',null,'actions forms-tabs');
-    for (const [key,text] of [['templates','Templates'],['records','Records']]) {
+    const sections = assignedFormsOnly() ? [] : [['templates','Templates'],['records','Records']];
+    for (const [key,text] of sections) {
       const tab = button(text, () => {panel = key; query = ''; libraryView();}, true);
       tab.setAttribute('aria-pressed', String(panel === key)); tabs.append(tab);
     }
     const actions = [];
-    if (window.ClassifireAccess.can('edit')) {
+    if (window.ClassifireAccess.can('edit') && window.ClassifireAccess.user?.account_type !== 'estimator') {
       actions.push(button('Create template',newTemplate,true));
     }
     box.append(heading(panel === 'templates' ? 'Form templates' : 'Form records',actions));
@@ -266,7 +269,7 @@
         }
       } finally { pending = false; }
     });
-    remove.disabled = template ? !row.can_manage : !row.can_delete;
+    remove.disabled = !row.can_delete;
     actions.append(remove);
     return actions;
   }
@@ -544,7 +547,7 @@
       controls.push(button('Save draft',()=>persist('draft')));
       if (t.mode !== 'workflow') controls.push(button('Submit form',()=>persist('submitted'),true));
     }
-    if (t.mode === 'workflow' && (isNew ? editable && currentStage?.roles.includes(window.ClassifireAccess.user.role) : entry.can_approve)) {
+    if (t.mode === 'workflow' && (isNew ? editable && currentStage : entry.can_approve)) {
       controls.push(button('Approve stage',()=>persist('approve'),true));
     }
     if (entry?.can_reopen) controls.push(button('Reopen previous stage',async()=>{

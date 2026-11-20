@@ -8,6 +8,8 @@ from urllib.parse import parse_qs, urlsplit
 from .catalog import ValidationError, effective_catalog
 from .certification_projects import ProjectWorkspaceUnavailable
 from .crm_identity import DuplicateReview
+from .crm_access import AccessError
+from .account_types import COORDINATOR, ESTIMATOR, COMMERCIAL_EDIT_TYPES
 from .commercial_documents import KINDS, STATUSES, CommercialConflict, default_fields, linked_estimate_ids, project_document_details, apply_project_document_details
 from .commercial_requirements import requirements
 from .work_order_signing import SECTION_INPUTS
@@ -142,6 +144,9 @@ class CommercialHTTP:
                 if query or handler.headers.get('Sec-Fetch-Site') == 'cross-site':
                     raise ValidationError('Open commercial documents in the CLASSIFIRE application.')
                 body = handler.read_json()
+                role = (getattr(handler, 'crm_user', None) or {}).get('account_type')
+                if role in COMMERCIAL_EDIT_TYPES and action in ('issue', 'saved-issue'):
+                    self._require_kind(role, body.get('kind'))
                 destination = None
                 workspace = body.get('workspace_id')
                 if action == 'issue' and 'download' in body:
@@ -159,9 +164,9 @@ class CommercialHTTP:
                     project = self.service.certifications.project_id(workspace)
                     result = self.service.files.add(project, body['name'], body['content'])
                 elif action.startswith('saved-') and self.saved and not expected_workspace:
-                    result = self.saved.perform(action[6:], body, partial(self.execute,actor=getattr(handler,'crm_actor',None)))
+                    result = self.saved.perform(action[6:], body, partial(self.execute,actor=getattr(handler,'crm_actor',None),account_type=role))
                 else:
-                    result = self.execute(action, body, actor=getattr(handler,'crm_actor',None))
+                    result = self.execute(action, body, actor=getattr(handler,'crm_actor',None), account_type=role)
                     if action == 'issue':
                         handler.send_download(result['pdf'], 'application/pdf', result['filename'], destination, frozen_pdf=True)
                         return True
@@ -169,6 +174,8 @@ class CommercialHTTP:
                 handler.send_payload(405, {'error': 'Use GET or POST for commercial documents.'})
                 return True
             handler.send_payload(200, result)
+        except AccessError as error:
+            handler.send_payload(error.status, {'error': str(error)})
         except DuplicateReview as error:
             handler.send_payload(409, {'error':str(error),'billing_review':error.decision})
         except CommercialConflict as error:
@@ -181,7 +188,25 @@ class CommercialHTTP:
             handler.send_payload(400, {'error': message})
         return True
 
-    def execute(self, action, body, *, owner_key=None, actor=None):
+    @staticmethod
+    def _require_kind(role, kind):
+        if not isinstance(kind, str) or kind not in COMMERCIAL_EDIT_TYPES[role]:
+            raise AccessError('Your Account Type cannot change this document.')
+
+    def _authorize_edit(self, role, action, body):
+        if role not in COMMERCIAL_EDIT_TYPES:
+            return
+        if action == 'derive' and role == ESTIMATOR or action == 'purchase-order-defaults' and role == COORDINATOR:
+            return
+        document = None
+        if body.get('id'):
+            _, document = self.service.document_context(body.get('workspace_id'), body['id'])
+        if document:
+            self._require_kind(role, document['kind'])
+        if 'kind' in body or not document:
+            self._require_kind(role, body.get('kind'))
+
+    def execute(self, action, body, *, owner_key=None, actor=None, account_type=None):
         common = {'workspace_id', 'estimates', 'active_estimate_id'}
         fields_by_action = {
             'defaults': {'kind', 'details', 'project_details'}, 'derive': {'fields', 'selected_ids', 'include_scope_tables'},
@@ -199,6 +224,7 @@ class CommercialHTTP:
         identity = body.get('id')
         if identity is not None and not isinstance(identity, str):
             raise ValidationError('Choose a valid commercial document.')
+        self._authorize_edit(account_type, action, body)
         if action == 'follow-up':
             return self.service.update_follow_up(workspace, identity, body.get('version'), body.get('follow_up_actions'),actor=actor)
         if action == 'activity':

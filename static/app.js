@@ -1166,6 +1166,10 @@
 
   async function showView(view, librarySelection, calculatorId, commercialDraftOwner) {
     view = resolveView(view);
+    if (window.ClassifireAccess?.user?.account_type === "coordinator") {
+      if (["estimate", "calculators", "takeoffs", "library-editor"].includes(view)) return false;
+      if (view === "pricing" && state.libraryKind === "penetration") state.libraryKind = "pricing";
+    }
     const previousView = state.currentView;
     if (view !== previousView && previousView === "contacts" && window.ClassifireContacts?.leave && !await window.ClassifireContacts.leave()) return false;
     if (view !== state.currentView && state.currentView === "quotes" && window.CeasefireProjectPane && !await window.CeasefireProjectPane.leave()) return false;

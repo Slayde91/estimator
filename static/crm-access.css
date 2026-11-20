@@ -15,5 +15,9 @@
   margin-top:12px;
 }
 #view-settings #settings-team-members .team-member-account-type>select{grid-column:1}
+html[data-account-type="coordinator"] :is(#estimate-navigation,#calculator-navigation,#takeoff-navigation,
+  [data-home-view="estimate"],[data-home-view="calculators"],[data-home-view="takeoffs"],[data-library-kind="penetration"]){
+  display:none
+}
 .staff-access-banner{padding:12px;border:1px solid var(--line);border-radius:8px;margin:12px 0}
 @media(max-width:600px){.staff-access-card .table-scroll{overflow-x:auto}}

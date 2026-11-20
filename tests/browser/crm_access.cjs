@@ -33,8 +33,9 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await expect(access.getByRole('checkbox')).toHaveCount(0);
  await expect(access.locator(':scope > button')).toHaveCount(0);
  const role=access.getByRole('combobox',{name:'CRM Viewer Account Type'}),save=access.getByRole('button',{name:'Save',exact:true});
- await expect(role).toHaveValue('viewer');
- await expect(access.getByRole('combobox',{name:'CRM Manager Account Type'})).toBeDisabled();
+ await expect(role).toHaveValue('');
+ await expect(role.locator('option:not([hidden])')).toHaveText(['Administrator','Estimator','Coordinator','Technician','Technician+']);
+ await expect(access.getByRole('combobox',{name:'CRM Manager Account Type'})).toHaveValue('admin');
  const desktopSize=page.viewportSize();
  for(const width of [1579,390]){
    await page.setViewportSize({width,height:893});
@@ -61,6 +62,9 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  const editMember=page.getByRole('dialog',{name:'Edit team member'});
  await expect(editMember.getByLabel('Name',{exact:true})).toHaveValue('CRM Viewer');
  await editMember.getByRole('button',{name:'Close',exact:true}).click();
+ const third=await post(admin,'/api/scheduler/members/save',{name:'CRM Third',email:'third@example.test',password:'Fixture-third-password',role:'worker',active:true,base_rate:'0'});
+ await page.reload();await page.waitForFunction(()=>window.CeasefireDesktop?.status()?.ready);
+ await page.locator('nav [data-view=settings]').click();
  await page.evaluate(()=>{
    const original=HTMLMediaElement.prototype.play;
    window.roleErrorBleeps=0;
@@ -69,21 +73,22 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
      return original.call(this);
    };
  });
- await page.route('**/api/access/roles',route=>route.fulfill({status:409,contentType:'application/json',
+ await page.route('**/api/access/account-types',route=>route.fulfill({status:409,contentType:'application/json',
    body:JSON.stringify({error:'Synthetic role conflict'})}),{times:1});
- await role.selectOption('editor');
- await access.getByRole('combobox',{name:'CRM Second Account Type'}).selectOption('viewer');
+ const secondRole=access.getByRole('combobox',{name:'CRM Second Account Type'});
+ await secondRole.selectOption('technician');
+ await access.getByRole('combobox',{name:'CRM Third Account Type'}).selectOption('estimator');
  await save.click();
  await expect(access.getByRole('alert')).toHaveText('Synthetic role conflict');
  await expect(access.getByRole('alert')).toBeInViewport();
  assert.equal(await page.evaluate(()=>window.roleErrorBleeps),1,'The staff access error announces once');
- await expect(role).toHaveValue('editor');
+ await expect(secondRole).toHaveValue('technician');
  await save.click();
  await expect(access.getByText('Staff access saved.',{exact:true})).toBeVisible();
  const savedRoles=(await(await admin.request.get(base+'/api/access/members')).json()).members;
- assert.ok(savedRoles.some(member=>member.id===worker.id&&member.role==='editor'));
- assert.ok(savedRoles.some(member=>member.id===second.id&&member.role==='viewer'));
- await post(admin,'/api/access/roles',{member_id:worker.id,role:'viewer',version:2});
+ assert.ok(savedRoles.some(member=>member.id===worker.id&&member.role==='viewer'&&!member.account_type));
+ assert.ok(savedRoles.some(member=>member.id===second.id&&member.account_type==='technician'));
+ assert.ok(savedRoles.some(member=>member.id===third.id&&member.account_type==='estimator'));
  assert.ok((await admin.cookies()).find(c=>c.name==='classifire_access').httpOnly);
  assert.ok(!await page.evaluate(()=>document.cookie.includes('classifire_access')));
  const saved=await page.evaluate(async()=>{const directory=await(await fetch('/api/contacts/directory')).json();const r=await fetch('/api/contacts/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:directory.version,fields:{company:'Named Access QA',billing_address:'',abn_acn:''}})});return {status:r.status,body:await r.json()};});
@@ -115,12 +120,24 @@ const ready=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Err
  await review.getByRole('button',{name:'Close',exact:true}).click();await expect(due).toBeFocused();
  const denied=await view.evaluate(async()=>{const r=await fetch('/api/contacts/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return {status:r.status,body:await r.json()};});
  assert.equal(denied.status,403);assert.match(denied.body.error,/view-only/);
- await post(admin,'/api/access/roles',{member_id:worker.id,role:'none',version:3});await view.reload();
+ await post(admin,'/api/access/roles',{member_id:worker.id,role:'none',version:1});await view.reload();
  await expect(view.locator('#scheduler-root').getByRole('heading',{name:'Scheduler',exact:true})).toBeVisible();
  await view.locator('#staff-portal-sign-out').click();
  const signOut=view.getByRole('dialog',{name:'Sign out',exact:true});await expect(signOut).toContainText('CRM Viewer');
  await signOut.getByRole('button',{name:'Close',exact:true}).click();
  assert.equal((await viewers.request.get(base+'/api/contacts/directory')).status(),403);
+ const fieldUser=await browser.newContext();
+ await post(fieldUser,'/api/access/login',{email:'second@example.test',password:'Fixture-second-password'});
+ const fieldPage=await fieldUser.newPage();
+ await fieldPage.goto(base);
+ await expect(fieldPage.getByRole('button',{name:'Technical Library',exact:true})).toBeVisible();
+ await fieldPage.getByRole('button',{name:'Technical Library',exact:true}).click();
+ await expect(fieldPage.locator('[data-library-search="technical"]')).toBeVisible();
+ await expect(fieldPage.getByRole('button',{name:'Add Technical Library item'})).toHaveCount(0);
+ await fieldPage.getByRole('button',{name:'Forms',exact:true}).click();
+ await expect(fieldPage.locator('#forms-root .forms-register')).toBeVisible();
+ await expect(fieldPage.getByRole('button',{name:'Templates',exact:true})).toHaveCount(0);
+ assert.equal((await fieldUser.request.get(base+'/api/projects')).status(),403);
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,manager_id:identity.user.id,errors,viewer_responses:requests,checks:['first-run project data gate and one-time setup','mandatory sign-in without an opt-out control','real sign-in','HttpOnly root cookie','staff roles','viewer boot','server mutation denial','role revocation','phone layout']},null,2));console.log('PASS CRM access '+out);
 })().catch(e=>{console.error(e);console.error(logs);process.exitCode=1;}).finally(async()=>{await browser?.close();server.kill();});
 

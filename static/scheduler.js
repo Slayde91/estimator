@@ -115,6 +115,7 @@
   function hours(minutes) { const rounded = Math.round(minutes); return `${Math.floor(rounded / 60)}h ${String(rounded % 60).padStart(2,"0") }m`; }
   function memberName(id) { return state.data.members.find(member => member.id === id)?.name || "Unassigned"; }
   function admin() { return state.data?.user?.role === "admin"; }
+  function scheduleEditor() { return admin() || state.data?.user?.account_type === "coordinator"; }
   const translated = (source,args=[])=>window.CeasefireI18n?.translate(source,args) || source.replace(/\{(\d+)\}/g,(_,i)=>args[Number(i)] ?? '');
   function orderLabel(order) {
     return [order.reference, order.project_no, order.client, order.site_address, translated(order.status), `v${order.version}`].filter(Boolean).join(' · ');
@@ -586,7 +587,7 @@
     const filter = select([["","All team members"],...state.data.members.filter(item => item.active).map(item => [item.id,item.name])],state.member);
     filter.setAttribute("aria-label","Filter team members"); filter.addEventListener("change",() => {state.member = filter.value; render();}); controls.append(filter);
     const mine = check("My schedule",state.mine); mine.control.addEventListener("change",() => {state.mine = mine.control.checked; render();}); controls.append(mine.label);
-    if (admin()) controls.append(addIconButton("Add shift",() => editShift(),"scheduler-primary-action scheduler-toolbar-add"));
+    if (scheduleEditor()) controls.append(addIconButton("Add shift",() => editShift(),"scheduler-primary-action scheduler-toolbar-add"));
     state.root.append(controls,el("p","helper",`Week view · ${zone} · Select a shift for details.`));
     const scroll = el("div", "scheduler-grid-scroll"), table = el("table", "scheduler-grid"); table.append(el("caption", "sr-only","Weekly schedule by team member"));
     const head = el("thead"), row = el("tr"); row.append(el("th","scheduler-person","Team member"));
@@ -612,7 +613,7 @@
           if (assignmentLabel(shift)) card.append(el("small","",assignmentLabel(shift)));
           if (!shift.published) card.append(el("small","scheduler-draft-label","Draft")); cell.append(card);
         });
-        if (admin()) { const add = button("+",() => editShift(null,date,member.id),"scheduler-add"); add.setAttribute("aria-label",`Add shift for ${member.name} on ${date}`); cell.append(add); }
+        if (scheduleEditor()) { const add = button("+",() => editShift(null,date,member.id),"scheduler-add"); add.setAttribute("aria-label",`Add shift for ${member.name} on ${date}`); cell.append(add); }
         tr.append(cell);
       }
       body.append(tr);
@@ -668,7 +669,7 @@
   function editShift(shift = null,date = today(),memberId = "") {
     const inputZone = zone, requestId = shift ? null : crypto.randomUUID();
     void loadOrders();
-    if (!admin()) {
+    if (!scheduleEditor()) {
       const modal = el("dialog","scheduler-dialog"); modal.append(el("h2","",shift.title),el("p","",`${shiftMoment(shift.start)} – ${shiftMoment(shift.end)}`),el("p","",shift.location || ""),el("p","",shift.notes || ""),button("Close",() => modal.close())); state.root.append(modal); modal.addEventListener("close",() => modal.remove()); modal.showModal(); return;
     }
     const editor = dialog(shift ? "Edit shift" : "Add shift",host => {
@@ -723,7 +724,9 @@
       const password = input("password","",{minlength:12,maxlength:128,autocomplete:"new-password"}); password.required = !member;
       const rate = input("number",member?.base_rate ?? "0",{min:0,max:10000,step:"0.01",required:true});
       const role = select([["worker","Team member"],["admin","Administrator"]],member?.role || "worker"), active = check("Active",member?.active ?? true);
-      host.append(field("Name",name),field("Email / sign-in",email),field(member ? "New password" : "Password",password,member ? "Leave empty to keep the current password." : "At least 12 characters."),field("Base hourly rate (AUD)",rate),field("Role",role),active.label);
+      host.append(field("Name",name),field("Email / sign-in",email),field(member ? "New password" : "Password",password,member ? "Leave empty to keep the current password." : "At least 12 characters."),field("Base hourly rate (AUD)",rate));
+      if (!member?.account_type) host.append(field("Role",role));
+      host.append(active.label);
       return {name,email,password,rate,role,active};
     },"Save member",async controls => {
       const saved = await request("/members/save",{...(member ? {id:member.id,version:member.version} : {}),name:controls.name.value,email:controls.email.value,
@@ -735,10 +738,10 @@
     },"button primary","",document.getElementById("view-settings"));
   }
   function renderEntries() {
-    const controls = weekControls(); if (admin()) controls.append(addIconButton("Add time entry",() => editEntry(),"scheduler-primary-action scheduler-toolbar-add"));
+    const controls = weekControls(); if (scheduleEditor()) controls.append(addIconButton("Add time entry",() => editEntry(),"scheduler-primary-action scheduler-toolbar-add"));
     const search = input("search",state.entriesSearch,{"aria-label":"Search time entries",placeholder:"Team member, job or notes"});
     controls.append(search);
-    if (admin()) for (const [mine,label] of [[true,"My"],[false,"All"]]) {
+    if (scheduleEditor()) for (const [mine,label] of [[true,"My"],[false,"All"]]) {
       const toggle = button(label,() => {state.entriesMine = mine; render();}); toggle.setAttribute("aria-pressed",String(state.entriesMine === mine)); controls.append(toggle);
     }
     state.root.append(el("h2","scheduler-entries-title","Time Entries"),controls);
@@ -773,7 +776,7 @@
           const count = entry.location_summary?.count || 0, action = button(count ? `⌖ Web app · ${count} pins` : "⌖ No locations",() => showLocations(entry),"text-button scheduler-location-link");
           action.setAttribute("aria-label",`Locations for ${memberName(entry.member_id)}, ${shiftMoment(entry.start)}`); location.append(action);
         } else location.textContent = "—";
-        const actions = el("td","scheduler-row-actions"); if(admin() && entry.end && !segment.break) actions.append(button("Edit",() => editEntry(entry)));
+        const actions = el("td","scheduler-row-actions"); if(scheduleEditor() && entry.end && !segment.break) actions.append(button("Edit",() => editEntry(entry)));
         row.append(el("td","",memberName(entry.member_id)),interval,el("td","",hours(duration(segment.start,segment.end))),job,location,el("td","scheduler-entry-notes",segment.break ? "" : entry.notes || "—"),actions); body.append(row);
       }
       empty.hidden = segments.length > 0;

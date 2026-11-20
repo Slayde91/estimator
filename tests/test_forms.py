@@ -74,6 +74,63 @@ class FormsTests(unittest.TestCase):
         self.staff = [self.admin,self.editor,self.other,self.viewer]
         self.store = Forms(self.path,lambda: self.staff,lambda: {'name':'Example Co','phone':'123'})
 
+    def test_named_technicians_see_and_complete_only_their_own_requested_forms(self):
+        technician = {'id':'field','name':'Field','role':'none','account_type':'technician'}
+        technician_plus = {'id':'field-plus','name':'Plus','role':'none','account_type':'technician_plus'}
+        self.staff.extend([technician, technician_plus])
+        reviewed = self.store.save_template(self.admin, template(roles=['editor']))
+        other = self.store.save_entry(self.editor, entry(reviewed, {'site':'Existing'}, status='submitted'))
+        for member, coworker in ((technician, technician_plus), (technician_plus, technician)):
+            with self.subTest(account_type=member['account_type']):
+                self.assertIn(member['id'], [person['id'] for person in self.store.assignees(
+                    self.admin, reviewed['id'], reviewed['version'])['staff']])
+                self.assertEqual(self.store.templates(member), {'templates': []})
+                with self.assertRaises(FormError) as hidden_template:
+                    self.store.template(member, reviewed['id'])
+                self.assertEqual(hidden_template.exception.status, 404)
+                with self.assertRaises(FormError) as refused_start:
+                    self.store.save_entry(member, entry(reviewed, {'site': 'Unrequested'}))
+                self.assertEqual(refused_start.exception.status, 403)
+                request = {'id':identifier(), 'template_id':reviewed['id'],
+                           'template_version':reviewed['version'], 'member_id':member['id']}
+                self.store.assign_entry(self.admin,request)
+                self.assertEqual([row['id'] for row in self.store.entries(member)['entries']], [request['id']])
+                for hidden, requester in ((other['id'], member), (request['id'], coworker)):
+                    with self.assertRaises(FormError) as denied:
+                        self.store.entry(requester, hidden)
+                    self.assertEqual(denied.exception.status, 404)
+                with self.assertRaises(FormError) as refused_write:
+                    self.store.save_entry(coworker,entry(reviewed,{'site':'Not my request'},id=request['id'],version=1))
+                self.assertEqual(refused_write.exception.status, 404)
+                receipt = self.store.save_entry(member,entry(reviewed,{'site':'Requested'},id=request['id'],version=1,status='submitted'))
+                self.assertEqual((receipt['status'], receipt['values']['site']), ('submitted', 'Requested'))
+                self.assertFalse(receipt['can_delete'])
+
+    def test_named_office_roles_distinguish_form_filling_from_template_management(self):
+        estimator = {**self.editor,'account_type':'estimator'}
+        coordinator = {**self.other,'account_type':'coordinator'}
+        definition = template(roles=['admin'])
+        published = self.store.save_template(self.admin,definition)
+        available = self.store.template(estimator,published['id'])
+        self.assertTrue(available['can_fill'])
+        self.assertFalse(available['can_manage'])
+        self.assertFalse(available['can_assign'])
+        body = entry(available,{'site':'Office'})
+        saved = self.store.save_entry(estimator,body)
+        self.assertFalse(saved['can_delete'])
+        with self.assertRaises(FormError) as bad_template:
+            self.store.save_template(estimator,template())
+        self.assertEqual(bad_template.exception.status,403)
+        with self.assertRaises(FormError) as bad_assign:
+            self.store.assign_entry(estimator,{'id':identifier(),'template_id':published['id'],
+                                             'template_version':published['version'],'member_id':coordinator['id']})
+        self.assertEqual(bad_assign.exception.status,403)
+        revised = self.store.save_template(coordinator,{**definition,'version':1,'name':'Rev 2'})
+        self.assertEqual((revised['name'],revised['version']), ('Rev 2',2))
+        self.assertTrue(revised['can_assign'])
+        self.assertFalse(revised['can_delete'])
+        self.assertTrue(self.store.entry(coordinator,saved['id'])['can_edit'])
+
     def test_requested_entry_is_idempotent_private_and_fillable_by_assignee(self):
         t = self.store.save_template(self.admin,template(roles=['editor']))
         self.assertTrue(t['can_assign'])

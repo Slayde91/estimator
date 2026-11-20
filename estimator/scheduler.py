@@ -21,6 +21,8 @@ import uuid
 from functools import lru_cache
 from zoneinfo import ZoneInfo, available_timezones
 
+from .account_types import ADMINISTRATOR, ESTIMATOR, SCHEDULE_EDITORS, TECHNICIAN_TYPES, account_type
+
 
 UTC = timezone.utc
 SYDNEY = ZoneInfo('Australia/Sydney')
@@ -47,7 +49,7 @@ WRITE_FIELDS = {
     'setup': {'name', 'email', 'password'},
     'login': {'email', 'password'},
     'logout': set(),
-    'members/save': {'timezone', 'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate'},
+    'members/save': {'timezone', 'id', 'version', 'name', 'email', 'password', 'role', 'active', 'base_rate', 'account_type'},
     'shifts/save': {'input_timezone', 'id', 'version', 'updated_at', 'title', 'start', 'end', 'member_ids', 'project_id', 'project_name', 'work_order', 'location', 'notes', 'site_contact_note', 'color', 'published', 'request_id'},
     'entries/save': {'input_timezone', 'id', 'version', 'updated_at', 'member_id', 'start', 'end', 'breaks', 'project_id', 'project_name', 'work_order', 'notes', 'base_rate', 'source', 'location_consent'},
     'shifts/delete': {'id', 'version'},
@@ -255,10 +257,17 @@ def _password(value, salt=None):
 
 def _public_member(row, zone_name):
     member = {key: row[key] for key in ('id', 'name', 'email', 'role', 'version')}
+    member['account_type'] = account_type(row)
     member['active'] = bool(row['active'])
     member['timezone'] = zone_name
     member['base_rate'] = row['base_rate']
     return member
+
+
+def _public_entry(entry, viewer):
+    if viewer['role'] != 'admin' and entry['member_id'] != viewer['id']:
+        return {key: value for key, value in entry.items() if key != 'base_rate'}
+    return entry
 
 
 class SchedulerStore:
@@ -308,6 +317,9 @@ class SchedulerStore:
                     PRIMARY KEY(actor,action,request_id)
                 );
             ''')
+            db.execute('BEGIN IMMEDIATE')
+            if 'account_type' not in {column['name'] for column in db.execute('PRAGMA table_info(scheduler_members)')}:
+                db.execute('ALTER TABLE scheduler_members ADD COLUMN account_type TEXT')
             db.execute('INSERT OR IGNORE INTO scheduler_settings VALUES(1,?)', (_json(DEFAULT_SETTINGS),))
 
     @contextmanager
@@ -336,10 +348,42 @@ class SchedulerStore:
             raise SchedulerError('Sign in to use Scheduler.', 401)
         return row
 
+    def assign_account_types(self, token, actor_id, changes):
+        """Update staff permissions in one transaction using live member versions."""
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            actor = self._user(db, token)
+            self._admin(actor)
+            if actor_id != actor['id']:
+                raise SchedulerError('The signed-in staff account changed. Reload this tab before saving.', 409)
+            updates = []
+            for member_id, target, version in changes:
+                current = db.execute('SELECT * FROM scheduler_members WHERE id=?', (member_id,)).fetchone()
+                if current is None or current['version'] != version:
+                    raise SchedulerError('Team members changed in another window. Reload before saving.', 409)
+                if account_type(current) == target:
+                    continue
+                new_role = 'admin' if target == ADMINISTRATOR else 'worker'
+                db.execute('UPDATE scheduler_members SET role=?,account_type=?,version=version+1 WHERE id=?',
+                           (new_role, target, member_id))
+                self._audit(db, actor['id'], 'member.account_type', member_id,
+                            {'account_type': account_type(current)}, {'account_type': target})
+                updates.append(member_id)
+            if not db.execute("SELECT 1 FROM scheduler_members WHERE role='admin' AND active=1").fetchone():
+                raise SchedulerError('Keep at least one active administrator.')
+            for member_id in updates:
+                db.execute('DELETE FROM scheduler_sessions WHERE member_id=?', (member_id,))
+            return {'changed_member_ids': updates}
+
     @staticmethod
     def _admin(user):
         if user['role'] != 'admin':
             raise SchedulerError('An administrator account is required.', 403)
+
+    @staticmethod
+    def _schedule_editor(user):
+        if account_type(user) not in SCHEDULE_EDITORS:
+            raise SchedulerError('Your Account Type cannot change schedules or time entries.', 403)
 
     @staticmethod
     def _record(db, record_id, kind):
@@ -377,7 +421,7 @@ class SchedulerStore:
         with self.connect() as db:
             user = self._user(db, token, required=action != 'bootstrap')
             if action == 'shift-site-contacts':
-                self._admin(user)
+                self._schedule_editor(user)
                 identity = _text(query.get('id'), 'Work Order', 175, True)
                 revision = _text(query.get('revision'), 'Work Order revision', 64, True)
                 try:
@@ -389,6 +433,11 @@ class SchedulerStore:
                 raw = str(query.get('offset', '0'))
                 if not re.fullmatch(r'0|[1-9][0-9]{0,8}', raw):
                     raise SchedulerError('Use a valid Work Order page.')
+                if account_type(user) in TECHNICIAN_TYPES:
+                    offset = int(raw)
+                    assignments = list(self._assigned_work_orders(db, user['id']).values())
+                    return {'orders': assignments[offset:offset+100], 'matched': len(assignments),
+                            'scan_pending': False, 'error_count': 0}
                 if self.work_orders is None:
                     return {'orders': [], 'matched': 0, 'scan_pending': False, 'error_count': 0}
                 try:
@@ -445,8 +494,15 @@ class SchedulerStore:
         end_date = _range_boundary(query.get('end', str(today + timedelta(days=7-today.weekday()))), zone)
         if end_date <= start_date or end_date.astimezone(zone) - start_date.astimezone(zone) > timedelta(days=93):
             raise SchedulerError('Select a date range of at most 93 days.')
-        members = [_public_member(row, zone.key) for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id')
-                   if user['role'] == 'admin' or row['id'] == user['id']]
+        role = account_type(user)
+        can_plan = role in SCHEDULE_EDITORS
+        can_read_schedule = can_plan or role == ESTIMATOR
+        members = []
+        for row in db.execute('SELECT * FROM scheduler_members ORDER BY name,id'):
+            if user['id'] == row['id'] or role == ADMINISTRATOR:
+                members.append(_public_member(row, zone.key))
+            elif can_read_schedule:
+                members.append({'id': row['id'], 'name': row['name'], 'active': bool(row['active'])})
         records = [json.loads(row['data']) | {'_kind': row['kind']} for row in db.execute(
             'SELECT kind,data FROM scheduler_records WHERE start<? AND (end IS NULL OR end>?) ORDER BY start,id',
             (_iso(end_date), _iso(start_date)))]
@@ -454,9 +510,9 @@ class SchedulerStore:
         entries = []
         for record in records:
             kind = record.pop('_kind')
-            if kind == 'shift' and (user['role'] == 'admin' or record['published'] and user['id'] in record['member_ids']):
+            if kind == 'shift' and (can_plan or record['published'] and (can_read_schedule or user['id'] in record['member_ids'])):
                 shifts.append(record)
-            if kind == 'entry' and (user['role'] == 'admin' or record['member_id'] == user['id']):
+            if kind == 'entry' and (can_plan or record['member_id'] == user['id']):
                 entries.append(record)
         active = self._current(db, user['id'])
         summaries = {row['entry_id']: dict(row) for row in db.execute('''SELECT l.entry_id,count(*) AS count,
@@ -464,7 +520,9 @@ class SchedulerStore:
             JOIN scheduler_records r ON r.id=l.entry_id
             WHERE ((r.start<? AND (r.end IS NULL OR r.end>?)) OR r.id=?) AND (?='admin' OR r.member_id=?)
             GROUP BY l.entry_id''', (_iso(end_date), _iso(start_date), active['id'] if active else '', user['role'], user['id']))}
-        entries = [{**self._entry_view(entry, settings), 'location_summary': summaries.get(entry['id'], {'count': 0, 'first_at': None, 'last_at': None})} for entry in entries]
+        entries = [{**_public_entry(self._entry_view(entry, settings), user),
+                    'location_summary': summaries.get(entry['id'], {'count': 0, 'first_at': None, 'last_at': None})}
+                   for entry in entries]
         # Whole weeks supply context for overtime even when the visible range starts midweek.
         local_start = start_date.astimezone(zone)
         week_start = (local_start - timedelta(days=local_start.weekday())).replace(hour=0, minute=0, second=0)
@@ -555,6 +613,20 @@ class SchedulerStore:
             return True
         return False
 
+    @staticmethod
+    def _assigned_work_orders(db, member_id):
+        rows = db.execute("""SELECT json_extract(data,'$.work_order') AS work_order
+            FROM scheduler_records WHERE kind='shift'
+            AND json_extract(data,'$.published')=1
+            AND json_type(data,'$.work_order')='object'
+            AND EXISTS(SELECT 1 FROM json_each(data,'$.member_ids') WHERE value=?)
+            ORDER BY start,id""", (member_id,))
+        choices = {}
+        for row in rows:
+            value = json.loads(row['work_order'])
+            choices[(value['id'], value['revision'])] = value
+        return choices
+
     def _assignment(self, value, payload, previous=None):
         prior = previous or {}
         # The old clients submit project id/name, sometimes even on an unrelated
@@ -641,7 +713,7 @@ class SchedulerStore:
 
     def _shift_save(self, db, user, payload):
         """Commit a new shift and its retry receipt in the same transaction."""
-        self._admin(user)
+        self._schedule_editor(user)
         if 'request_id' not in payload:
             return self._record_save(db, user, payload, 'shift')
         request_id = _text(payload['request_id'], 'Request ID', 36, True)
@@ -728,6 +800,10 @@ class SchedulerStore:
         role = payload.get('role', 'worker')
         if role not in ('admin', 'worker'):
             raise SchedulerError('Role must be admin or worker.')
+        prior_type = account_type(previous) if previous else None
+        if ('account_type' in payload and payload['account_type'] != prior_type
+                or previous and previous['account_type'] and role != previous['role']):
+            raise SchedulerError('Change this member’s Account Type in Settings.', 409)
         active = _boolean(payload.get('active', True), 'Active')
         rate_value = _number(payload.get('base_rate', 0), 'Hourly base rate')
         if rate_value.as_tuple().exponent < -4:
@@ -744,7 +820,9 @@ class SchedulerStore:
             salt, password_hash = previous['salt'], previous['password_hash']
         version = previous['version'] + 1 if previous else 1
         try:
-            db.execute('''INSERT INTO scheduler_members VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+            db.execute('''INSERT INTO scheduler_members
+                (id,name,email,role,active,base_rate,salt,password_hash,version)
+                VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name,email=excluded.email,role=excluded.role,active=excluded.active,
                 base_rate=excluded.base_rate,salt=excluded.salt,password_hash=excluded.password_hash,version=excluded.version''',
                 (member_id, name, email, role, int(active), rate, salt, password_hash, version))
@@ -757,7 +835,7 @@ class SchedulerStore:
         return value
 
     def _record_save(self, db, user, payload, kind):
-        self._admin(user)
+        self._schedule_editor(user)
         record_id = _text(payload.get('id', ''), 'Record ID', 100)
         previous = self._record(db, record_id, kind) if record_id else None
         self._version(payload, previous)
@@ -819,7 +897,8 @@ class SchedulerStore:
             value.update(member_id=member['id'], breaks=breaks, base_rate=retained_rate,
                          location_consent=previous.get('location_consent', False) if previous else False,
                          source=previous.get('source', 'manual') if previous else 'manual')
-        return self._save_record(db, user, kind, value, previous)
+        saved = self._save_record(db, user, kind, value, previous)
+        return _public_entry(saved, user) if kind == 'entry' else saved
 
     @staticmethod
     def _active_member(db, member_id):
@@ -853,7 +932,7 @@ class SchedulerStore:
         return breaks
 
     def _delete(self, db, user, payload, kind):
-        self._admin(user)
+        self._schedule_editor(user)
         previous = self._record(db, _text(payload.get('id', ''), 'Record ID', 100, True), kind)
         self._version(payload, previous)
         if previous.get('end') is None:
@@ -911,6 +990,13 @@ class SchedulerStore:
                      'project_name': _text(payload.get('project_name', ''), 'Project name', 1000),
                      'notes': _text(payload.get('notes', ''), 'Notes', 4000),
                      'location_consent': True}
+            selected = payload.get('work_order')
+            if selected is not None and account_type(user) in TECHNICIAN_TYPES:
+                choices = self._assigned_work_orders(db, user['id'])
+                if (not isinstance(selected, dict) or set(selected) != {'id', 'revision'}
+                        or any(not isinstance(item, str) for item in selected.values())
+                        or (selected['id'], selected['revision']) not in choices):
+                    raise SchedulerError('Choose the Work Order from your published Scheduler assignment.', 403)
             self._assignment(value, payload)
             saved = self._save_record(db, user, 'entry', value)
             # Preserve the actual GPS capture time, including the few seconds

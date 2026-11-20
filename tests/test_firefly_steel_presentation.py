@@ -120,7 +120,7 @@ class FireflySteelPresentationTests(unittest.TestCase):
         self.assertIn('Item 119', fields['Local Protection']['value'])
         self.assertEqual(fields['Service Wrap']['value'], '450 mm')
 
-    def test_only_verified_h45_instructions_get_reflowed_with_length_in_wrap_field(self):
+    def test_verified_h45_keeps_length_in_wrap_and_moves_steps_to_installation(self):
         item = purlin(length_location='Protection (length)')
         item['fields'][0]['value'] = 'purlin'
         wrap, local = item['fields'][-2:]
@@ -129,14 +129,43 @@ class FireflySteelPresentationTests(unittest.TestCase):
         exact = hashlib.sha256(b'Known clause. The layout has wrapped it.').hexdigest()
         with patch('estimator.firefly_steel_presentation._H45_SOURCE_SHA256', exact):
             fields = {f['label']: f for f in firefly_structural_fields(item, item['fields'])}
-        value = fields['Service Wrap']['value']
-        self.assertTrue(value.startswith('450 mm on each side'))
+        self.assertEqual(fields['Service Wrap']['value'], '450 mm on each side of the FIREFLYBatt seal.')
+        value = fields['Installation Details']['value']
         self.assertIn('Three-sided wrap at the edge', value)
         self.assertIn('0.75 mm', value)
         self.assertIn('at 100 mm centres', value)
         self.assertIn('during a fire', value)
         self.assertNotIn('table', fields['Service Size / Configuration'])
         self.assertIn('full depth', fields['Local Protection']['value'])
+
+    def test_verified_v64_continuation_row_recovers_shared_installation(self):
+        item = purlin()
+        content_hash = 'a61e53af7ad9d54fbec0302ddc90ee261248ac8e73d54504cef5319295722819'
+        item['sources'] = [{'document_id': 'fas190235', 'page': page, 'sha256': content_hash,
+                            'label': f'FAS190235 RIR1.29G, Table 1, V64, PDF page {page}'}
+                           for page in (32, 33, 34)]
+        size = item['fields'][1]
+        size['value'] = '350 30'
+        size['table']['rows'] = [['350 30', '300 mm', '-/120/120', '33']]
+        item['fields'][3]['value'] = '300 mm'
+        original = deepcopy(item)
+        fields = {field['label']: field['value'] for field in public_prose_fields(item)}
+        self.assertEqual(item, original)
+        self.assertEqual(fields['Service Wrap'], '300 mm on each side of the FIREFLYBatt seal.')
+        installation = fields['Installation Details']
+        for condition in ('Use 300 mm of FIREFLY Penowrap on each side', 'Wrap only', 'Four-sided wrap',
+                          'Three-sided wrap', '0.75 mm thick', 'Support the purlins independently'):
+            self.assertIn(condition, installation)
+        for change in ('source hash', 'selection', 'source page'):
+            with self.subTest(change=change):
+                changed = deepcopy(original)
+                if change == 'source hash':
+                    changed['sources'][0]['sha256'] = '0' * 64
+                elif change == 'selection':
+                    changed['fields'][3]['value'] = '450 mm'
+                else:
+                    changed['sources'].pop(0)
+                self.assertNotIn('Installation Details', {f['label'] for f in public_prose_fields(changed)})
 
     def test_alternative_or_missing_page_keeps_source_table(self):
         for change in ('alternative row', 'missing source page', 'different rate'):

@@ -1,8 +1,9 @@
 """Public Technical Library wording; source documents and record identities retain their text."""
 import re
 
-from .technical_brand_presentation import manufacturer_names
+from .technical_brand_presentation import manufacturer_names, public_promat_wrap_fields
 from .firefly_steel_presentation import firefly_structural_fields
+from .firefly_wrap_presentation import firefly_wrap_fields
 from .technical_discovery import SNAP_FILTER_SOURCE
 from .library_opening_types import project_opening_types
 from .technical_service_instructions import present_service_instructions
@@ -26,6 +27,11 @@ _SNAP_SENTENCES = (
 _SNAP_SENTENCE = re.compile(r'(?:' + '|'.join(map(re.escape, _SNAP_SENTENCES)) + r')[ \t]*')
 _GULLY_INSTRUCTION = 'Use a P-trap, 4-way gully or gully trap on the exposed side'
 _STANDALONE_REPORT_PAGE = {'report page', 'report pages', 'pdf page', 'pdf pages'}
+_SELECTED_REPORT_PAGES = re.compile(
+    r'^Selected configuration: [A-Z]{2,}\s*\d[\w.-]*'
+    r'(?:\s+(?:Rev|Issue|R)\s*\d?[\w.-]+)?\s+pp?\.?\s*'
+    r'\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–]\s*\d+)?)*'
+    r'\.(?=\s|$)[ \t]*', re.M | re.I)
 
 
 def _value(value, snap, reports):
@@ -50,8 +56,9 @@ def _value(value, snap, reports):
 
 def public_prose_fields(record):
     """Return public field values without mutating fields, tables, links or captions."""
+    manufacturers = manufacturer_names(record)
     snap = (record.get('source_label') == SNAP_FILTER_SOURCE
-            or bool(manufacturer_names(record) & {'snap', 'snap fire systems'}))
+            or bool(manufacturers & {'snap', 'snap fire systems'}))
     original = record.get('fields', [])
     reports = [line.strip() for field in original if field['label'] == 'Report Number'
                for line in field.get('value', '').splitlines()]
@@ -67,7 +74,13 @@ def public_prose_fields(record):
         value = field.get('value', '')
         public = ('\n'.join(project_opening_types(record, value.splitlines()))
                   if field['label'] == 'Type' else _value(value, snap, reports))
+        if field['label'] == 'Source Options':
+            public = _SELECTED_REPORT_PAGES.sub('', public).strip()
+            if not public and not any(field.get(key) for key in ('table', 'tables', 'table_links', 'images')):
+                continue
         fields.append(field if public == value else {**field, 'value': public})
-    if 'trafalgar' in manufacturer_names(record):
+    if manufacturers == {'promat'}:
+        return public_promat_wrap_fields(fields)
+    if 'trafalgar' in manufacturers:
         return present_service_instructions(fields)
-    return firefly_structural_fields(record, fields)
+    return firefly_wrap_fields(record, firefly_structural_fields(record, fields))

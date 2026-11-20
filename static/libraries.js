@@ -743,6 +743,7 @@
     // Hide only generated explanations whose exact table/column/row remains
     // available through a valid link. Authored qualifications remain verbatim.
     const original = String(field.value ?? ""), paragraphs = original.split(/\r?\n[ \t]*\r?\n/);
+    const boilerplate = /^(?:Source configuration ratings remain subject to the stated|Source ratings subject to stated) barrier construction and installation conditions\.$/i;
     const linkedCells = (owner, ordinal, qualifier) => {
       const index = Number(ordinal) - 1, matches = fields.filter(item => item.label === owner);
       if (matches.length !== 1 || !Number.isSafeInteger(index) || !Array.isArray(field.table_links) || !field.table_links.some(link => link && typeof link === "object" && !Array.isArray(link) && Object.keys(link).length === 2 && link.field === owner && link.table_index === index)) return null;
@@ -766,6 +767,7 @@
     };
     const generated = /^(.+?) — (?:observed source service ratings|matched source barrier row|source substrate alternatives) \((Service Size \/ Configuration|Barrier Construction) table ([1-9]\d*)(.*?)\)\.(?: The entry selection remains separate\.)?$/;
     const unresolved = /^(?:Observed source service ratings|Matched source barrier row|Source substrate alternatives) \((Service Size \/ Configuration|Barrier Construction) table ([1-9]\d*)(.*?)\): (?:refer to the complete source cells; blank, qualified or unresolved ratings are not reduced to a range|retain the qualified source ratings as shown; no range is inferred)\.$/;
+    const compacted = /^(.+?) — observed source service ratings \((Service Size \/ Configuration|Barrier Construction)\)\.$/;
     let changed = false;
     const cleaned = paragraphs.map(paragraph => {
       const match = generated.exec(paragraph.trim());
@@ -778,11 +780,17 @@
       }
       const reference = unresolved.exec(paragraph.trim());
       if (reference && linkedCells(reference[1], reference[2], reference[3])?.some(cell => cell.trim())) { changed = true; return ""; }
+      // An exact redundant-table projection has already replaced its locator
+      // with the field label. Keep the printed rating and drop the old caption.
+      const collapsed = compacted.exec(paragraph.trim());
+      if (collapsed && bareFrlRatings(collapsed[1]) && fields.some(item => item.label === collapsed[2] && !fieldTables(item).length && String(item.value ?? "").trim())) {
+        changed = true; return collapsed[1].trim();
+      }
       return paragraph;
     });
-    if (!changed) return original;
-    const boilerplate = "Source configuration ratings remain subject to the stated barrier construction and installation conditions.";
-    const kept = cleaned.filter(paragraph => paragraph.trim() && paragraph.trim() !== boilerplate);
+    if (!changed && !paragraphs.some(paragraph => boilerplate.test(paragraph.trim()))) return original;
+    const kept = cleaned.filter(paragraph => paragraph.trim() && !boilerplate.test(paragraph.trim()));
+    if (!changed) return kept.join("\n\n");
     const rated = kept.map((paragraph, index) => ({ index, ratings: bareFrlRatings(paragraph) })).filter(item => item.ratings);
     if (!rated.length) return kept.join("\n\n");
     const unique = [...new Map(rated.flatMap(item => item.ratings).map(rating => [JSON.stringify(rating), rating])).values()];

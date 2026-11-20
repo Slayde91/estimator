@@ -13,6 +13,12 @@ from .technical_record_corrections import reviewed_boss_construction, reviewed_p
 
 _HIDDEN_COLUMNS = {'id', 'configuration', 'source configuration'}
 _PARAGRAPHS = re.compile(r'\n\s*\n')
+_SUPAWRAP = r'PROMASEAL(?:®)? SupaWrap'
+_SUPAWRAP_FLOOR = re.compile(
+    rf'Fit {_SUPAWRAP} for (\d+(?:\.\d+)?)\s*mm above the floor seal, '
+    r'with PROMASEAL A at the base of the wrap\.', re.I)
+_SUPAWRAP_WALL = re.compile(
+    rf'Extend {_SUPAWRAP} (\d+(?:\.\d+)?)\s*mm on both sides\.', re.I)
 
 
 def manufacturer_names(item):
@@ -109,6 +115,38 @@ def _seal_product_row(columns, row, barrier):
 def _highest(values):
     summary = summarize_ratings(values)
     return summary['ratings'][-1] if summary['kind'] in {'single', 'range'} else None
+
+
+def public_promat_wrap_fields(fields):
+    """Summarize the shared installation requirement for a product-only wrap."""
+    by_label = {field['label']: field for field in fields}
+    wrap = by_label.get('Service Wrap', {})
+    if not re.fullmatch(_SUPAWRAP + r'\.?', wrap.get('value', '').strip(), re.I):
+        return fields
+    if any({'Service Wrap', 'Installation Details'}.intersection(table['columns'])
+           for field in fields for table in field_tables(field)):
+        return fields
+
+    installation = by_label.get('Installation Details', {}).get('value', '')
+    instructions = re.split(r'(?<=[.!?])\s+|\n{2,}', installation)
+    measured_wrap = {sentence.strip() for sentence in instructions
+                     if re.search(r'\bSupaWrap\b', sentence, re.I)
+                     and re.search(r'\d\s*mm\b', sentence, re.I)}
+    if len(measured_wrap) != 1:
+        return fields
+
+    instruction, = measured_wrap
+    barrier_type = by_label.get('Barrier Type', {}).get('value', '').strip().casefold()
+    seal = by_label.get('Seal Depth / Fillet Size', {}).get('value', '')
+    floor = _SUPAWRAP_FLOOR.fullmatch(instruction)
+    wall = _SUPAWRAP_WALL.fullmatch(instruction)
+    if floor and barrier_type == 'floor' and re.search(r'\bSupaWrap topside only\b', seal, re.I):
+        value = f"PROMASEAL SupaWrap, {floor[1]} mm topside only."
+    elif wall and barrier_type == 'wall':
+        value = f"PROMASEAL SupaWrap, {wall[1]} mm on both sides."
+    else:
+        return fields
+    return [{**field, 'value': value} if field is wrap else field for field in fields]
 
 
 def _promat_fields(fields):

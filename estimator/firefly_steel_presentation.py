@@ -12,6 +12,8 @@ _LOCAL = 'Local Protection'
 _INSTALLATION = 'Installation Details'
 _FIRST = 'Service (purlin size)'
 _H45_SOURCE_SHA256 = '31152c311efe2347c74eb846813c40e1a5d97989276df8d679ad502dce355f49'
+_V64_REPORT_SHA256 = 'a61e53af7ad9d54fbec0302ddc90ee261248ac8e73d54504cef5319295722819'
+_V64_INSTALLATION_PAGE = 'FAS190235 RIR1.29G, Table 1, V64, PDF page 32'
 _LENGTH = re.compile(r'[0-9]+(?:\.[0-9]+)? mm\Z')
 _PURLIN_SERVICE = re.compile(
     r'^Steel C purlin or Z purlin protected with a combination of (?:FIREFLY)?Batt and '
@@ -79,7 +81,10 @@ def _put(fields, by_label, label, value):
         by_label[label]['value'] = value
     else:
         field = {'label': label, 'value': value}
-        fields.append(field)
+        position = (next((index for index, item in enumerate(fields)
+                          if item['label'] in ('Source Options', 'Source Issues', 'Diagrams & Figures', 'Report Number')),
+                         len(fields)) if label == _INSTALLATION else len(fields))
+        fields.insert(position, field)
         by_label[label] = field
 
 
@@ -169,11 +174,25 @@ def _remove_repeated_purlin_table(record, fields, by_label):
         if (length != _normal(local.get('value', '')) or field_tables(local)
                 or wrap_sha256 != _H45_SOURCE_SHA256):
             return
-        _put(fields, by_label, _WRAP, f'{length} on each side of the FIREFLYBatt seal.\n\n{_PACKING}')
+        _put(fields, by_label, _WRAP, f'{length} on each side of the FIREFLYBatt seal.')
+        installation = by_label.get(_INSTALLATION, {}).get('value', '')
+        _put(fields, by_label, _INSTALLATION, '\n\n'.join(filter(None, (installation, _PACKING))))
         local['value'] = ('Apply FIREFLYMastic or FIREFLYMastic BG to the full depth of the FIREFLYBatt '
                           'to seal the purlin into the aperture.')
     elif length != _normal(by_label.get(_WRAP, {}).get('value', '')):
         return
+    elif (by_label.get('Service', {}).get('value') == 'Steel C or Z purlin'
+          and _INSTALLATION not in by_label
+          and any(source.get('document_id') == 'fas190235'
+                  and source.get('sha256') == _V64_REPORT_SHA256
+                  and source.get('label') == _V64_INSTALLATION_PAGE and source.get('page') == 32
+                  for source in record.get('sources', []))):
+        # Page 32 contains the procedure shared by all V64 rows. The validated
+        # selected table row, which may be on a continuation page, supplies the length.
+        _put(fields, by_label, _WRAP, f'{length} on each side of the FIREFLYBatt seal.')
+        _put(fields, by_label, _INSTALLATION,
+             f'Use {length} of FIREFLY Penowrap on each side of the FIREFLYBatt seal. '
+             f'Use the applicable arrangement below.\n\n{_PACKING}')
     for name in ('table', 'tables', 'table_captions', 'table_row_ids'):
         size.pop(name, None)
     target = {'field': _SIZE, 'table_index': 0}

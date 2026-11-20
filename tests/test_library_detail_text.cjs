@@ -64,6 +64,10 @@ assert.deepEqual(parse(null), []);
 
 // Render as semantic safe DOM elements. Untrusted source markup stays text.
 const document = { createElement(tagName) { return { tagName, attributes: {}, children: [], textContent: "", setAttribute(name, value) { this.attributes[name] = value; }, append(...children) { this.children.push(...children); } }; } };
+const protection = { fieldLabel: "Local Protection" };
+assert.equal(render(document, "1. Apply mastic between the cables.", protection)[0].tagName, "p");
+assert.equal(render(document, "2. Apply mastic between the cables.", protection)[0].tagName, "ol");
+assert.equal(render(document, "1. Apply mastic.\n2. Seal the batt.", protection)[0].tagName, "ol");
 const rendered = render(document, "3. <script>alert(1)</script>\n5. Use 1.5 mm steel.\nNOTE:\n• Keep the gap.");
 assert.equal(rendered[0].tagName, "ol");
 assert.equal(rendered[0].attributes.start, "3");

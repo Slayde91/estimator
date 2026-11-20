@@ -648,6 +648,11 @@ async function check(name,fn){await fn(harness());passed++;console.log('ok - '+n
       h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','invalid-frl-'+index),fields,images:[]}));await h.api.open('technical','invalid-frl-'+index);assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,expected[index]);assert.deepEqual(fields,before);
     }
   });
+  await check('FRL omits generic import wording after an exact duplicate table has been removed',async h=>{
+    const fields=[{label:'FRL',value:'-/120/120 — observed source service ratings (Service Size / Configuration).\n\nSource configuration ratings remain subject to the stated barrier construction and installation conditions.\n\nA separate qualification applies only to the cased arrangement.'},{label:'Service Size / Configuration',value:'NB100 steel pipe'}],before=copy(fields);
+    h.setRoute(path=>path==='/api/libraries'?meta():({...detail('technical','compacted-frl'),fields,images:[]}));await h.api.open('technical','compacted-frl');
+    assert.equal(walk(h.pane('technical').detailPanel).find(n=>n.tagName==='dd').textContent,'-/120/120\n\nA separate qualification applies only to the cased arrangement.');assert.deepEqual(fields,before);
+  });
   await check('FRL authored qualifications and non-applicability survive concise linked-table summaries',async h=>{
     const authored='-/120/120 RISF 81; use the lower rating of the supporting construction.\n\nUp to -/180/120 (-/180/90 without wrap).\n\nBoard thickness must be at least 40 mm.\n\n-/120/120 — observed concrete-slab service ratings (Service Size / Configuration table 1; applicability to the CLT entry is not established).';
     const fields=[{label:'FRL',value:authored+'\n\n-/60/60 to -/120/120 — observed source service ratings (Service Size / Configuration table 1).\n\nSource configuration ratings remain subject to the stated barrier construction and installation conditions.',table_links:[{field:'Service Size / Configuration',table_index:0}]},{label:'Service Size / Configuration',value:'',table:{columns:['FRL'],rows:[['-/60/60'],['-/120/120']]}}],before=copy(fields);

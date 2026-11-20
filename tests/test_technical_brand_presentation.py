@@ -12,6 +12,7 @@ from pypdf import PdfReader
 
 from estimator.technical_brand_presentation import simplify_promat_wrap
 from estimator.technical_fields import normalize_technical_item
+from estimator.technical_prose import public_prose_fields
 from estimator.technical_item_exports import (prepare_technical_item,
     build_technical_item_xlsx, render_technical_item_pdf)
 from estimator.technical_table_navigation import validate_table_navigation
@@ -73,6 +74,35 @@ class BrandPresentationTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(simplify_promat_wrap(source), expected)
                 self.assertEqual(simplify_promat_wrap(expected), expected)
+
+    def test_product_only_supawrap_uses_unambiguous_installation_length_and_placement(self):
+        floor = 'Fit PROMASEAL SupaWrap for 300 mm above the floor seal, with PROMASEAL A at the base of the wrap.'
+        wall = ('Finish the seal flush. Extend PROMASEAL SupaWrap 300 mm on both sides. '
+                'Apply PROMASEAL A at the wall faces around the service.')
+        cases = [
+            ('Floor', 'SupaWrap topside only', floor, 'PROMASEAL SupaWrap, 300 mm topside only.'),
+            ('Wall', 'SupaWrap to each face', wall, 'PROMASEAL SupaWrap, 300 mm on both sides.'),
+            ('Floor', '', floor, 'PROMASEAL SupaWrap.'),
+            ('Floor', 'SupaWrap topside only', floor + '\n\n' + wall, 'PROMASEAL SupaWrap.'),
+        ]
+        for barrier, seal, installation, expected in cases:
+            with self.subTest(barrier=barrier, seal=seal, installation=installation):
+                source = record(('Barrier Type', barrier), ('Service Wrap', 'PROMASEAL SupaWrap'),
+                                ('Seal Depth / Fillet Size', seal), ('Installation Details', installation))
+                projected = self.project(source)
+                actual = values({'fields': public_prose_fields(projected)})
+                self.assertEqual(actual['Service Wrap'], expected)
+                self.assertEqual(actual['Installation Details'], installation)
+                self.assertEqual(values(projected)['Service Wrap'], 'PROMASEAL SupaWrap.')
+
+        source = record(('Barrier Type', 'Wall'), ('Service Wrap', 'PROMASEAL SupaWrap'),
+                        ('Installation Details', wall))
+        source['fields'][-1]['table'] = {
+            'columns': ['Installation Details'],
+            'rows': [['Extend PROMASEAL SupaWrap 600 mm on both sides.']],
+        }
+        self.assertEqual(values({'fields': public_prose_fields(self.project(source))})['Service Wrap'],
+                         'PROMASEAL SupaWrap.')
 
     def test_only_requested_boilerplate_removed_and_real_instructions_retained(self):
         source = record(('Service Size / Configuration', 'ø 20, Floor - Vertical\n\nExisting insulation: None'),

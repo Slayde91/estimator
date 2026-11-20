@@ -3,7 +3,7 @@ const { chromium, expect } = require("@playwright/test");
 const { spawn } = require("node:child_process"), fs = require("node:fs"), path = require("node:path"), assert = require("node:assert/strict"), { createHash } = require("node:crypto");
 const root = path.resolve(__dirname, "../.."), output = process.env.CEASEFIRE_BROWSER_OUTPUT || path.join(root, ".runtime/browser-qa", `header-menu-sounds-${Date.now()}`);
 fs.mkdirSync(output, { recursive: true });
-const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/classifire.mp3", "static/sounds/glitch.mp3", "static/sounds/page.mp3", "static/sounds/shutter.mp3", "static/sounds/radiobleep.mp3", "static/notifications.js", "static/sounds/loading.mp3", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
+const sourceFiles = ["static/header-menu-sounds.js", "static/downloads.js", "static/calculators.js", "static/penetration.js", "static/app.js", "estimator/server.py", "static/sounds/mgs1-menu-move.mp3", "static/sounds/mgs-confirm2.mp3", "static/sounds/flame-whoosh.wav", "static/sounds/select.mp3", "static/sounds/select-2.mp3", "static/sounds/type.mp3", "static/sounds/checkpoint.ogg", "static/sounds/classifire.mp3", "static/sounds/glitch.mp3", "static/sounds/page.mp3", "static/sounds/shutter.mp3", "static/sounds/radiobleep.mp3", "static/notifications.js", "static/sounds/loading.mp3", "static/sounds/zoom.mp3", "static/sounds/electric.mp3", "static/takeoffs.js", "tests/browser/header_menu_sounds.cjs", "tests/browser/header_menu_sounds_fixture.py"];
 const expectedSounds = [
   ["mgs1-menu-move.mp3", "ac2d686c78fa5dabc2415a0f3b39f4ced124f5fc1613ba3918e06daa7b47f8d0"],
   ["mgs-confirm2.mp3", "e9e7e156e24a4fde706f922ee135e88df51dc5ba94eed6344e66bbd6298e3e86"],
@@ -16,6 +16,8 @@ const expectedSounds = [
   ["page.mp3", "170023a6ce7840b7b8ab96576201c6170be7bfabc870a8502f805f09f4ac1024"],
   ["shutter.mp3", "09d62171adf3e5286acfdcd9e290ebd746af4f5ffa13817276c9b87001d5f0e6"],
   ["radiobleep.mp3", "8e7b045e7146ea12e21a9d6f9dbdd48e84285598e5936180c64c851d1660d686"],
+  ["zoom.mp3", "0aeca2cc58610c358039eda7edd40b769466825ed67938be378e1912e3549235"],
+  ["electric.mp3", "7743b6a05297ab38719078601ac2fedf7f15b5849822e9eb40185e8420ae8f24"],
 ];
 const digest = value => createHash("sha256").update(value).digest("hex");
 const sourceHashes = () => Object.fromEntries(sourceFiles.map(file => [file, digest(fs.readFileSync(path.join(root, file)))]));
@@ -46,7 +48,8 @@ async function noDownloadAudio() {
 (async () => {
   const info = await started; assert.notEqual(info.port, 8765); evidence.port = info.port;
   const origin = `http://127.0.0.1:${info.port}`;
-  browser = await chromium.launch({ headless: true }); // No autoplay-policy override.
+  const executablePath = process.env.CEASEFIRE_BROWSER_EXECUTABLE;
+  browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) }); // No autoplay-policy override.
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   page = await context.newPage(); page.setDefaultTimeout(30000);
   page.on("pageerror", error => evidence.errors.push(error.message));
@@ -433,6 +436,14 @@ async function noDownloadAudio() {
     assert.equal(await page.evaluate(() => window.qaMenuAudio.calls.filter(row => row.source === '/sounds/select.mp3').length), oldSound);
   }
   evidence.checks.takeoffTabSounds = await tabs.allTextContents();
+  await page.locator('#takeoff-pages').getByRole('button', { name: 'Steel', exact: true }).click();
+  const zoom = '/sounds/zoom.mp3';
+  for (const label of ['Zoom out (Ctrl+-)', 'Zoom in (Ctrl++)']) {
+    const before = await page.evaluate(source => window.qaMenuAudio.playing.filter(row => row.source === source && row.trusted).length, zoom);
+    await page.getByTitle(label, { exact: true }).click();
+    await played(zoom, before);
+  }
+  evidence.checks.takeoffZoomSounds = true;
   evidence.audio_events = await page.evaluate(() => ({ calls: window.qaMenuAudio.calls, playing: window.qaMenuAudio.playing, csp: window.qaMenuAudio.csp }));
   await noDownloadAudio();
   assert.deepEqual(evidence.audio_events.csp, []); assert.deepEqual(evidence.errors, []); assert.deepEqual(evidence.blocked_requests, []);

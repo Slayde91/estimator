@@ -199,6 +199,8 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
           || (selector.includes("#project-pages") && (selector.split(", ").includes("#" + node.zone) || selector.split(", ").includes("." + node.zone)))
           || (selector === "#takeoff-viewport" && node.zone === "drawing")
           || (selector === ".takeoff-control-menu" && node.zone === "drawing-menu")
+          || (selector === ".takeoff-zoom-button" && node.zone === "zoom")
+          || (selector === ".takeoff-preview-transfer" && node.zone === "transfer")
           || (selector === 'dialog, [role="dialog"]' && node.zone === "dialog")
           || (selector === "[inert]" && node.inert)) return node;
       }
@@ -206,6 +208,27 @@ function element(parent, { control = false, zone = "", brand = false } = {}) {
     },
   };
 }
+
+test("Takeoff zoom clicks and successful schedule actions use their own audio cues", () => {
+  const h = audioHarness(), settings = h.host.CeasefireAudioSettings = createAudioSettings(h.host);
+  const sounds = createFeedback(h.document, h.host, h.menu);
+  const takeoff = element(null, {zone: "takeoff"});
+  const zoom = element(takeoff, {control: true, zone: "zoom"});
+  const transfer = element(takeoff, {control: true, zone: "transfer"});
+  h.document.emit("click", {target: element(zoom)});
+  h.document.emit("click", {target: transfer});
+  assert.deepEqual(h.plays().map(call => call[1]), [feedbackSources.zoom]);
+  sounds.scheduleActionSucceeded();
+  assert.deepEqual(h.plays().map(call => call[1]), [feedbackSources.zoom, feedbackSources.electric]);
+  settings.setEnabled(false);
+  assert.ok(h.players.every(audio => audio.paused));
+  h.document.emit("click", {target: zoom});
+  sounds.scheduleActionSucceeded();
+  settings.setEnabled(true);
+  h.document.hidden = true;
+  sounds.scheduleActionSucceeded();
+  assert.equal(h.plays().length, 2);
+});
 
 test("Quote acceptance preloads once and shares the audio preference and page lifecycle", () => {
   const h = audioHarness(), settings = h.host.CeasefireAudioSettings = createAudioSettings(h.host);
@@ -399,6 +422,8 @@ test("supplied feedback assets and the trimmed logo clip retain verified bytes",
     "mixkit-vintage-dot-printing-1371.wav": [249332, "5c39082dfe0aa5c24cae5faa0ba616bfb1354d8b7686b0b0784fa32689a9decf"],
     "checkpoint.ogg": [39539, "60acfb941abf427378e87e7ae6660ae29491f8d5efaae2681d7eb9a52af3c935"],
     "loading.mp3": [649508, "2c245208c0a4e9668b36e17d16227be81f6409398de1ece8b37be648e0ac60a8"],
+    "zoom.mp3": [23040, "0aeca2cc58610c358039eda7edd40b769466825ed67938be378e1912e3549235"],
+    "electric.mp3": [45975, "7743b6a05297ab38719078601ac2fedf7f15b5849822e9eb40185e8420ae8f24"],
   };
   for (const [name, [size, digest]] of Object.entries(supplied)) {
     const bytes = fs.readFileSync(path.join(__dirname, "../static/sounds", name));

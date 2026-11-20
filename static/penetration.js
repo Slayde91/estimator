@@ -1174,6 +1174,7 @@
       label.append(control, node("span", "", `${index + 1}. ${row.inputs.T || row.inputs.K || "Firestopping item"}`)); choices.append(label); inputs.push(control); });
     const actions = node("div", "actions"), apply = uiNode("button", "button primary", "Apply to selected rows"), cancel = uiNode("button", "button secondary", "Cancel"); apply.type = cancel.type = "button"; apply.disabled = true; actions.append(apply, cancel);
     dialog.append(title, uiNode("p", "helper", "Choose every schedule item that should retain this report and system. Existing references are retained."), choices, problem, actions); document.body.append(dialog); dialog.showModal();
+    window.CeasefireButtonSounds?.scheduleActionSucceeded?.();
     return new Promise(resolve => {
       let busy = false, finished = false;
       const finish = receipt => { if (finished) return; finished = true; dialog.close(); dialog.remove(); scheduleReferences.picker = false; if (context === state.context) renderSchedule(); resolve(receipt); };

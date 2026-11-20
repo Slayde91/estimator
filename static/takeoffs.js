@@ -504,7 +504,7 @@
     for (const field of fields.filter(field => field.control.type === "checkbox")) group.append(field.wrapper);
     container.append(group);
   }
-  async function ask(title, definitions, detail = "", action = "Apply", setup, splitFields = false) {
+  async function ask(title, definitions, detail = "", action = "Apply", setup, splitFields = false, onOpen) {
     if (state.modal) throw new Error("Finish the current review first.");
     setModal(true); const sessionId = state.session?.session_id;
     const dialog = node("dialog", "takeoff-dialog"), form = node("form"); form.method = "dialog";
@@ -537,6 +537,7 @@
       const accepted = await new Promise(resolve => {
         dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
         dialog.showModal();
+        onOpen?.();
         if (setup) Promise.resolve().then(() => setup(controls, ready => { readinessManaged = true; if (dialog.open) apply.disabled = !ready; })).then(() => { if (dialog.open && !readinessManaged) apply.disabled = false; }).catch(error => { if (dialog.open) { setupError = error; dialog.close("setup-error"); } });
       });
       if (setupError) throw setupError;
@@ -545,7 +546,7 @@
       return result;
     } finally { setModal(false); dialog.remove(); }
   }
-  async function confirm(title, detail, action) { return (await ask(title, [], detail, action)) !== null; }
+  async function confirm(title, detail, action, onOpen) { return (await ask(title, [], detail, action, undefined, false, onOpen)) !== null; }
   function syncToolShortcuts() {
     const registry = window.CeasefireTakeoffShortcuts, tools = state.ui?.tools;
     if (!registry || !tools) return {};
@@ -641,6 +642,7 @@
     ui.rotate = uiButton("Rotate page", rotatePage); window.CeasefireI18n.attr(ui.rotate, "title", "Rotate page right (Ctrl+Down); left (Ctrl+Up)"); ui.rotate.setAttribute("aria-keyshortcuts", "Control+ArrowDown Control+ArrowUp"); ui.rotate.setAttribute("aria-description", "Rotate the displayed page 90 degrees clockwise. Original measurements stay unchanged.");
     const fit = uiButton("Fit page", () => fitPage(true)); window.CeasefireI18n.attr(fit, "title", "Fit page (Ctrl+0)"); fit.setAttribute("aria-keyshortcuts", "Control+0");
     const zoomOut = button("−", () => zoomBy(1 / 1.25)), zoomIn = button("+", () => zoomBy(1.25)); window.CeasefireI18n.attr(zoomOut, "title", "Zoom out (Ctrl+-)"); window.CeasefireI18n.attr(zoomIn, "title", "Zoom in (Ctrl++)"); zoomOut.setAttribute("aria-keyshortcuts", "Control+-"); zoomIn.setAttribute("aria-keyshortcuts", "Control+Plus");
+    zoomOut.classList.add("takeoff-zoom-button"); zoomIn.classList.add("takeoff-zoom-button");
     pageControls.append(pageNavigation, ui.tools.select, ui.tools.pan, ui.tools.text, zoomOut, zoomIn, fit, ui.rotate);
     ui.zoom = node("span", "helper", "100%"); pageControls.append(ui.zoom);
     ui.search = node("input"); ui.search.type = "search"; ui.search.maxLength = 200; window.CeasefireI18n.attr(ui.search, "placeholder", "Search PDF text…"); window.CeasefireI18n.attr(ui.search, "aria-label", "Search original document text"); ui.search.setAttribute("aria-controls", "takeoff-text-search-results"); ui.search.setAttribute("aria-expanded", "false");
@@ -4995,7 +4997,12 @@
     const sourceResults = transferring.filter(item => item.state === "confirmed").map(item => clone(itemResult(item)));
     const choices = await api(`/options?calculator=${encodeURIComponent(calculatorId)}`);
     const removed = preview.changes.filter(change => change.action === "remove").length;
-    current(); const accepted = await confirm(removed ? uiText("Update {0} linked items?", [transferring.length]) : `${updateLinked ? "Update" : "Transfer"} ${transferring.length} confirmed items?`, transferSummary(preview, selected, sourceResults, choices.columns), updateLinked ? "Update linked rows" : "Add to schedule"); if (!accepted) return;
+    current();
+    const title = removed ? uiText("Update {0} linked items?", [transferring.length]) : `${updateLinked ? "Update" : "Transfer"} ${transferring.length} confirmed items?`;
+    const detail = transferSummary(preview, selected, sourceResults, choices.columns);
+    const onOpen = updateLinked ? undefined : window.CeasefireButtonSounds?.scheduleActionSucceeded;
+    const accepted = await confirm(title, detail, updateLinked ? "Update linked rows" : "Add to schedule", onOpen);
+    if (!accepted) return;
     current();
     if (sessionId !== state.session?.session_id || preview.revision !== state.session.revision) throw new Error("Takeoffs changed during transfer review. Preview again.");
     const reservation = window.CeasefireCalculators.reserveTakeoffTarget(calculatorId, target.fingerprint); working(true);

@@ -57,6 +57,39 @@ _INTRWALL_FIELDS = {
     'FRL': '-/60/60',
     'Service Wrap': 'No TWrap required',
 }
+_INTRWALL_PEX_SOURCE = {
+    **_INTRWALL_FIELDS,
+    'System Products': 'FyreCOLLAR Retro-fit, FyreFLEX Sealant',
+    'Service': 'Pipes - PEX',
+    'Service Size / Configuration': '25 mm PEX-A Pipe',
+    'Maximum Opening Size': '10 mm Annular Gap',
+    'Seal Depth / Fillet Size': '5mm (FyreCOLLAR fixing side only)/No Fillet',
+    'Report Number': '24SFR00065',
+}
+# Trafalgar IntRwall manual, p. 15, 24SFR00065 specimen 5: 10 mm is the
+# collar projection. The section does not give a numeric gap or seal depth.
+_INTRWALL_PEX_CORRECTION = {
+    'System Products': '25 mm FyreCOLLAR Conduit, FyreFLEX Sealant',
+    'Maximum Opening Size': 'Opening to suit the inverted 25 mm FyreCOLLAR Conduit',
+    'Seal Depth / Fillet Size': 'Fill gaps between collar and wall with FyreFLEX from the fixing-tab side',
+}
+
+
+def present_verified_intrwall_pex_scope(record):
+    """Publish the exact tested collar and keep imported values in the source record."""
+    if record['id'] != 'trafalgar-selector-7945':
+        return
+    fields = record['fields']
+    by_label = {field['label']: field for field in fields}
+    if (len(by_label) != len(fields) or 'Source Issues' in by_label
+            or any(by_label.get(label, {}).get('value') != value for label, value in _INTRWALL_PEX_SOURCE.items())):
+        return
+    for label, value in _INTRWALL_PEX_CORRECTION.items():
+        by_label[label]['value'] = value
+    if record.get('summary') == _INTRWALL_PEX_SOURCE['System Products']:
+        record['summary'] = _INTRWALL_PEX_CORRECTION['System Products']
+
+
 _INTRWALL_CABLES = {
     '7947': (
         'FyrePEX HP', 'Cables - Aluminium', '25mm² 4C+E Aluminum Core Cable',
@@ -262,6 +295,16 @@ def _fyrebatt_procedure(number):
 
 
 def _procedure(number):
+    if number == '7945':
+        steps = (
+            '1. Run one 25 mm PEX-A pipe through the IntRwall assembly of 25 mm shaftliner and '
+            '16 mm fire-rated plasterboard. Fit a 25 mm FyreCOLLAR Conduit inverted into the wall '
+            'from the plasterboard face, with the collar projecting 10 mm.\n'
+            '2. Secure the fixing tabs with 10g × 38 mm plasterboard laminating screws. Fill the gaps '
+            'between the collar and the wall with FyreFLEX from the fixing-tab side. Leave the pipe unwrapped.'
+        )
+        return {**_INTRWALL_PEX_SOURCE, **_INTRWALL_PEX_CORRECTION}, steps, ['24SFR00065 specimen 5', 'Trafalgar IntRwall Penetrations']
+
     if number in _INTRWALL_CABLES:
         sealant, service, configuration, installed_service, gap = _INTRWALL_CABLES[number]
         expected = {

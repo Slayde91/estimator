@@ -28,6 +28,8 @@ from .technical_brand_presentation import present_manufacturer_fields
 from .technical_table_presentation import present_redundant_tables
 from .technical_installation_text import present_installation_fields
 from .installation_details_review import reviewed_installation_details
+from .trafalgar_fyre_batt_installation import present_verified_fyre_batt_service_sizes
+from .trafalgar_other_installation import present_verified_intrwall_pex_scope
 from .technical_prose import public_prose_fields
 from .library_diagram_names import validate_drawing_name, drawing_source_names, apply_drawing_names
 from .library_report_links import FIREFLY_REPORTS_URL, validate_report_links
@@ -353,6 +355,8 @@ class ReferenceLibrary:
                     # Resolved notice columns can leave another FRL-only table.
                     # Finish the shared display after those columns are removed.
                     present_manufacturer_fields(item)
+                    present_verified_fyre_batt_service_sizes(item)
+                    present_verified_intrwall_pex_scope(item)
                     text = [item.get(name, '') for name in ('title', 'subtitle', 'summary', 'source_label')]
                     text += field_text(public_prose_fields(item), assets, projected=True)
                     for source in item.get('sources', []):

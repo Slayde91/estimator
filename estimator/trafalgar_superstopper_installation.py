@@ -1,4 +1,4 @@
-"""Source-verified SuperSTOPPER Circular procedures for exact AFS selector rows."""
+"""Source-verified SuperSTOPPER procedures for exact selector configurations."""
 
 from typing import NamedTuple
 
@@ -84,10 +84,72 @@ _LOOSE_FILL = (
     'for 300 mm from the casing on each side.'
 )
 
+# FC10266-01-5 pp. 15, 23–24, 84 and 121 cover the fully wrapped COREX option,
+# including the Slab-Mount soffit fixing and the COREX-specific fillet exception.
+_COREX_FIELDS = {
+    'Manufacturer': 'Trafalgar',
+    'System Products': 'SuperSTOPPER Slab-Mount',
+    'Barrier Type': 'Shaft Walls',
+    'Orientation': 'Vertical',
+    'Barrier Construction': 'Trafalgar COREX (2x20mm)',
+    'Service': 'Cables - Fibre Optic',
+    'Service Size / Configuration': 'Fibre Optic Cables',
+    'FRL': '-/90/90',
+    'Annular Gap': 'up to 20mm',
+    'Service Wrap': '450mm',
+    'Seal Depth / Fillet Size': 'Full depth of Plasterboard (Both Sides) / No Fillet',
+    'Report Number': 'FC10266-01-5',
+}
+_COREX_SCOPE = (
+    'NBN fibre-optic cable through a laminated two-layer 20 mm A1 COREX wall rated -/90/90, using the '
+    'fully wrapped option. The wall and soffit must be suitable for the sized opening. The Slab-Mount '
+    'casing has a maximum width of 1250 mm. Size the lined opening for the casing and its movement clearance.'
+)
+_COREX_STEPS = (
+    'Frame the opening with 64 mm steel studs and line it with 20 mm COREX. Centre the upper section of '
+    'the Slab-Mount in the wall thickness and fix it to the concrete soffit with approved masonry anchors '
+    'at no more than 300 mm centres. Pass the cable through and clip the lower section into place.\n\n'
+    'Allow 5–20 mm clearance between the casing and lined opening for movement. Fit the steel mounting '
+    'flanges on both faces with 8g × 50 mm plasterboard screws at 200 mm centres. Fill the gap with '
+    'FyreFLEX to at least 20 mm deep from each face. Finish without a fillet.\n\n'
+    'Cut and fit the foam end plugs closely around the cable. Fill visible gaps with foam offcuts, '
+    'FyreFLEX or FyrePEX sealant. Wrap the entire penetration, including the flanges, with TWrap '
+    'extending at least 450 mm from each wall face. ' + _WRAP_FIXINGS
+)
+
+
+def _corex_slab_mount_fields(fields):
+    by_label = {field['label']: field for field in fields}
+    if (len(by_label) != len(fields)
+            or {'Installation Details', 'Assessment Scope', 'Source Issues'} & by_label.keys()
+            or any(by_label.get(label, {}).get('value') != value for label, value in _COREX_FIELDS.items())
+            or any(by_label.get(label, {}).get('value') for label in ('Maximum Opening Size', 'Max. Opening Size'))
+            or not any(link.get('url') == _REPORT_URL for link in by_label['Report Number'].get('report_links', []))):
+        return fields
+
+    corrections = {
+        'Service Size / Configuration': 'NBN fibre-optic cable',
+        'Annular Gap': '5–20 mm movement clearance around the casing',
+        'Service Wrap': 'At least 450 mm from each wall face, including the mounting flanges',
+        'Seal Depth / Fillet Size': 'At least 20 mm from each face / No fillet',
+    }
+    reviewed = [
+        {**field, 'value': corrections[field['label']]} if field['label'] in corrections else field
+        for field in fields
+    ]
+    index = reviewed.index(by_label['Report Number'])
+    reviewed[index:index] = [
+        {'label': 'Assessment Scope', 'value': _COREX_SCOPE, 'source_labels': ['FC10266-01-5']},
+        {'label': 'Installation Details', 'value': _COREX_STEPS, 'source_labels': ['FC10266-01-5']},
+    ]
+    return reviewed
+
 
 def trafalgar_superstopper_installation_fields(record, fields):
     """Add the verified procedure when the selected variant still matches the source."""
     system_id = record.get('id')
+    if system_id == 'trafalgar-selector-5731':
+        return _corex_slab_mount_fields(fields)
     service = _SERVICES.get(system_id)
     if not service:
         return fields

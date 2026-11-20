@@ -159,6 +159,7 @@ _BLADERUNNER_PIPES = {
 # 33, 49 and 52. FC10266-01-5 p. 9 records the FyreBOX name change.
 # https://tfire.com.au/documents/FyreBATT-Test-Report
 # SHA-256 c870d12130ce5eff058909f28bda5553caef26f7abe8ce2dd615583cdbbb047a.
+_FYREBATT_REPORT_URL = 'https://tfire.com.au/documents/FyreBATT-Test-Report'
 _FYREBATT_FIELDS = {
     'Manufacturer': 'Trafalgar',
     'System Products': 'FyreBATT 60, SuperSTOPPER Circular (150mm only)',
@@ -184,14 +185,21 @@ _FYREBATT_PATTRESS = (
     'Seal the perimeter and board joints with FyreFLEX. Form a 25 x 25 mm FyreFLEX fillet '
     'around the face-fixed board.'
 )
+_FYREBATT_PATTRESS_OVERLAP = _FYREBATT_PATTRESS + ' Overlap the opening by 100 mm on all sides.'
 _FYREBATT_FRICTION = (
     'Friction-fit two 60 mm FyreBATT layers into the opening. Seal the perimeter and any '
     'board joints with FyreFLEX.'
 )
 _FYREBATT_WALLS = {
+    '1165': (
+        'Walls', 'Single Layer FR Plasterboard (Min. 13mm)', '-/60/60', _FYREBATT_SMALL_WALL,
+        'Use a fire-rated steel-stud wall at least 90 mm thick with one 13 mm fire-rated plasterboard '
+        'layer on each face.', _FYREBATT_PATTRESS_OVERLAP,
+    ),
     '1183': (
         'Walls', 'Single Layer FR Plasterboard (Min. 16mm)', '-/90/90', _FYREBATT_SMALL_WALL,
-        'Use a fire-rated wall at least 90 mm thick with one 16 mm plasterboard layer on each face.',
+        'Use a fire-rated steel-stud wall at least 96 mm thick with one 16 mm fire-rated plasterboard '
+        'layer on each face.',
         _FYREBATT_PATTRESS,
     ),
     '1200': (
@@ -203,6 +211,11 @@ _FYREBATT_WALLS = {
         'Shaft Walls', 'Shaftliner (CH Stud 25mm + 2x16mm)', '-/120/120', _FYREBATT_LARGE_WALL,
         'Use a fire-rated CH stud shaft wall with 25 mm shaftliner and two 16 mm fire-rated board '
         'layers.', _FYREBATT_FRICTION,
+    ),
+    '1236': (
+        '', 'Hebel 75mm', 'Up to -/120/120', _FYREBATT_SMALL_WALL,
+        'Use a Hebel AAC wall at least 75 mm thick and assessed for the required fire rating.',
+        _FYREBATT_PATTRESS_OVERLAP,
     ),
     '1254': (
         '', 'Speedpanel', 'Up to -/120/120', _FYREBATT_SMALL_WALL,
@@ -229,6 +242,15 @@ _FYREBATT_FLOORS = {
     '1312': ('Concrete floor slabs', '-/180/180', 0, 'above the floor'),
     '1313': ('Concrete floor slabs', '-/180/120', 1, 'on both sides of the floor'),
     '4821': ('Steel Deck floor slabs', '-/180/120', 1, 'on both sides of the floor'),
+    '4822': ('Steel Deck floor slabs', '-/180/180', 0, 'above the floor'),
+}
+_FYREBATT_CORRECTIONS = {
+    '1165': {'Maximum Opening Size': 'Up to 600 mm high x 600 mm wide'},
+    '1236': {'Seal Depth / Fillet Size': 'Full depth around the casing / No casing fillet'},
+    '4822': {
+        'Barrier Construction': 'Concrete-filled KF70 steel deck floor slab',
+        'Service Size / Configuration': _FYREBATT_FLOOR_BUNDLES[0],
+    },
 }
 
 
@@ -246,14 +268,24 @@ def _fyrebatt_procedure(number):
         }
         if barrier_type:
             expected['Barrier Type'] = barrier_type
-        if number == '1183':
-            expected['System Products'] = 'FyreBATT 60, SuperSTOPPER Circular(150mm only)'
+        aperture_mm = aperture.removeprefix('Up to ').replace('mm', ' mm')
+        if number in {'1165', '1183'}:
             expected['Service Size / Configuration'] = (
                 '3x 20mm PVC drainpipe, 3x CAT6 cables, 3x electrical cables, '
                 'Up to 3x 3/8 + 5/8 paircoils with 19mm FR insulation'
             )
+        if number == '1183':
+            expected['System Products'] = 'FyreBATT 60, SuperSTOPPER Circular(150mm only)'
+        if number == '1165':
+            # Use the 600 x 600 mm branch supported by the 51 mm Speedpanel evidence
+            # cited for the 13 mm wall in pp. 74–76, with the TBD3 pattress from p. 42.
+            aperture_mm = _FYREBATT_CORRECTIONS[number]['Maximum Opening Size'].removeprefix('Up to ')
+        if number == '1236':
+            # TPD12 (pp. 11, 49, 113) requires full-depth sealing. TBD4 (pp. 42, 75, 107)
+            # defines the two-batt pattress arrangement and aperture limit for the Hebel wall.
+            expected['Seal Depth / Fillet Size'] = '100mm / No Fillet'
         steps = (
-            f'1. {construction} Keep the wall opening within {aperture.removeprefix("Up to ").replace("mm", " mm")}.\n'
+            f'1. {construction} Keep the wall opening within {aperture_mm}.\n'
             f'2. {batt_fit}\n'
             '3. Cut a nominal 170 mm opening in the batts. Install the 150 mm SuperSTOPPER '
             'Mini Round with the specified bundle. Secure its mounting flanges to the batts '
@@ -274,9 +306,18 @@ def _fyrebatt_procedure(number):
             'Maximum Opening Size': 'Up to 1200mm long x 600mm wide',
             'Service Size / Configuration': _FYREBATT_FLOOR_BUNDLES[bundle_index],
         }
+        if number == '4822':
+            # The steel-deck manual (p. 18) identifies the Mini R150/FyreFLEX single-coil
+            # -/180/180 configuration. TPD41 (pp. 23 and 125) gives the complete service bundle.
+            expected['Service Size / Configuration'] = '0'
         construction = ('Use a concrete floor at least 150 mm thick with the required fire rating.'
                         if barrier == 'Concrete floor slabs'
                         else 'Use a concrete-filled steel deck floor with the required fire rating.')
+        if number == '4822':
+            construction = (
+                'Use a concrete-filled KF70 steel deck floor rated for the required fire resistance with '
+                'the proposed opening. Fit the batt assembly to the concrete around the opening.'
+            )
         steps = (
             f'1. {construction} Keep the floor opening within 1200 x 600 mm.\n'
             f'2. {_FYREBATT_FRICTION}\n'
@@ -288,7 +329,7 @@ def _fyrebatt_procedure(number):
             'with steel cable ties.'
         )
         source.append('TPD42' if bundle_index else 'TPD41')
-        if number == '4821':
+        if barrier == 'Steel Deck floor slabs':
             source.append('Trafalgar Steel Deck Floor Systems')
         return expected, steps, source
     return None
@@ -384,7 +425,8 @@ def present_trafalgar_other_installation(record, fields):
     prefix = 'trafalgar-selector-'
     if not key.startswith(prefix):
         return fields
-    procedure = _procedure(key[len(prefix):])
+    number = key[len(prefix):]
+    procedure = _procedure(number)
     if procedure is None:
         return fields
     by_label = {field['label']: field for field in fields}
@@ -393,6 +435,18 @@ def present_trafalgar_other_installation(record, fields):
     expected, steps, sources = procedure
     if any(by_label.get(label, {}).get('value') != value for label, value in expected.items()):
         return fields
-    insertion = next(index for index, field in enumerate(fields) if field['label'] == 'Report Number')
-    return [*fields[:insertion], {'label': _INSTALLATION, 'value': steps,
-                                 'source_labels': sources}, *fields[insertion:]]
+    corrections = _FYREBATT_CORRECTIONS.get(number, {})
+    if corrections:
+        if ('Source Issues' in by_label
+                or not any(link.get('url') == _FYREBATT_REPORT_URL
+                           for link in by_label['Report Number'].get('report_links', []))):
+            return fields
+        if number == '1236' and by_label.get('Barrier Type', {}).get('value') not in (None, '', 'Walls'):
+            return fields
+    reviewed = [
+        {**field, 'value': corrections[field['label']]} if field['label'] in corrections else field
+        for field in fields
+    ]
+    insertion = reviewed.index(by_label['Report Number'])
+    reviewed.insert(insertion, {'label': _INSTALLATION, 'value': steps, 'source_labels': sources})
+    return reviewed

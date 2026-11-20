@@ -17,7 +17,47 @@ def afs_variant(system_id, service, size):
     return {'id': f'trafalgar-selector-{system_id}'}, fields
 
 
+def corex_variant():
+    record, fields = afs_variant(5731, 'Cables - Fibre Optic', 'Fibre Optic Cables')
+    values = {
+        'System Products': 'SuperSTOPPER Slab-Mount', 'Barrier Type': 'Shaft Walls',
+        'Barrier Construction': 'Trafalgar COREX (2x20mm)', 'FRL': '-/90/90', 'Service Wrap': '450mm',
+        'Seal Depth / Fillet Size': 'Full depth of Plasterboard (Both Sides) / No Fillet',
+    }
+    return record, [
+        {**field, 'value': values.get(field['label'], field['value'])}
+        for field in fields if field['label'] != 'Collar'
+    ]
+
+
 class TrafalgarSuperstopperInstallationTests(unittest.TestCase):
+    def test_corex_slab_mount_uses_the_exact_fully_wrapped_nbn_configuration(self):
+        record, fields = corex_variant()
+        result = trafalgar_superstopper_installation_fields(record, fields)
+        values = {field['label']: field['value'] for field in result}
+        self.assertEqual(values['Service Size / Configuration'], 'NBN fibre-optic cable')
+        self.assertEqual(values['Seal Depth / Fillet Size'], 'At least 20 mm from each face / No fillet')
+        self.assertIn('1250 mm', values['Assessment Scope'])
+        self.assertNotIn('Maximum Opening Size', values)
+        for clause in ('64 mm steel studs', 'concrete soffit', '5–20 mm clearance', '450 mm from each wall face'):
+            self.assertIn(clause, values['Installation Details'])
+        self.assertEqual(result[-1], fields[-1])
+        self.assertIs(trafalgar_superstopper_installation_fields(record, result), result)
+
+    def test_corex_slab_mount_preserves_changed_or_edited_configurations(self):
+        for label, value in (
+            ('Barrier Construction', 'Trafalgar COREX (2x16mm)'),
+            ('Service Wrap', '300mm'),
+            ('Maximum Opening Size', '1250 mm'),
+            ('Installation Details', 'Existing instructions'),
+            ('Source Issues', 'Unverified alteration'),
+        ):
+            with self.subTest(label=label):
+                record, fields = corex_variant()
+                fields = [field for field in fields if field['label'] != label]
+                fields.append({'label': label, 'value': value})
+                self.assertIs(trafalgar_superstopper_installation_fields(record, fields), fields)
+
     def test_exact_circular_configurations_get_plain_steps_and_service_scope(self):
         cases = [
             (8582, 'Pipes - Steel', 'Up to NB50', 'Uninsulated steel pipes up to NB50'),

@@ -870,7 +870,7 @@ class FirestoppingLibrary(ReferenceLibrary):
         return result
 
     def diagram_asset(self, key, thumbnail=False):
-        """Serve a saved diagram or the first immutable source diagram."""
+        """Serve a saved diagram or the first current library illustration."""
         with self._lock:
             identifier(key)
             data = self._load()
@@ -883,7 +883,7 @@ class FirestoppingLibrary(ReferenceLibrary):
             images = data['_records']['penetration'][key].get('images', [])
             if not images:
                 raise ReferenceNotFound()
-            payload, mime, filename = super().asset(images[0]['id'], False)
+            payload, mime, filename = self.display_asset(images[0]['id'])
             if not thumbnail:
                 return payload, mime, filename
             return self._source_thumbnail(images[0]['id'], payload), 'image/jpeg', f'{key}-thumbnail.jpg'

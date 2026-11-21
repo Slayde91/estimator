@@ -36,6 +36,7 @@ class ReplicaTests(unittest.TestCase):
         detail = deepcopy(self.library.detail('penetration', 'pkb-001'))
         self.assertEqual(self.library.image_replicas(), {'diagram-a': self.entry})
         self.assertEqual(self.library.replica_asset('diagram-a')[:2], (self.replica, 'image/png'))
+        self.assertEqual(self.library.display_asset('diagram-a')[0], self.replica)
         self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
         self.assertEqual(self.library.detail('penetration', 'pkb-001'), detail)
         self.assertEqual((self.root / 'library.json').read_bytes(), before)
@@ -47,6 +48,7 @@ class ReplicaTests(unittest.TestCase):
                 original = deepcopy(self.entry)
                 self.entry.update(change); self.write()
                 self.assertEqual(self.library.image_replicas(), {})
+                self.assertEqual(self.library.display_asset('diagram-a')[0], self.source)
                 with self.assertRaises(ReferenceNotFound):
                     self.library.replica_asset('diagram-a')
                 self.entry = original
@@ -64,6 +66,7 @@ class ReplicaTests(unittest.TestCase):
         (self.folder / 'index.json').write_text('{invalid', encoding='utf-8')
         self.assertEqual(self.library.image_replicas(), {})
         self.assertEqual(self.library.asset('diagram-a', False)[0], self.source)
+        self.assertEqual(self.library.display_asset('diagram-a')[0], self.source)
         (self.folder / 'index.json').unlink()
         self.assertEqual(self.library.image_replicas(), {})
 
